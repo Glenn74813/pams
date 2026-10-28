@@ -1,0 +1,107 @@
+package com.avtech.pams.auth;
+
+import com.avtech.pams.common.ApiException;
+import com.avtech.pams.common.Times;
+import com.avtech.pams.user.User;
+import com.avtech.pams.user.UserRepository;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.data.domain.Limit;
+import org.springframework.http.HttpStatus;
+import org.springframework.security.crypto.password.PasswordEncoder;
+import org.springframework.stereotype.Service;
+
+import java.time.LocalDateTime;
+import java.time.OffsetDateTime;
+import java.util.List;
+import java.util.Optional;
+
+@Service
+public class AuthService {
+
+    /** Compared against when the email is unknown, so a miss costs the same time as a wrong password. */
+    private final String dummyHash;
+
+    private final UserRepository users;
+    private final LoginAttemptRepository attempts;
+    private final RevokedTokenRepository revokedTokens;
+    private final PasswordEncoder passwordEncoder;
+    private final JwtService jwtService;
+    private final TotpService totp;
+    private final int maxAttempts;
+    private final int lockoutMinutes;
+
+    public AuthService(UserRepository users, LoginAttemptRepository attempts, RevokedTokenRepository revokedTokens,
+                       PasswordEncoder passwordEncoder, JwtService jwtService, TotpService totp,
+                       @Value("${pams.security.max-login-attempts}") int maxAttempts,
+                       @Value("${pams.security.lockout-minutes}") int lockoutMinutes) {
+        this.users = users;
+        this.attempts = attempts;
+        this.revokedTokens = revokedTokens;
+        this.passwordEncoder = passwordEncoder;
+        this.jwtService = jwtService;
+        this.totp = totp;
+        this.maxAttempts = maxAttempts;
+        this.lockoutMinutes = lockoutMinutes;
+        this.dummyHash = passwordEncoder.encode(java.util.UUID.randomUUID().toString());
+    }
+
+    public sealed interface LoginResult permits LoginResult.Success, LoginResult.TwoFactorRequired {
+        record Success(User user, JwtService.IssuedToken token) implements LoginResult {
+        }
+
+        record TwoFactorRequired() implements LoginResult {
+        }
+    }
+
+    /** Not transactional on purpose: every attempt row must be kept even when the login is refused. */
+    public LoginResult login(String email, String password, String otp, String ip, String userAgent) {
+        LocalDateTime windowStart = Times.now().minusMinutes(lockoutMinutes);
+
+        if (attempts.countFailedSince(email, windowStart) >= maxAttempts) {
+            record(email, ip, userAgent, false, "Account locked");
+            List<LocalDateTime> recent = attempts.failedTimesSince(email, windowStart, Limit.of(maxAttempts));
+            OffsetDateTime lockedUntil = recent.size() >= maxAttempts
+                    ? Times.toOffset(recent.get(maxAttempts - 1).plusMinutes(lockoutMinutes)) : null;
+            throw ApiException.of(HttpStatus.TOO_MANY_REQUESTS, "Too many failed login attempts. Please try again later.")
+                    .with("locked_until", lockedUntil);
+        }
+
+        Optional<User> found = users.findByEmailIgnoreCase(email);
+        boolean passwordOk = passwordEncoder.matches(password, found.map(User::getPasswordHash).orElse(dummyHash));
+        if (found.isEmpty() || !passwordOk) {
+            record(email, ip, userAgent, false, "Invalid credentials");
+            long failed = attempts.countFailedSince(email, windowStart);
+            throw ApiException.of(HttpStatus.UNAUTHORIZED, "Invalid credentials")
+                    .with("remaining_attempts", Math.max(0, maxAttempts - failed));
+        }
+
+        User user = found.get();
+        if (user.isTwoFactorEnabled()) {
+            if (otp == null || otp.isBlank()) {
+                return new LoginResult.TwoFactorRequired();
+            }
+            if (!totp.verify(user.getTwoFactorSecret(), otp)) {
+                record(email, ip, userAgent, false, "Invalid 2FA code");
+                throw ApiException.of(HttpStatus.UNAUTHORIZED, "Invalid authenticator code").with("two_factor_required", true);
+            }
+        }
+
+        record(email, ip, userAgent, true, null);
+        return new LoginResult.Success(user, jwtService.issue(user.getId()));
+    }
+
+    public void revoke(AuthPrincipal principal) {
+        LocalDateTime expires = LocalDateTime.ofInstant(principal.tokenExpiresAt(), Times.ZONE);
+        revokedTokens.save(new RevokedToken(principal.jti(), principal.user().getId(), expires, Times.now()));
+    }
+
+    /** New token for the same user; the presented one stops working immediately. */
+    public JwtService.IssuedToken refresh(AuthPrincipal principal) {
+        revoke(principal);
+        return jwtService.issue(principal.user().getId());
+    }
+
+    private void record(String email, String ip, String userAgent, boolean ok, String reason) {
+        attempts.save(new LoginAttempt(email, ip, userAgent, ok, reason));
+    }
+}

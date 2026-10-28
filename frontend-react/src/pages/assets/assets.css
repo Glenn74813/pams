@@ -1,0 +1,11 @@
+.asset-actions { display: flex; flex-wrap: wrap; gap: 0.5rem; margin-bottom: 1rem; }
+.inline-panel { border: 1px solid var(--border-color); background: var(--bg-secondary); border-radius: 8px; padding: 1rem; margin-bottom: 1rem; }
+.inline-panel h4 { margin-bottom: 0.75rem; }
+.unit-row { display: grid; grid-template-columns: 2.5rem 1fr 1fr 2rem; gap: 0.5rem; align-items: center; margin-bottom: 0.45rem; }
+.unit-row input { padding: 0.5rem 0.7rem; border: 1px solid var(--input-border); border-radius: 6px; background: var(--input-bg); color: var(--input-text); min-width: 0; }
+.workflow-actions { display: flex; gap: 0.4rem; flex-wrap: wrap; }
+.slip-table th { text-align: left; width: 30%; }
+@media (max-width: 640px) {
+  .unit-row { grid-template-columns: 2rem 1fr 2rem; }
+  .unit-row input:nth-of-type(2) { grid-column: 2; }
+}

@@ -1,0 +1,47 @@
+spring:
+  application:
+    name: pams-backend
+  config:
+    # Local secrets (DB password, JWT secret) live in backend-java/.env, which is gitignored.
+    import: optional:file:.env[.properties]
+  datasource:
+    url: ${DB_URL:jdbc:postgresql://127.0.0.1:5432/inventory}
+    username: ${DB_USERNAME:inventory}
+    password: ${DB_PASSWORD}
+  jpa:
+    open-in-view: false
+    hibernate:
+      ddl-auto: validate
+    properties:
+      hibernate:
+        # Timestamps are stored as Asia/Manila wall-clock time (inherited from the Laravel app).
+        jdbc.time_zone: Asia/Manila
+  flyway:
+    # The existing database was built by Laravel; V1 is a snapshot of that schema and is only
+    # executed on an empty database. Every schema change from now on is a Flyway migration.
+    baseline-on-migrate: true
+    baseline-version: 1
+  jackson:
+    property-naming-strategy: SNAKE_CASE
+  servlet:
+    multipart:
+      max-file-size: 10MB
+      max-request-size: 12MB
+
+server:
+  port: ${SERVER_PORT:8095}
+  error:
+    include-stacktrace: never
+    include-message: never
+
+pams:
+  timezone: Asia/Manila
+  storage:
+    public-dir: ${PAMS_STORAGE_DIR:storage/public}
+  jwt:
+    secret: ${PAMS_JWT_SECRET}
+    ttl-minutes: 60
+  security:
+    max-login-attempts: 5
+    lockout-minutes: 15
+    login-requests-per-minute: 5

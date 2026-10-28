@@ -1,0 +1,208 @@
+/* Light Theme - Default */
+:root,
+#app-container {
+  --bg-primary: #ffffff;
+  --bg-secondary: #f8f9fa;
+  --bg-tertiary: #e9ecef;
+  --text-dark: #212529;
+  --text-light: #6c757d;
+  --text-white: #ffffff;
+  --border-color: #dee2e6;
+  --primary-accent: #0d6efd;
+  --primary-hover: #0b5ed7;
+  --success: #198754;
+  --danger: #dc3545;
+  --warning: #ffc107;
+  --info: #0dcaf0;
+  --navbar-bg: #ffffff;
+  --navbar-text: #212529;
+  --sidebar-bg: #f8f9fa;
+  --sidebar-text: #212529;
+  --sidebar-hover: #e9ecef;
+  --shadow: 0 1px 3px rgba(0, 0, 0, 0.12);
+  --shadow-lg: 0 4px 12px rgba(0, 0, 0, 0.15);
+  --card-bg: #ffffff;
+  --input-bg: #ffffff;
+  --input-border: #d1d5db;
+  --input-text: #1f2937;
+  --table-header-bg: #f9fafb;
+  --table-border: #e5e7eb;
+  --table-hover: #f9fafb;
+  --modal-bg: #ffffff;
+  --badge-bg: #e9ecef;
+}
+
+/* Dark Theme - Chrome-style dark mode */
+:root[data-theme="dark"],
+:root [data-theme="dark"],
+#app-container[data-theme="dark"] {
+  --bg-primary: #202124;
+  --bg-secondary: #292a2d;
+  --bg-tertiary: #35363a;
+  --text-dark: #e8eaed;
+  --text-light: #9aa0a6;
+  --text-white: #e8eaed;
+  --border-color: #3c4043;
+  --primary-accent: #8ab4f8;
+  --primary-hover: #aecbfa;
+  --success: #81c995;
+  --danger: #f28b82;
+  --warning: #fdd663;
+  --info: #8ab4f8;
+  --navbar-bg: #292a2d;
+  --navbar-text: #e8eaed;
+  --sidebar-bg: #202124;
+  --sidebar-text: #e8eaed;
+  --sidebar-hover: #35363a;
+  --shadow: 0 1px 3px rgba(0, 0, 0, 0.5);
+  --shadow-lg: 0 4px 12px rgba(0, 0, 0, 0.6);
+  --card-bg: #292a2d;
+  --input-bg: #35363a;
+  --input-border: #5f6368;
+  --input-text: #e8eaed;
+  --table-header-bg: #35363a;
+  --table-border: #3c4043;
+  --table-hover: #35363a;
+  --modal-bg: #292a2d;
+  --badge-bg: #35363a;
+}
+
+/* Blue Theme */
+:root[data-theme="blue"],
+:root [data-theme="blue"],
+#app-container[data-theme="blue"] {
+  --bg-primary: #ffffff;
+  --bg-secondary: #eff6ff;
+  --bg-tertiary: #dbeafe;
+  --text-dark: #1f2937;
+  --text-light: #64748b;
+  --text-white: #ffffff;
+  --border-color: #bfdbfe;
+  --primary-accent: #2563eb;
+  --primary-hover: #1d4ed8;
+  --success: #16a34a;
+  --danger: #dc2626;
+  --warning: #f59e0b;
+  --info: #0ea5e9;
+  --navbar-bg: #ffffff;
+  --navbar-text: #1f2937;
+  --sidebar-bg: #eff6ff;
+  --sidebar-text: #1f2937;
+  --sidebar-hover: #dbeafe;
+  --shadow: 0 1px 3px rgba(37, 99, 235, 0.12);
+  --shadow-lg: 0 4px 14px rgba(37, 99, 235, 0.18);
+  --card-bg: #ffffff;
+  --input-bg: #ffffff;
+  --input-border: #cdddf5;
+  --input-text: #1f2937;
+  --table-header-bg: #eff6ff;
+  --table-border: #e3edfb;
+  --table-hover: #eff6ff;
+  --modal-bg: #ffffff;
+  --badge-bg: #dbeafe;
+}
+
+/* Green Theme */
+:root[data-theme="green"],
+:root [data-theme="green"],
+#app-container[data-theme="green"] {
+  --bg-primary: #ffffff;
+  --bg-secondary: #f0fdf4;
+  --bg-tertiary: #dcfce7;
+  --text-dark: #1f2937;
+  --text-light: #6b7280;
+  --text-white: #ffffff;
+  --border-color: #bbf7d0;
+  --primary-accent: #16a34a;
+  --primary-hover: #15803d;
+  --success: #16a34a;
+  --danger: #dc2626;
+  --warning: #f59e0b;
+  --info: #0ea5e9;
+  --navbar-bg: #ffffff;
+  --navbar-text: #1f2937;
+  --sidebar-bg: #f0fdf4;
+  --sidebar-text: #1f2937;
+  --sidebar-hover: #dcfce7;
+  --shadow: 0 1px 3px rgba(22, 163, 74, 0.12);
+  --shadow-lg: 0 4px 14px rgba(22, 163, 74, 0.18);
+  --card-bg: #ffffff;
+  --input-bg: #ffffff;
+  --input-border: #cae9d3;
+  --input-text: #1f2937;
+  --table-header-bg: #f0fdf4;
+  --table-border: #e3f6e9;
+  --table-hover: #f0fdf4;
+  --modal-bg: #ffffff;
+  --badge-bg: #dcfce7;
+}
+
+/* Red Theme */
+:root[data-theme="red"],
+:root [data-theme="red"],
+#app-container[data-theme="red"] {
+  --bg-primary: #ffffff;
+  --bg-secondary: #fef2f2;
+  --bg-tertiary: #fee2e2;
+  --text-dark: #1f2937;
+  --text-light: #6b7280;
+  --text-white: #ffffff;
+  --border-color: #fecaca;
+  --primary-accent: #dc2626;
+  --primary-hover: #b91c1c;
+  --success: #16a34a;
+  --danger: #dc2626;
+  --warning: #f59e0b;
+  --info: #0ea5e9;
+  --navbar-bg: #ffffff;
+  --navbar-text: #1f2937;
+  --sidebar-bg: #fef2f2;
+  --sidebar-text: #1f2937;
+  --sidebar-hover: #fee2e2;
+  --shadow: 0 1px 3px rgba(220, 38, 38, 0.12);
+  --shadow-lg: 0 4px 14px rgba(220, 38, 38, 0.18);
+  --card-bg: #ffffff;
+  --input-bg: #ffffff;
+  --input-border: #f3d0d0;
+  --input-text: #1f2937;
+  --table-header-bg: #fef2f2;
+  --table-border: #fbe3e3;
+  --table-hover: #fef2f2;
+  --modal-bg: #ffffff;
+  --badge-bg: #fee2e2;
+}
+
+/* Orange Theme - AVTECH Solutions brand (default) */
+:root[data-theme="orange"],
+:root [data-theme="orange"],
+#app-container[data-theme="orange"] {
+  --bg-primary: #ffffff;
+  --bg-secondary: #fff7ed;
+  --bg-tertiary: #ffedd5;
+  --text-dark: #1f2937;
+  --text-light: #78716c;
+  --text-white: #ffffff;
+  --border-color: #fed7aa;
+  --primary-accent: #ED5A2D;
+  --primary-hover: #C2410C;
+  --success: #16a34a;
+  --danger: #dc2626;
+  --warning: #f59e0b;
+  --info: #0ea5e9;
+  --navbar-bg: #ffffff;
+  --navbar-text: #1f2937;
+  --sidebar-bg: #fff7ed;
+  --sidebar-text: #1f2937;
+  --sidebar-hover: #ffedd5;
+  --shadow: 0 1px 3px rgba(237, 90, 45, 0.12);
+  --shadow-lg: 0 4px 14px rgba(237, 90, 45, 0.18);
+  --card-bg: #ffffff;
+  --input-bg: #ffffff;
+  --input-border: #e5d3c2;
+  --input-text: #1f2937;
+  --table-header-bg: #fff7ed;
+  --table-border: #f0e0d2;
+  --table-hover: #fff7ed;
+  --modal-bg: #ffffff;
+  --badge-bg: #ffedd5;
+}

@@ -1,0 +1,51 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "frontend",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": [
+        "--prefix",
+        "frontend",
+        "run",
+        "dev",
+        "--",
+        "--port",
+        "5180",
+        "--strictPort"
+      ],
+      "port": 5180
+    },
+    {
+      "name": "backend",
+      "runtimeExecutable": "php",
+      "runtimeArgs": [
+        "-S",
+        "127.0.0.1:8000",
+        "-t",
+        "Backend/public"
+      ],
+      "port": 8000
+    },
+    {
+      "name": "backend-java",
+      "runtimeExecutable": "bash",
+      "runtimeArgs": [
+        "-c",
+        "cd backend-java && exec ./mvnw -q -B spring-boot:run"
+      ],
+      "port": 8095
+    },
+    {
+      "name": "frontend-react",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": [
+        "--prefix",
+        "frontend-react",
+        "run",
+        "dev"
+      ],
+      "port": 5190
+    }
+  ]
+}
