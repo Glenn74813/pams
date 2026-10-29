@@ -48,6 +48,7 @@ hashes, Manila-time timestamps and table layout unchanged.
 | Procurement planning | `GET /api/procurement-planning/options`, `GET/POST ppmps`, `GET/PUT/DELETE ppmps/{id}`, `POST ppmps/{id}/submit`, `review`, `approve`, `return`, `GET apps`, `GET/PUT/DELETE apps/{id}`, `POST apps/generate`, `POST apps/{id}/approve`, `GET budget-summary` |
 | Purchase requests | `GET/POST /api/purchase-requests`, `GET/PUT/DELETE {id}`, `POST {id}/submit`, `cancel`, `approve-step`, `return`, `certify-funds` |
 | RFQ / alternative modes | `GET/POST /api/rfq`, `GET purchase-requests`, `GET/PUT/DELETE {id}`, `GET {id}/abstract`, `POST {id}/issue`, `close`, `cancel`, `award`, `noa`, `ntp`, `POST {id}/quotations`, `PUT/DELETE quotations/{id}` |
+| Competitive bidding | `GET/POST /api/bidding`, `GET purchase-requests`, `GET/PUT/DELETE {id}`, `PUT {id}/criteria`, `POST {id}/pre-proc`, `invitation`, `open-bids`, `bidders`, `declare-failed`, `cancel`, `award`, `noa`, `ntp`, `protests`, `observers`, `PUT/DELETE bidders/{id}`, `PUT bidders/{id}/scores`, `PUT protests/{id}`, `PUT/DELETE observers/{id}` |
 | BAC | `GET/POST /api/bac/members`, `PUT/DELETE members/{id}`, `GET/POST meetings`, `GET/PUT/DELETE meetings/{id}`, `POST meetings/{id}/attendance`, `GET/POST resolutions`, `GET/PUT/DELETE resolutions/{id}`, `POST resolutions/{id}/submit`, `return`, `approve`, `archive` |
 
 Same paths and snake_case JSON as Laravel. Security and integrity changes made on the way: tokens are re-checked
@@ -87,8 +88,17 @@ with fewer than 3 quotations. NOA and NTP numbers are generated. Laravel's black
 exist; eligibility now uses suppliers.is_active / is_eligible.
 BAC: composition is checked against RA 12009 (chair, vice-chair, 5+ voting members, secretariat); meetings record
 attendance and quorum (a majority of seated voting members); a resolution is approved by someone other than its
-drafter, only after submission, and only if the meeting it cites was held with a quorum. Not ported yet: BAC
-evaluations and competitive bidding (next slice).
+drafter, only after submission, and only if the meeting it cites was held with a quorum.
+Competitive bidding: lines come from an approved PR, planned for bidding, within quantity and estimated cost; a PR
+line is out on one RFQ or bidding at a time (failed and cancelled ones free it). ABC over ₱2M needs a pre-procurement
+conference; MEARB needs rated criteria totalling 100 before the Invitation to Bid. Bids are opened only after the
+submission deadline. Eligibility needs a sufficient bid security (2% cash/check/draft/LC, 5% surety bond, or a Bid
+Securing Declaration); stages run in order; a bid over the ABC fails financial. Responsive bids are ranked (lowest
+price, or MEARB price + rated score) and the top one is post-qualified, moving down only when it fails — Laravel
+ranked only bidders that had already passed post-qualification. The award goes to the post-qualified bidder, on an
+approved BAC award resolution, with no protest pending; NOA/NTP numbers are generated and share the RFQ series. A
+second failed bidding for a PR flags Negotiated Procurement. The MaxPETD timeline is shown per bidding. The separate
+BAC evaluations log (bac_evaluations) is not ported: each bidder's stage results are the evaluation record.
 
 Not ported yet: QR codes, Clone-PC assembly parts, receiving stock straight from an IAR line, the RSMI report and the Excel versions of the stock
 card, RIS, ICS and PAR (the React app prints RIS/ICS/PAR from the browser).

@@ -16,6 +16,7 @@ import { SemiExpendablePage } from './pages/issuance/SemiExpendablePage'
 import { WarehousePage } from './pages/inventory/WarehousePage'
 import { PlanningPage } from './pages/procurement/PlanningPage'
 import { RfqPage } from './pages/rfq/RfqPage'
+import { BiddingPage } from './pages/bidding/BiddingPage'
 import { BacPage } from './pages/bac/BacPage'
 import { PurchaseRequestsPage } from './pages/procurement/PurchaseRequestsPage'
 import { LoginPage } from './pages/LoginPage'
@@ -39,6 +40,7 @@ const ported: Record<string, React.ReactNode> = {
   '/procurement-planning': <PlanningPage />,
   '/purchase-requests': <PurchaseRequestsPage />,
   '/rfq': <RfqPage />,
+  '/bidding': <BiddingPage />,
   '/bac': <BacPage />,
 }
 

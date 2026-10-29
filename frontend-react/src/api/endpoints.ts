@@ -5,6 +5,8 @@ import type {
   BacMeeting,
   BacMember,
   BacResolution,
+  Bidding,
+  BiddingPrOption,
   Asset,
   AssetMove,
   BudgetSummary,
@@ -460,4 +462,59 @@ export const bacApi = {
   resolutionAction: (id: number, action: 'submit' | 'approve' | 'archive') => api<BacResolution>('POST', `/bac/resolutions/${id}/${action}`),
   returnResolution: (id: number, remarks: string) => api<BacResolution>('POST', `/bac/resolutions/${id}/return`, { remarks }),
   removeResolution: (id: number) => api<{ message: string }>('DELETE', `/bac/resolutions/${id}`),
+}
+
+export interface BiddingInput {
+  title: string
+  purchase_request_id: number
+  delivery_term?: string | null
+  delivery_lead_days?: number | null
+  evaluation_method: 'price' | 'mearb'
+  price_weight?: number
+  technical_weight?: number
+  remarks?: string | null
+  items: { purchase_request_item_id: number; quantity: number; abc_unit_cost?: number }[]
+}
+
+export interface BidderInput {
+  supplier_id?: number | null
+  supplier_name?: string
+  bid_amount?: number | null
+  bid_security_form?: string | null
+  bid_security_amount?: number | null
+  bid_security_posted?: boolean
+}
+
+const BD = '/bidding'
+
+export const biddingApi = {
+  list: (f: { page: number; status?: string; search?: string }) => api<Paged<Bidding>>('GET', BD, undefined, { params: f }),
+  get: (id: number) => api<Bidding>('GET', `${BD}/${id}`),
+  prOptions: () =>
+    api<{ data: BiddingPrOption[]; security_forms: string[]; protest_types: string[]; protest_statuses: string[]; observer_types: string[] }>('GET', `${BD}/purchase-requests`),
+  create: (input: BiddingInput) => api<Bidding>('POST', BD, input),
+  update: (id: number, input: BiddingInput) => api<Bidding>('PUT', `${BD}/${id}`, input),
+  remove: (id: number) => api<{ message: string }>('DELETE', `${BD}/${id}`),
+  criteria: (id: number, criteria: { name: string; weight: number; is_environmental?: boolean }[]) => api<Bidding>('PUT', `${BD}/${id}/criteria`, { criteria }),
+  preProc: (id: number, input: { pre_proc_date: string; pre_proc_notes?: string | null }) => api<Bidding>('POST', `${BD}/${id}/pre-proc`, input),
+  invitation: (id: number, input: { itb_reference?: string | null; itb_posted_at?: string; itb_publication?: string | null; submission_deadline: string; bid_opening_date?: string | null }) =>
+    api<Bidding>('POST', `${BD}/${id}/invitation`, input),
+  openBids: (id: number) => api<Bidding>('POST', `${BD}/${id}/open-bids`),
+  addBidder: (id: number, input: BidderInput) => api<Bidding>('POST', `${BD}/${id}/bidders`, input),
+  evaluate: (bidderId: number, input: { stage: string; result: string; remarks?: string }) => api<Bidding>('PUT', `${BD}/bidders/${bidderId}`, input),
+  removeBidder: (bidderId: number) => api<Bidding>('DELETE', `${BD}/bidders/${bidderId}`),
+  scores: (bidderId: number, scores: { bidding_criterion_id: number; score: number }[]) => api<Bidding>('PUT', `${BD}/bidders/${bidderId}/scores`, { scores }),
+  declareFailed: (id: number, reason: string) => api<{ bidding: Bidding; message: string; may_negotiate: boolean }>('POST', `${BD}/${id}/declare-failed`, { reason }),
+  cancel: (id: number, reason?: string) => api<Bidding>('POST', `${BD}/${id}/cancel`, { reason }),
+  award: (id: number, input: { bidder_id: number; bac_resolution_id: number; contract_recommendation?: string }) => api<Bidding>('POST', `${BD}/${id}/award`, input),
+  noa: (id: number) => api<Bidding>('POST', `${BD}/${id}/noa`, {}),
+  ntp: (id: number) => api<Bidding>('POST', `${BD}/${id}/ntp`, {}),
+  addProtest: (id: number, input: { protest_type: string; supplier_id?: number | null; filed_by?: string | null; grounds: string; filed_date?: string }) =>
+    api<Bidding>('POST', `${BD}/${id}/protests`, input),
+  updateProtest: (protestId: number, input: { status: string; resolution?: string; resolved_date?: string }) => api<Bidding>('PUT', `${BD}/protests/${protestId}`, input),
+  addObserver: (id: number, input: { name: string; organization?: string | null; observer_type: string; invited_date?: string | null }) =>
+    api<Bidding>('POST', `${BD}/${id}/observers`, input),
+  updateObserver: (observerId: number, input: { name: string; organization?: string | null; observer_type: string; invited?: boolean; invited_date?: string | null; attended?: boolean }) =>
+    api<Bidding>('PUT', `${BD}/observers/${observerId}`, input),
+  removeObserver: (observerId: number) => api<Bidding>('DELETE', `${BD}/observers/${observerId}`),
 }

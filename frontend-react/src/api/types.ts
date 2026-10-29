@@ -758,3 +758,122 @@ export interface BacResolution {
   can_delete: boolean
   created_at: string
 }
+
+// ── Competitive bidding ──
+
+export type BiddingStatus = 'draft' | 'pre_procurement' | 'invitation' | 'bid_opening' | 'evaluation' | 'awarded' | 'failed' | 'cancelled'
+export type StageResult = 'pending' | 'passed' | 'failed'
+
+export interface Bidder {
+  id: number
+  supplier: NamedRef
+  supplier_eligible: boolean
+  bid_amount: number | null
+  over_abc: boolean
+  bid_security_form: string | null
+  bid_security_amount: number | null
+  bid_security_posted: boolean
+  bid_security_required: number | null
+  bid_security_ok: boolean
+  results: Record<'eligibility' | 'technical' | 'financial' | 'post_qualification', StageResult>
+  scores: Record<string, number>
+  rated_score: number | null
+  mearb_score: number | null
+  computed_rank: number | null
+  post_qual_turn: boolean
+  is_winner: boolean
+  remarks: string | null
+}
+
+export interface BidProtest {
+  id: number
+  protest_type: string
+  supplier: NamedRef | null
+  filed_by: string | null
+  grounds: string
+  filed_date: string
+  protest_fee: number | null
+  status: string
+  resolution: string | null
+  resolved_date: string | null
+}
+
+export interface BidObserver {
+  id: number
+  name: string
+  organization: string | null
+  observer_type: string
+  invited: boolean
+  invited_date: string | null
+  attended: boolean
+  remarks: string | null
+}
+
+export interface Bidding {
+  id: number
+  bidding_number: string
+  title: string
+  status: BiddingStatus
+  abc: number
+  purchase_request: NamedRef | null
+  department: NamedRef | null
+  preparer: NamedRef | null
+  delivery_term: string | null
+  delivery_lead_days: number | null
+  evaluation_method: 'price' | 'mearb'
+  price_weight: number
+  technical_weight: number
+  pre_proc_date: string | null
+  pre_proc_notes: string | null
+  pre_proc_required: boolean
+  itb_reference: string | null
+  itb_posted_at: string | null
+  itb_publication: string | null
+  submission_deadline: string | null
+  deadline_passed: boolean
+  bid_opening_date: string | null
+  awarded_supplier: NamedRef | null
+  awarded_amount: number | null
+  awarded_at: string | null
+  bac_resolution: NamedRef | null
+  noa_number: string | null
+  noa_date: string | null
+  ntp_number: string | null
+  ntp_date: string | null
+  contract_recommendation: string | null
+  failure_reason: string | null
+  failed_count: number
+  remarks: string | null
+  bidders_count: number
+  items: RfqLine[] | null
+  criteria: { id: number; name: string; weight: number; is_environmental: boolean }[] | null
+  bidders: Bidder[] | null
+  protests: BidProtest[] | null
+  observers: BidObserver[] | null
+  recommended_bidder_id: number | null
+  next_post_qual_bidder_id: number | null
+  open_protests: number
+  observers_invited: number
+  timeline: { key: string; label: string; from: string | null; to: string | null; max_days: number; elapsed_days: number | null; breached: boolean; pending: boolean }[] | null
+  can_edit: boolean
+  can_schedule: boolean
+  can_open: boolean
+  can_record_bids: boolean
+  can_evaluate: boolean
+  can_award: boolean
+  can_noa: boolean
+  can_ntp: boolean
+  can_fail: boolean
+  can_cancel: boolean
+  can_delete: boolean
+  created_at: string
+}
+
+export interface BiddingPrOption {
+  id: number
+  pr_number: string
+  purpose: string | null
+  department: string
+  failed_biddings: number
+  lines: RfqPrOption['lines']
+}

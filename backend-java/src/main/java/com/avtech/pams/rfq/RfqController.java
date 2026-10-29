@@ -9,6 +9,8 @@ import com.avtech.pams.common.DocumentNumbers;
 import com.avtech.pams.common.PageResponse;
 import com.avtech.pams.common.Times;
 import com.avtech.pams.notification.NotificationService;
+import com.avtech.pams.procurement.AwardSupport;
+import com.avtech.pams.procurement.PrLineUsage;
 import com.avtech.pams.procurement.ProcurementRules;
 import com.avtech.pams.user.User;
 import com.avtech.pams.user.UserRepository;
@@ -66,18 +68,22 @@ public class RfqController {
     private final BacResolutionRepository resolutions;
     private final UserRepository users;
     private final ProcurementRules rules;
+    private final PrLineUsage usage;
+    private final AwardSupport awards;
     private final DocumentNumbers numbers;
     private final NotificationService notifications;
     private final AuditService audit;
     private final CurrentUser current;
     private final JdbcTemplate jdbc;
 
-    public RfqController(RfqRepository rfqs, BacResolutionRepository resolutions, UserRepository users, ProcurementRules rules,
+    public RfqController(RfqRepository rfqs, BacResolutionRepository resolutions, UserRepository users, ProcurementRules rules, PrLineUsage usage, AwardSupport awards,
                          DocumentNumbers numbers, NotificationService notifications, AuditService audit, CurrentUser current, JdbcTemplate jdbc) {
         this.rfqs = rfqs;
         this.resolutions = resolutions;
         this.users = users;
         this.rules = rules;
+        this.usage = usage;
+        this.awards = awards;
         this.numbers = numbers;
         this.notifications = notifications;
         this.audit = audit;
@@ -145,7 +151,7 @@ public class RfqController {
     @PreAuthorize("@perm.any('create_rfq')")
     @Transactional(readOnly = true)
     public Map<String, Object> prOptions() {
-        Map<Long, Integer> taken = takenByPrLine(null, null);
+        Map<Long, Integer> taken = usage.taken(null, null, null);
         Map<Long, PrOption> byPr = new LinkedHashMap<>();
         jdbc.query("""
                 select pr.id, pr.pr_number, pr.purpose, d.name, pr.total_amount,
@@ -318,7 +324,7 @@ public class RfqController {
         if (r.isSingleSource() && !r.getQuotations().isEmpty()) {
             throw ApiException.of(HttpStatus.CONFLICT, r.getProcurementMethod() + " is a single-source method; this RFQ already has its quotation.");
         }
-        Long supplierId = supplier(in);
+        Long supplierId = awards.supplier(in.supplierId(), in.supplierName());
         if (r.getQuotations().stream().anyMatch(q -> q.getSupplierId().equals(supplierId))) {
             throw ApiException.validation("supplier_id", "This supplier already has a quotation on this RFQ.");
         }
@@ -347,7 +353,7 @@ public class RfqController {
         q.recalc();
         r.getQuotations().add(q);
         rfqs.flush();
-        audit.record("quotation_recorded", TYPE, r.getId(), "Quotation of " + supplierName(supplierId) + " (₱" + ProcurementRules.peso(q.getTotalAmount()) + ") recorded for RFQ " + r.getRfqNumber(),
+        audit.record("quotation_recorded", TYPE, r.getId(), "Quotation of " + awards.supplierName(supplierId) + " (₱" + ProcurementRules.peso(q.getTotalAmount()) + ") recorded for RFQ " + r.getRfqNumber(),
                 null, Map.of("supplier_id", supplierId, "total_amount", q.getTotalAmount()));
         return ResponseEntity.status(HttpStatus.CREATED).body(views(List.of(r), true).get(r));
     }
@@ -369,7 +375,7 @@ public class RfqController {
         q.setResponsive(responsive);
         if (why != null) q.setRemarks(why);
         rfqs.flush();
-        audit.record("updated", TYPE, r.getId(), "Quotation of " + supplierName(q.getSupplierId()) + " marked " + (responsive ? "responsive" : "non-responsive: " + why),
+        audit.record("updated", TYPE, r.getId(), "Quotation of " + awards.supplierName(q.getSupplierId()) + " marked " + (responsive ? "responsive" : "non-responsive: " + why),
                 null, Map.of("quotation_id", q.getId(), "is_responsive", responsive));
         return views(List.of(r), true).get(r);
     }
@@ -384,7 +390,7 @@ public class RfqController {
         RfqQuotation q = r.getQuotations().stream().filter(x -> x.getId().equals(quotationId)).findFirst().orElseThrow();
         r.getQuotations().remove(q);
         rfqs.flush();
-        audit.record("updated", TYPE, r.getId(), "Removed the quotation of " + supplierName(q.getSupplierId()) + " from RFQ " + r.getRfqNumber(),
+        audit.record("updated", TYPE, r.getId(), "Removed the quotation of " + awards.supplierName(q.getSupplierId()) + " from RFQ " + r.getRfqNumber(),
                 Map.of("supplier_id", q.getSupplierId(), "total_amount", q.getTotalAmount()), null);
         return views(List.of(r), true).get(r);
     }
@@ -405,11 +411,11 @@ public class RfqController {
         RfqQuotation q = r.getQuotations().stream().filter(x -> x.getId().equals(in.quotationId())).findFirst()
                 .orElseThrow(() -> ApiException.validation("quotation_id", "Choose a quotation on this RFQ."));
         if (!q.isResponsive()) throw ApiException.validation("quotation_id", "That quotation was found non-responsive.");
-        if (!eligible(q.getSupplierId())) throw ApiException.validation("quotation_id", supplierName(q.getSupplierId()) + " is inactive or not eligible.");
+        if (!awards.eligible(q.getSupplierId())) throw ApiException.validation("quotation_id", awards.supplierName(q.getSupplierId()) + " is inactive or not eligible.");
         if (r.getAbc().signum() > 0 && q.getTotalAmount().compareTo(r.getAbc()) > 0) {
             throw ApiException.validation("quotation_id", "₱" + ProcurementRules.peso(q.getTotalAmount()) + " exceeds the ABC of ₱" + ProcurementRules.peso(r.getAbc()) + " (RA 12009).");
         }
-        BigDecimal lowest = r.getQuotations().stream().filter(x -> x.isResponsive() && eligible(x.getSupplierId())
+        BigDecimal lowest = r.getQuotations().stream().filter(x -> x.isResponsive() && awards.eligible(x.getSupplierId())
                         && (r.getAbc().signum() == 0 || x.getTotalAmount().compareTo(r.getAbc()) <= 0))
                 .map(RfqQuotation::getTotalAmount).min(BigDecimal::compareTo).orElseThrow();
         if (q.getTotalAmount().compareTo(lowest) > 0) {
@@ -421,17 +427,7 @@ public class RfqController {
             throw ApiException.validation("remarks", "Only " + r.getQuotations().size() + " quotation(s) were received; at least " + MIN_QUOTATIONS
                     + " are expected. Record the justification for awarding anyway.");
         }
-        BacResolution res = resolutions.findLive(in.bacResolutionId() == null ? -1L : in.bacResolutionId())
-                .orElseThrow(() -> ApiException.validation("bac_resolution_id", "Cite the approved BAC resolution recommending this award."));
-        if (!BacResolution.APPROVED.equals(res.getStatus())) throw ApiException.validation("bac_resolution_id", res.getResolutionNumber() + " is not approved.");
-        if (!BacResolution.AWARD_TYPES.contains(res.getType())) throw ApiException.validation("bac_resolution_id", res.getResolutionNumber() + " is not a resolution recommending an award.");
-        if (!Objects.equals(res.getPurchaseRequestId(), r.getPurchaseRequestId())) {
-            throw ApiException.validation("bac_resolution_id", res.getResolutionNumber() + " is for a different purchase request.");
-        }
-        Integer reused = jdbc.queryForObject("""
-                select (select count(*) from rfqs where bac_resolution_id = ? and id <> ? and deleted_at is null and status <> 'cancelled')
-                     + (select count(*) from biddings where bac_resolution_id = ? and deleted_at is null)""", Integer.class, res.getId(), r.getId(), res.getId());
-        if (reused != null && reused > 0) throw ApiException.validation("bac_resolution_id", res.getResolutionNumber() + " already backs another award.");
+        BacResolution res = awards.resolution(in.bacResolutionId(), r.getPurchaseRequestId(), r.getId(), null);
         r.getQuotations().forEach(x -> x.setWinner(false));
         q.setWinner(true);
         r.setStatus(Rfq.AWARDED);
@@ -440,10 +436,10 @@ public class RfqController {
         r.setBacResolutionId(res.getId());
         if (why != null) r.setRemarks(why);
         rfqs.flush();
-        audit.record("awarded", TYPE, r.getId(), "RFQ " + r.getRfqNumber() + " awarded to " + supplierName(q.getSupplierId()) + " (₱" + ProcurementRules.peso(q.getTotalAmount())
+        audit.record("awarded", TYPE, r.getId(), "RFQ " + r.getRfqNumber() + " awarded to " + awards.supplierName(q.getSupplierId()) + " (₱" + ProcurementRules.peso(q.getTotalAmount())
                 + ") on " + res.getResolutionNumber(), Map.of("status", "closed"), Map.of("status", "awarded", "supplier_id", q.getSupplierId(), "amount", q.getTotalAmount()));
         notifications.notifyPermission(List.of("create_rfq", "view_procurement"), me.getId(), "rfq_awarded", "RFQ awarded",
-                r.getRfqNumber() + " was awarded to " + supplierName(q.getSupplierId()) + ".", TYPE, r.getId());
+                r.getRfqNumber() + " was awarded to " + awards.supplierName(q.getSupplierId()) + ".", TYPE, r.getId());
         return views(List.of(r), true).get(r);
     }
 
@@ -506,7 +502,7 @@ public class RfqController {
                     prLines.put(rs.getLong(1), new PrLine(rs.getLong(1), rs.getString(2), rs.getString(3), rs.getString(4), rs.getInt(5), rs.getBigDecimal(6), rs.getString(7)));
                 }, in.purchaseRequestId());
         if (in.items() == null || in.items().isEmpty()) throw ApiException.validation("items", "Add at least one line from the purchase request.");
-        Map<Long, Integer> taken = takenByPrLine(in.purchaseRequestId(), r.getId());
+        Map<Long, Integer> taken = usage.taken(in.purchaseRequestId(), r.getId(), null);
         Set<Long> seen = new HashSet<>();
         List<RfqItem> lines = new ArrayList<>();
         for (int i = 0; i < in.items().size(); i++) {
@@ -520,8 +516,8 @@ public class RfqController {
             }
             int qty = it.quantity() == null ? p.quantity() - taken.getOrDefault(p.id(), 0) : it.quantity();
             int left = p.quantity() - taken.getOrDefault(p.id(), 0);
-            if (qty < 1) throw ApiException.validation(f + "quantity", "Nothing is left of \"" + p.description() + "\" to put on an RFQ.");
-            if (qty > left) throw ApiException.validation(f + "quantity", "\"" + p.description() + "\": " + qty + " asked, but only " + left + " of " + p.quantity() + " are not on another RFQ.");
+            if (qty < 1) throw ApiException.validation(f + "quantity", "Nothing is left of \"" + p.description() + "\"; it is already on another RFQ or bidding.");
+            if (qty > left) throw ApiException.validation(f + "quantity", "\"" + p.description() + "\": " + qty + " asked, but only " + left + " of " + p.quantity() + " are not already on another RFQ or bidding.");
             BigDecimal cost = it.abcUnitCost() == null ? p.unitCost() : it.abcUnitCost();
             if (cost.signum() < 0 || cost.scale() > 2) throw ApiException.validation(f + "abc_unit_cost", "Line " + (i + 1) + ": enter the ABC per unit in pesos.");
             if (cost.compareTo(p.unitCost()) > 0) {
@@ -558,47 +554,6 @@ public class RfqController {
         return new RfqInput(r.getTitle(), r.getProcurementMethod(), r.getPurchaseRequestId(), r.getDeadline(), r.getDeliveryTerm(), r.getDeliveryLeadDays(),
                 r.getDescription(), r.getJustification(), r.getItems().stream().map(i -> new ItemInput(i.getPurchaseRequestItemId(), i.getQuantity(),
                 i.getAbcUnitCost(), i.getSpecifications(), i.getDeliveryLeadTime())).toList());
-    }
-
-    /** Quantity of each PR line already on live, uncancelled RFQs (optionally one PR only, leaving out one RFQ). */
-    private Map<Long, Integer> takenByPrLine(Long prId, Long exceptRfq) {
-        Map<Long, Integer> out = new HashMap<>();
-        jdbc.query("""
-                select ri.purchase_request_item_id, sum(ri.quantity) from rfq_items ri join rfqs r on r.id = ri.rfq_id
-                where r.deleted_at is null and r.status <> 'cancelled' and ri.purchase_request_item_id is not null
-                  and (cast(? as bigint) is null or r.purchase_request_id = ?) and r.id <> ?
-                group by ri.purchase_request_item_id""", rs -> {
-            out.put(rs.getLong(1), rs.getInt(2));
-        }, prId, prId, exceptRfq == null ? -1L : exceptRfq);
-        return out;
-    }
-
-    /** The supplier quoting: an existing one by id, or one named here and added to the supplier list. */
-    private Long supplier(QuotationInput in) {
-        if (in.supplierId() != null) {
-            if (!eligible(in.supplierId())) throw ApiException.validation("supplier_id", "That supplier is inactive or not eligible.");
-            return in.supplierId();
-        }
-        String name = text(in.supplierName());
-        if (name == null) throw ApiException.validation("supplier_id", "Choose or name the supplier.");
-        if (name.length() > 255) throw ApiException.validation("supplier_name", "The supplier name is too long.");
-        List<Long> found = jdbc.queryForList("select id from suppliers where lower(name) = lower(?) order by id limit 1", Long.class, name);
-        if (!found.isEmpty()) {
-            if (!eligible(found.get(0))) throw ApiException.validation("supplier_name", name + " is inactive or not eligible.");
-            return found.get(0);
-        }
-        return jdbc.queryForObject("insert into suppliers (name, is_active, is_eligible, is_msme, created_at, updated_at) values (?, true, true, false, ?, ?) returning id",
-                Long.class, name, java.sql.Timestamp.valueOf(Times.now()), java.sql.Timestamp.valueOf(Times.now()));
-    }
-
-    private boolean eligible(Long supplierId) {
-        Boolean ok = jdbc.query("select is_active and is_eligible from suppliers where id = ?", rs -> rs.next() ? rs.getBoolean(1) : null, supplierId);
-        return Boolean.TRUE.equals(ok);
-    }
-
-    private String supplierName(Long id) {
-        List<String> n = jdbc.queryForList("select name from suppliers where id = ?", String.class, id);
-        return n.isEmpty() ? "supplier #" + id : n.get(0);
     }
 
     private boolean awardable(QuotationView q) {
