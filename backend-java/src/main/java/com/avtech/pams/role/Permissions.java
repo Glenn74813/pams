@@ -174,7 +174,8 @@ public final class Permissions {
         m.put("audit", List.of("view_audit_trail"));
         m.put("log-trails", List.of("view_log_trails"));
         m.put("users", List.of("view_users"));
-        m.put("settings", List.of("view_settings"));
+        // Everyone manages their own password, 2FA and signature here; the admin tabs check their own permissions.
+        m.put("settings", List.of());
         return m;
     }
 

@@ -1,7 +1,7 @@
 import { useState, type FormEvent } from 'react'
 import { Navigate, useLocation, useNavigate } from 'react-router'
 import { ApiError } from '../api/client'
-import { useAuth } from '../auth/AuthContext'
+import { IDLE_FLAG, useAuth } from '../auth/AuthContext'
 import { PasswordInput } from '../components/PasswordInput'
 import './LoginPage.css'
 
@@ -23,6 +23,15 @@ export function LoginPage() {
   const [error, setError] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
   const [showForgot, setShowForgot] = useState(false)
+  const [idleMinutes] = useState(() => {
+    try {
+      const v = sessionStorage.getItem(IDLE_FLAG)
+      sessionStorage.removeItem(IDLE_FLAG)
+      return v
+    } catch {
+      return null
+    }
+  })
 
   const from = (location.state as { from?: string } | null)?.from ?? '/dashboard'
   if (user) return <Navigate to={from} replace />
@@ -133,6 +142,7 @@ export function LoginPage() {
                 <div className="alert alert-info">Please contact your system administrator to reset your password.</div>
               )}
 
+              {idleMinutes && !error && <div className="alert alert-info">You were signed out after {idleMinutes} minutes without activity.</div>}
               {error && <div className="alert alert-error">{error}</div>}
 
               <button type="submit" className="btn-login" disabled={busy}>

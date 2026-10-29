@@ -1,5 +1,6 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { NavLink, Outlet, useLocation } from 'react-router'
+import { auditApi } from '../api/endpoints'
 import { useAuth } from '../auth/AuthContext'
 import { dashboardItem, menuGroups } from './menu'
 import { ThemeSelect } from './ThemeSelect'
@@ -26,6 +27,18 @@ export function AppLayout() {
   const [collapsed, setCollapsed] = useState<Record<string, boolean>>({})
   const [userMenuOpen, setUserMenuOpen] = useState(false)
   const [shownPath, setShownPath] = useState(location.pathname)
+
+  // Printing is recorded in the audit trail (TOR 6.4), whether from a Print button or the browser menu.
+  useEffect(() => {
+    const onPrint = () => {
+      const slip = document.querySelector('.print-area .slip-title')?.textContent?.trim()
+      const modal = document.querySelector('.modal h3')?.textContent?.trim()
+      const what = [slip, modal].filter(Boolean).join(' — ') || document.title
+      void auditApi.event('printed', `Printed ${what} (${window.location.pathname})`)
+    }
+    window.addEventListener('beforeprint', onPrint)
+    return () => window.removeEventListener('beforeprint', onPrint)
+  }, [])
 
   // Navigating closes the mobile sidebar and the user menu.
   if (shownPath !== location.pathname) {
@@ -108,6 +121,9 @@ export function AppLayout() {
             {userMenuOpen && (
               <div className="user-menu-panel" role="menu">
                 <div className="user-menu-role">{user.role.name}</div>
+                <NavLink className="user-menu-item" role="menuitem" to="/settings">
+                  <span className="user-menu-icon">⚙</span> My account
+                </NavLink>
                 <button className="user-menu-item logout" role="menuitem" onClick={() => void logout()}>
                   <span className="user-menu-icon">⏻</span> Logout
                 </button>

@@ -63,15 +63,15 @@ export const menuGroups: MenuGroup[] = [
       { path: '/procurement-reports', icon: '📑', label: 'Procurement Reports', module: 'reports', ported: false },
       { path: '/apcpi', icon: '✅', label: 'APCPI Self-Assessment', module: 'reports', ported: false },
       { path: '/documents', icon: '🗂️', label: 'Documents', module: 'documents', ported: false },
-      { path: '/audit', icon: '🛡️', label: 'Audit Trail', module: 'audit', ported: false },
-      { path: '/log-trails', icon: '📋', label: 'Log Trails', module: 'log-trails', ported: false },
+      { path: '/audit', icon: '🛡️', label: 'Audit Trail', module: 'audit', ported: true },
+      { path: '/log-trails', icon: '📋', label: 'Log Trails', module: 'log-trails', ported: true },
     ],
   },
   {
     key: 'administration', label: 'Administration', icon: '⚙️',
     children: [
       { path: '/users', icon: '👥', label: 'Users & Roles', module: 'users', ported: true },
-      { path: '/settings', icon: '⚙️', label: 'Settings', module: 'settings', ported: false },
+      { path: '/settings', icon: '⚙️', label: 'Settings', module: 'settings', ported: true },
     ],
   },
 ]

@@ -230,3 +230,4 @@
   .sidebar-backdrop { display: block; position: fixed; inset: 62px 0 0 0; background: rgba(0, 0, 0, 0.3); z-index: 998; }
   .main-content { padding: 1rem; }
 }
+a.user-menu-item { text-decoration: none; }

@@ -34,6 +34,14 @@ import type {
   CountDetail,
   PhysicalCount,
   CountType,
+  SystemSettings,
+  MisSettings,
+  SignatoryAssignment,
+  DocumentLogo,
+  AuditEntry,
+  InventoryLogEntry,
+  LoginAttemptEntry,
+  ActiveUser,
   LoginResponse,
   Paged,
   PermissionCatalogue,
@@ -53,7 +61,17 @@ export const authApi = {
   login: (email: string, password: string, otp?: string) =>
     api<LoginResponse>('POST', '/auth/login', { email, password, otp: otp || undefined }, { skipAuthRedirect: true }),
   me: () => api<AuthUser>('GET', '/auth/me'),
-  logout: () => api<{ message: string }>('POST', '/auth/logout', undefined, { skipAuthRedirect: true }),
+  logout: (reason?: 'idle') => api<{ message: string }>('POST', '/auth/logout', reason ? { reason } : undefined, { skipAuthRedirect: true }),
+  changePassword: (input: { current_password: string; password: string; password_confirmation: string }) => api<{ message: string }>('POST', '/auth/change-password', input),
+  uploadSignature: (file: File) => {
+    const fd = new FormData()
+    fd.append('signature', file)
+    return api<{ message: string; signature_image: string | null }>('POST', '/auth/signature', fd)
+  },
+  removeSignature: () => api<{ message: string }>('DELETE', '/auth/signature'),
+  setupTwoFactor: () => api<{ secret: string; otpauth_uri: string; message: string }>('POST', '/auth/2fa/setup'),
+  enableTwoFactor: (otp: string) => api<{ message: string }>('POST', '/auth/2fa/enable', { otp }),
+  disableTwoFactor: (password: string) => api<{ message: string }>('POST', '/auth/2fa/disable', { password }),
 }
 
 export interface UserInput {
@@ -693,4 +711,53 @@ export const physicalCountApi = {
   complete: (id: number) => api<CountDetail>('POST', `${PC}/${id}/complete`),
   sendBack: (id: number, remarks: string) => api<CountDetail>('POST', `${PC}/${id}/return`, { remarks }),
   verify: (id: number) => api<CountDetail>('POST', `${PC}/${id}/verify`),
+}
+
+export const settingsApi = {
+  system: () => api<SystemSettings>('GET', '/settings'),
+  updateSystem: (input: SystemSettings) => api<SystemSettings & { message: string }>('PUT', '/settings', input),
+  mis: () => api<MisSettings>('GET', '/settings/mis'),
+  updateMis: (input: MisSettings) => api<MisSettings & { message: string }>('PUT', '/settings/mis', input),
+  signatories: () => api<{ signatories: SignatoryAssignment[]; users: { id: number; name: string; has_signature: boolean }[] }>('GET', '/settings/signatories'),
+  updateSignatories: (rows: { role_key: string; user_id: number | null }[]) =>
+    api<{ message: string; signatories: SignatoryAssignment[] }>('PUT', '/settings/signatories', { signatories: rows }),
+  logos: () => api<{ logos: DocumentLogo[]; positions: string[] }>('GET', '/settings/document-logos'),
+  addLogo: (file: File, position: string, label: string) => {
+    const fd = new FormData()
+    fd.append('logo', file)
+    fd.append('position', position)
+    if (label) fd.append('label', label)
+    return api<DocumentLogo>('POST', '/settings/document-logos', fd)
+  },
+  updateLogo: (id: number, input: { position?: string; sequence?: number; label?: string | null }) => api<DocumentLogo>('PUT', `/settings/document-logos/${id}`, input),
+  removeLogo: (id: number) => api<{ message: string }>('DELETE', `/settings/document-logos/${id}`),
+}
+
+export interface AuditFilter {
+  page: number
+  per_page?: number
+  user_id?: number
+  action?: string
+  auditable_type?: string
+  search?: string
+  start_date?: string
+  end_date?: string
+}
+
+export const auditApi = {
+  list: (f: AuditFilter) => api<Paged<AuditEntry>>('GET', '/audit', undefined, { params: { ...f } }),
+  get: (id: number) => api<AuditEntry>('GET', `/audit/${id}`),
+  filters: () => api<{ actions: string[]; types: string[]; users: { id: number; name: string }[] }>('GET', '/audit/filters'),
+  /** Records a print or download the server could not see (best effort). */
+  event: (action: 'printed' | 'downloaded', description: string, auditable_type?: string, auditable_id?: number) =>
+    api<{ message: string }>('POST', '/audit/events', { action, description, auditable_type, auditable_id }).catch(() => undefined),
+}
+
+export const logsApi = {
+  inventory: (f: { page: number; action?: string; search?: string; start_date?: string; end_date?: string }) =>
+    api<Paged<InventoryLogEntry>>('GET', '/logs/inventory', undefined, { params: f }),
+  inventoryActions: () => api<string[]>('GET', '/logs/inventory/actions'),
+  logins: (f: { page: number; email?: string; successful?: string; start_date?: string; end_date?: string }) =>
+    api<Paged<LoginAttemptEntry>>('GET', '/logs/login-attempts', undefined, { params: f }),
+  active: () => api<{ window_minutes: number; users: ActiveUser[] }>('GET', '/logs/active-users'),
 }

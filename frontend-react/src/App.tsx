@@ -22,6 +22,9 @@ import { ReceivingPage } from './pages/purchasing/ReceivingPage'
 import { ContractsPage } from './pages/contracts/ContractsPage'
 import { SuppliersPage } from './pages/suppliers/SuppliersPage'
 import { PhysicalCountPage } from './pages/physical/PhysicalCountPage'
+import { SettingsPage } from './pages/settings/SettingsPage'
+import { AuditPage } from './pages/audit/AuditPage'
+import { LogTrailsPage } from './pages/log-trails/LogTrailsPage'
 import { BacPage } from './pages/bac/BacPage'
 import { PurchaseRequestsPage } from './pages/procurement/PurchaseRequestsPage'
 import { LoginPage } from './pages/LoginPage'
@@ -52,6 +55,9 @@ const ported: Record<string, React.ReactNode> = {
   '/suppliers': <SuppliersPage />,
   '/bac': <BacPage />,
   '/physical': <PhysicalCountPage />,
+  '/settings': <SettingsPage />,
+  '/audit': <AuditPage />,
+  '/log-trails': <LogTrailsPage />,
 }
 
 export function App() {

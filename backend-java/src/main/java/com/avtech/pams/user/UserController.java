@@ -50,9 +50,12 @@ public class UserController {
     private final AuditService audit;
     private final JdbcTemplate jdbc;
 
+    private final PasswordPolicy passwordPolicy;
+
     public UserController(UserRepository users, RoleRepository roles, DepartmentRepository departments,
                           PasswordEncoder passwordEncoder, CurrentUser current,
-                          AuditService audit, JdbcTemplate jdbc) {
+                          AuditService audit, JdbcTemplate jdbc, PasswordPolicy passwordPolicy) {
+        this.passwordPolicy = passwordPolicy;
         this.users = users;
         this.roles = roles;
         this.departments = departments;
@@ -123,7 +126,7 @@ public class UserController {
         if (users.existsByEmailIgnoreCase(email)) {
             throw ApiException.validation("email", "The email has already been taken.");
         }
-        PasswordPolicy.check("password", body.password(), body.passwordConfirmation());
+        passwordPolicy.check("password", body.password(), body.passwordConfirmation(), email);
         Role role = assignableRole(body.roleId());
 
         User u = new User();
@@ -172,7 +175,7 @@ public class UserController {
             u.setEmail(email);
         }
         if (body.password() != null && !body.password().isEmpty()) {
-            PasswordPolicy.check("password", body.password(), body.passwordConfirmation());
+            passwordPolicy.check("password", body.password(), body.passwordConfirmation(), u.getEmail());
             u.setPasswordHash(passwordEncoder.encode(body.password()));
             u.setPasswordChangedAt(Times.now());
             passwordChanged = true;

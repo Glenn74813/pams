@@ -1,9 +1,22 @@
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
 import { setUnauthorizedHandler, tokenStore } from '../api/client'
-import { authApi } from '../api/endpoints'
+import { authApi, settingsApi } from '../api/endpoints'
 import type { AuthUser } from '../api/types'
-import { AuthContext, type AuthState, type LoginOutcome } from './AuthContext'
+import { AuthContext, IDLE_FLAG, type AuthState, type LoginOutcome } from './AuthContext'
+
+const ACTIVITY_KEY = 'pams.lastActivity'
+const ACTIVITY_EVENTS = ['mousemove', 'mousedown', 'keydown', 'scroll', 'touchstart', 'wheel'] as const
+
+function store(kind: 'local' | 'session', key: string, value?: string): string | null {
+  try {
+    const s = kind === 'local' ? localStorage : sessionStorage
+    if (value !== undefined) s.setItem(key, value)
+    return s.getItem(key)
+  } catch {
+    return null
+  }
+}
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const queryClient = useQueryClient()
@@ -45,14 +58,48 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return { ok: true }
   }, [])
 
-  const logout = useCallback(async () => {
+  const logout = useCallback(async (reason?: 'idle') => {
     try {
-      await authApi.logout()
+      await authApi.logout(reason)
     } catch {
       /* the token is discarded locally either way */
     }
     clearSession()
   }, [clearSession])
+
+  // Idle sign-out (TOR 7.2): after the minutes set in Settings with no activity in any tab.
+  useEffect(() => {
+    if (!user) return
+    let minutes = 0
+    let done = false
+    store('local', ACTIVITY_KEY, String(Date.now()))
+    settingsApi
+      .system()
+      .then((s) => (minutes = s.idle_timeout_minutes))
+      .catch(() => undefined)
+    let lastWrite = Date.now()
+    const touch = () => {
+      const now = Date.now()
+      if (now - lastWrite > 10_000) {
+        lastWrite = now
+        store('local', ACTIVITY_KEY, String(now))
+      }
+    }
+    for (const e of ACTIVITY_EVENTS) window.addEventListener(e, touch, { passive: true })
+    const timer = window.setInterval(() => {
+      if (!minutes || done) return
+      const last = Number(store('local', ACTIVITY_KEY) ?? Date.now())
+      if (Date.now() - last >= minutes * 60_000) {
+        done = true
+        store('session', IDLE_FLAG, String(minutes))
+        void logout('idle')
+      }
+    }, 15_000)
+    return () => {
+      for (const e of ACTIVITY_EVENTS) window.removeEventListener(e, touch)
+      window.clearInterval(timer)
+    }
+  }, [user, logout])
 
   const value = useMemo<AuthState>(() => {
     const can = (...permissions: string[]) =>

@@ -1,5 +1,6 @@
 package com.avtech.pams.auth;
 
+import com.avtech.pams.audit.AuditService;
 import com.avtech.pams.common.ApiException;
 import com.avtech.pams.common.Times;
 import com.avtech.pams.user.SignatureStore;
@@ -10,6 +11,7 @@ import jakarta.validation.Valid;
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
 import org.springframework.http.HttpStatus;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.bind.annotation.DeleteMapping;
@@ -36,8 +38,18 @@ public class AuthController {
     private final SignatureStore signatures;
     private final LoginRateLimiter rateLimiter;
 
+    private static final String USER = "App\\Models\\User";
+
+    private final PasswordPolicy passwordPolicy;
+    private final AuditService audit;
+    private final JdbcTemplate jdbc;
+
     public AuthController(AuthService auth, CurrentUser current, UserRepository users, PasswordEncoder passwordEncoder,
-                          TotpService totp, SignatureStore signatures, LoginRateLimiter rateLimiter) {
+                          TotpService totp, SignatureStore signatures, LoginRateLimiter rateLimiter,
+                          PasswordPolicy passwordPolicy, AuditService audit, JdbcTemplate jdbc) {
+        this.passwordPolicy = passwordPolicy;
+        this.audit = audit;
+        this.jdbc = jdbc;
         this.auth = auth;
         this.current = current;
         this.users = users;
@@ -67,8 +79,17 @@ public class AuthController {
         return twoFactor;
     }
 
+    public record LogoutRequest(String reason) {
+    }
+
+    /** Sign-out is recorded (TOR 6.3), including the automatic one after the configured idle time. */
     @PostMapping("/logout")
-    public Map<String, Object> logout() {
+    public Map<String, Object> logout(@RequestBody(required = false) LogoutRequest body) {
+        User u = current.user();
+        boolean idle = body != null && "idle".equals(body.reason());
+        audit.record("logged_out", USER, u.getId(),
+                u.getName() + (idle ? " was signed out after the idle time limit" : " signed out"), null, null);
+        jdbc.update("update users set last_seen_at = null where id = ?", u.getId());
         auth.revoke(current.principal());
         return Map.of("message", "User successfully signed out");
     }
@@ -95,9 +116,10 @@ public class AuthController {
         if (!passwordEncoder.matches(body.currentPassword(), u.getPasswordHash())) {
             throw ApiException.validation("current_password", "Current password is incorrect.");
         }
-        PasswordPolicy.check("password", body.password(), body.passwordConfirmation());
+        passwordPolicy.check("password", body.password(), body.passwordConfirmation(), u.getEmail());
         u.setPasswordHash(passwordEncoder.encode(body.password()));
         u.setPasswordChangedAt(Times.now());
+        audit.record("password_changed", USER, u.getId(), u.getName() + " changed their password", null, null);
         return Map.of("message", "Password changed successfully.");
     }
 
@@ -108,6 +130,7 @@ public class AuthController {
         String path = signatures.save(u.getId(), file);
         signatures.delete(u.getSignaturePath());
         u.setSignaturePath(path);
+        audit.record("updated", USER, u.getId(), u.getName() + " uploaded a signature", null, Map.of("has_signature", true));
         Map<String, Object> res = new LinkedHashMap<>();
         res.put("message", "Signature uploaded.");
         res.put("has_signature", true);
@@ -121,6 +144,7 @@ public class AuthController {
         User u = reload();
         signatures.delete(u.getSignaturePath());
         u.setSignaturePath(null);
+        audit.record("updated", USER, u.getId(), u.getName() + " removed their signature", null, Map.of("has_signature", false));
         return Map.of("message", "Signature removed.", "has_signature", false);
     }
 
@@ -154,6 +178,8 @@ public class AuthController {
             throw ApiException.validation("otp", "Invalid code. Please try again.");
         }
         u.setTwoFactorEnabled(true);
+        audit.record("updated", USER, u.getId(), u.getName() + " turned on two-factor authentication",
+                Map.of("two_factor_enabled", false), Map.of("two_factor_enabled", true));
         return Map.of("message", "Two-factor authentication enabled.");
     }
 
@@ -169,6 +195,8 @@ public class AuthController {
         }
         u.setTwoFactorEnabled(false);
         u.setTwoFactorSecret(null);
+        audit.record("updated", USER, u.getId(), u.getName() + " turned off two-factor authentication",
+                Map.of("two_factor_enabled", true), Map.of("two_factor_enabled", false));
         return Map.of("message", "Two-factor authentication disabled.");
     }
 

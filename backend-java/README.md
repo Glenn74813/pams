@@ -53,6 +53,9 @@ hashes, Manila-time timestamps and table layout unchanged.
 | Contracts | `GET/POST /api/contracts`, `GET awarded-sources`, `GET/PUT/DELETE {id}`, `POST {id}/activate`, `complete`, `terminate`, `securities`, `amendments`, `extensions`, `calloffs`, `PUT {id}/liquidated-damages`, `PUT/DELETE securities/{id}`, `POST amendments/{id}/approve`, `DELETE amendments/{id}`, `PUT extensions/{id}/approve`, `deny`, `DELETE extensions/{id}`, `PUT calloffs/{id}` |
 | Suppliers | `GET /api/suppliers/options`, `GET/POST /api/suppliers`, `GET/PUT/DELETE {id}`, `POST {id}/eligibility`, `compliance`, `blacklist`, `evaluations`, `PUT/DELETE compliance/{id}`, `PUT blacklist/{id}/lift`, `DELETE evaluations/{id}` |
 | Physical count | `GET/POST /api/physical-inventory/counts`, `GET options`, `GET/PUT/DELETE {id}`, `POST {id}/start`, `record`, `scan`, `complete`, `return`, `verify`, `POST/DELETE {id}/properties/{lineId}` |
+| Settings | `GET/PUT /api/settings`, `GET/PUT settings/mis`, `GET/PUT settings/signatories`, `GET settings/signatory/{role}`, `GET/POST settings/document-logos`, `PUT/DELETE settings/document-logos/{id}` |
+| Audit trail | `GET /api/audit`, `GET {id}`, `GET filters`, `GET export` (CSV), `POST events` (prints/downloads) |
+| Log trails | `GET /api/logs/inventory`, `GET inventory/actions`, `GET login-attempts`, `GET active-users` |
 | BAC | `GET/POST /api/bac/members`, `PUT/DELETE members/{id}`, `GET/POST meetings`, `GET/PUT/DELETE meetings/{id}`, `POST meetings/{id}/attendance`, `GET/POST resolutions`, `GET/PUT/DELETE resolutions/{id}`, `POST resolutions/{id}/submit`, `return`, `approve`, `archive` |
 
 Same paths and snake_case JSON as Laravel. Security and integrity changes made on the way: tokens are re-checked
@@ -148,6 +151,16 @@ verifier can send it back for recount with a reason. Asset counts go tag by tag:
 written to the asset on verification), missing (any tag left unchecked when the count closes), found but not in the
 masterlist (description required), or on record under another department. Missing assets stay on record for
 follow-up. Count numbers are PIC-YYYY-MM-NNNN.
+Settings, audit and logs: every settings change (system, agency profile, signatories, logos) is audited with only
+the keys that changed; Laravel audited none. System settings add an idle sign-out limit (0 = off, else 5-480 minutes,
+enforced by the client across tabs and recorded as a sign-out with the reason) and a minimum password length (8-64).
+The password rule also refuses commonly breached passwords and passwords containing the person's email name. Sign-out,
+password changes, 2FA on/off and signature changes are audited. Every authenticated request stamps
+users.last_seen_at (at most once a minute; cleared on sign-out), which drives "Online now". The audit trail exports
+CSV (Excel-readable, formula injection neutralised, the export itself audited) and prints from the browser; any print
+(button or browser menu) is recorded through POST /api/audit/events. Settings is open to everyone for their own
+account; the admin areas check view_settings / edit_settings / manage_* permissions. Not ported: Excel (.xlsx)
+export of the audit trail, and a QR code for 2FA setup (the setup key and an otpauth link are shown instead).
 
 Not ported yet: QR codes, Clone-PC assembly parts, the RSMI report and the Excel versions of the stock
 card, RIS, ICS and PAR (the React app prints RIS/ICS/PAR from the browser).

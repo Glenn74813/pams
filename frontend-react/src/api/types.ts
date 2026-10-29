@@ -1203,3 +1203,89 @@ export interface CountDetail {
   lines: CountLine[]
   properties: CountTag[]
 }
+
+// ── Settings, audit, log trails ──
+
+export interface SystemSettings {
+  capitalization_threshold: number
+  idle_timeout_minutes: number
+  password_min_length: number
+}
+
+export interface MisSettings {
+  agency_name: string
+  agency_head_name: string
+  agency_head_title: string
+  agency_address: string
+  fund_cluster: string
+  fefo_expiry_warning_days: number
+}
+
+export interface SignatoryAssignment {
+  role_key: string
+  label: string
+  user_id: number | null
+  user_name: string | null
+  has_signature: boolean
+}
+
+export interface DocumentLogo {
+  id: number
+  position: string
+  sequence: number
+  label: string | null
+  data_uri: string | null
+}
+
+export interface AuditEntry {
+  id: number
+  user: NamedRef | null
+  user_name: string | null
+  user_role: string | null
+  action: string
+  auditable_type: string | null
+  auditable_id: number | null
+  description: string | null
+  ip_address: string | null
+  created_at: string
+  old_values: Record<string, unknown> | null
+  new_values: Record<string, unknown> | null
+  user_agent: string | null
+  url: string | null
+  method: string | null
+}
+
+export interface InventoryLogEntry {
+  id: number
+  item: { id: number; code: string; name: string } | null
+  user: NamedRef | null
+  action: string
+  quantity: number | null
+  previous_quantity: number | null
+  new_quantity: number | null
+  reference_type: string | null
+  reference_id: number | null
+  notes: string | null
+  created_at: string
+}
+
+export interface LoginAttemptEntry {
+  id: number
+  email: string
+  ip_address: string
+  user_agent: string | null
+  successful: boolean
+  failure_reason: string | null
+  created_at: string
+}
+
+export interface ActiveUser {
+  id: number
+  name: string
+  email: string
+  role: string
+  department: string | null
+  last_seen_at: string
+  signed_in_at: string | null
+  ip_address: string | null
+}

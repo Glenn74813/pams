@@ -1,0 +1,12 @@
+.audit-filters { flex-wrap: wrap; }
+.audit-filters input[type='date'] { width: 9.5rem; }
+.quick-filters { display: flex; flex-wrap: wrap; align-items: center; gap: 0.4rem; margin: 0.6rem 0 0.8rem; }
+.chip-btn { padding: 0.25rem 0.7rem; border-radius: 999px; border: 1px solid var(--border-color); background: var(--card-bg); color: var(--text-dark); font-size: 0.82rem; cursor: pointer; }
+.chip-btn.on { background: var(--primary-accent); border-color: var(--primary-accent); color: #fff; }
+.audit-table tr.clickable { cursor: pointer; }
+.nowrap { white-space: nowrap; }
+.audit-diff { margin-top: 1rem; }
+.audit-diff td { word-break: break-word; vertical-align: top; }
+.audit-diff tr.changed td { background: var(--bg-secondary); }
+.log-tabs { margin-bottom: 0.75rem; }
+.online-dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: #16a34a; margin-right: 0.4rem; }

@@ -32,4 +32,6 @@ Appendix 61), Receiving (inspection, acceptance into stock, printable Appendix 6
 extensions, liquidated damages, framework call-offs), Suppliers (register, eligibility documents, sanctions,
 ratings and delivery performance), Physical Count (supplies count sheet against a frozen cut-off, tag-by-tag asset
 count with found / missing / not in masterlist, independent verification, printable RPCI / RPCPPE / RPCSP by person or
-department) and BAC Management (meetings and attendance, resolutions, composition).
+department), Settings (own password / 2FA / signature, agency profile, document logos, signatories, idle sign-out
+and password length), Audit Trail (filters, before/after detail, CSV export, print) and Log Trails (online now, stock
+movements, sign-ins). The app signs people out after the configured idle time and records every print. Also BAC Management (meetings and attendance, resolutions, composition).
