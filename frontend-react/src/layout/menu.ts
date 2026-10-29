@@ -33,7 +33,7 @@ export const menuGroups: MenuGroup[] = [
   },
   {
     key: 'vendor', label: 'Vendor Management', icon: '🏢',
-    children: [{ path: '/suppliers', icon: '🏢', label: 'Vendors / Suppliers', module: 'suppliers', ported: false }],
+    children: [{ path: '/suppliers', icon: '🏢', label: 'Vendors / Suppliers', module: 'suppliers', ported: true }],
   },
   {
     key: 'inventory', label: 'Inventory', icon: '📦',

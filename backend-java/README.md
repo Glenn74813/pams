@@ -52,6 +52,7 @@ hashes, Manila-time timestamps and table layout unchanged.
 | Purchase orders | `GET /api/procurement/award-sources`, `GET/POST /api/procurement/purchase-orders`, `GET/PUT/DELETE {id}`, `POST {id}/send`, `confirm`, `cancel` |
 | Receiving | `GET/POST /api/receiving/inspection-reports`, `GET/PUT/DELETE {id}`, `POST {id}/accept`, `reject` |
 | Contracts | `GET/POST /api/contracts`, `GET awarded-sources`, `GET/PUT/DELETE {id}`, `POST {id}/activate`, `complete`, `terminate`, `securities`, `amendments`, `extensions`, `calloffs`, `PUT {id}/liquidated-damages`, `PUT/DELETE securities/{id}`, `POST amendments/{id}/approve`, `DELETE amendments/{id}`, `PUT extensions/{id}/approve`, `deny`, `DELETE extensions/{id}`, `PUT calloffs/{id}` |
+| Suppliers | `GET /api/suppliers/options`, `GET/POST /api/suppliers`, `GET/PUT/DELETE {id}`, `POST {id}/eligibility`, `compliance`, `blacklist`, `evaluations`, `PUT/DELETE compliance/{id}`, `PUT blacklist/{id}/lift`, `DELETE evaluations/{id}` |
 | BAC | `GET/POST /api/bac/members`, `PUT/DELETE members/{id}`, `GET/POST meetings`, `GET/PUT/DELETE meetings/{id}`, `POST meetings/{id}/attendance`, `GET/POST resolutions`, `GET/PUT/DELETE resolutions/{id}`, `POST resolutions/{id}/submit`, `return`, `approve`, `archive` |
 
 Same paths and snake_case JSON as Laravel. Security and integrity changes made on the way: tokens are re-checked
@@ -112,7 +113,7 @@ rejections need a reason, never more than is outstanding). Someone other than th
 receives the accepted quantities into stock as new lots at the PO price — supplier, IAR, lot no., expiry, location —
 with a stock card entry and the COA classification check; Laravel never put accepted deliveries into stock. A rejected
 delivery reopens the PO quantities. PO status follows deliveries (partially received / received). Not ported: the
-Excel IAR export (the React app prints Appendix 61 PO and Appendix 62 IAR) and the supplier module.
+Excel IAR export (the React app prints Appendix 61 PO and Appendix 62 IAR).
 Contracts are drawn up only on an award with its Notice of Award, at the awarded price, linked to the award's PO; one
 live contract per award. A contract takes effect (activated by someone other than its preparer) once signed, dated and
 secured by a performance security of the required amount: 5% of the price in cash, bank draft/guarantee or letter of
@@ -124,6 +125,16 @@ NTP + delivery days, or end date, plus extensions), capped at 10% of the price, 
 completes only when the PO is fully delivered; performance securities are returned only after completion; forfeiture
 and termination need a ground. Framework-agreement call-offs stay within the agreement amount. Not ported: extension
 request letters (file upload) and e-signatures.
+Suppliers: unique name, vendor code (VND-NNNN, assigned) and email; TIN checked. A supplier is eligible for award
+only once marked so, which needs PhilGEPS, DTI or SEC, Mayor's permit, BIR registration and tax clearance on file and
+valid, and no blacklist or suspension in force; removing or changing a document that breaks this drops eligibility,
+deactivation clears it, and a sanction makes the supplier ineligible at once (lifting it needs a reason and a fresh
+verification). Suppliers first named on a quotation or bid are registered unverified, so they cannot be awarded,
+post-qualified or put on a PO until verified (Laravel registered them eligible). Award, PO and contract checks all
+include sanctions. Ratings are 1-5 by people who rate deliveries, one per evaluator per engagement, withdrawable only
+by the evaluator; performance also comes from the record: awards, POs, contracts, on-time deliveries (IAR delivery
+date vs PO date), units rejected and liquidated damages. Suppliers with history cannot be deleted. Not ported:
+scanned copies of compliance documents (needs the Documents module).
 
 Not ported yet: QR codes, Clone-PC assembly parts, the RSMI report and the Excel versions of the stock
 card, RIS, ICS and PAR (the React app prints RIS/ICS/PAR from the browser).

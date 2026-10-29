@@ -23,7 +23,7 @@ public class DocumentNumbers {
             "ppmps.ppmp_number", "apps.app_number", "purchase_requests.pr_number", "purchase_requests.caf_number",
             "rfqs.rfq_number", "rfqs.noa_number", "rfqs.ntp_number", "biddings.bidding_number", "biddings.noa_number", "biddings.ntp_number",
             "bac_meetings.meeting_number", "bac_resolutions.resolution_number", "purchase_orders.po_number",
-            "inspection_acceptance_reports.iar_number", "contracts.contract_number", "framework_calloffs.calloff_number");
+            "inspection_acceptance_reports.iar_number", "contracts.contract_number", "framework_calloffs.calloff_number", "suppliers.vendor_code");
 
     private final JdbcTemplate jdbc;
 

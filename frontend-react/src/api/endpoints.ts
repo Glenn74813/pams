@@ -30,6 +30,7 @@ import type {
   StockLot,
   SupplyRequest,
   StockTransfer,
+  Supplier,
   LoginResponse,
   Paged,
   PermissionCatalogue,
@@ -153,8 +154,40 @@ export const inventoryApi = {
   stockCard: (itemId: number) => api<StockCard>('GET', `/reports/stock-card/${itemId}/preview`),
 }
 
+export interface SupplierInput {
+  vendor_code?: string | null
+  name?: string
+  tin?: string | null
+  philgeps_reg_number?: string | null
+  contact_person?: string | null
+  email?: string | null
+  phone?: string | null
+  mobile_number?: string | null
+  address?: string | null
+  website?: string | null
+  credit_terms?: string | null
+  notes?: string | null
+  is_active?: boolean
+  is_msme?: boolean
+}
+
 export const supplierApi = {
   options: () => api<{ data: { id: number; name: string }[] }>('GET', '/suppliers/options'),
+  list: (f: { page: number; active?: boolean; eligible?: boolean; search?: string }) => api<Paged<Supplier>>('GET', '/suppliers', undefined, { params: f }),
+  get: (id: number) => api<Supplier>('GET', `/suppliers/${id}`),
+  create: (input: SupplierInput) => api<Supplier>('POST', '/suppliers', input),
+  update: (id: number, input: SupplierInput) => api<Supplier>('PUT', `/suppliers/${id}`, input),
+  remove: (id: number) => api<{ message: string }>('DELETE', `/suppliers/${id}`),
+  setEligibility: (id: number, eligible: boolean, reason?: string) => api<Supplier>('POST', `/suppliers/${id}/eligibility`, { eligible, reason }),
+  addDocument: (id: number, input: { document_type: string; reference_number?: string | null; issued_date?: string | null; expiry_date?: string | null; remarks?: string | null }) =>
+    api<Supplier>('POST', `/suppliers/${id}/compliance`, input),
+  removeDocument: (documentId: number) => api<Supplier>('DELETE', `/suppliers/compliance/${documentId}`),
+  sanction: (id: number, input: { sanction_type: string; grounds: string; reference_number?: string | null; start_date?: string; end_date?: string | null }) =>
+    api<Supplier>('POST', `/suppliers/${id}/blacklist`, input),
+  lift: (sanctionId: number, reason: string) => api<Supplier>('PUT', `/suppliers/blacklist/${sanctionId}/lift`, { lifted_reason: reason }),
+  evaluate: (id: number, input: { evaluation_date?: string; delivery_rating: number; quality_rating: number; timeliness_rating?: number | null; compliance_rating?: number | null; after_sales_rating?: number | null; reference?: string | null; remarks?: string | null }) =>
+    api<Supplier>('POST', `/suppliers/${id}/evaluations`, input),
+  removeEvaluation: (evaluationId: number) => api<Supplier>('DELETE', `/suppliers/evaluations/${evaluationId}`),
 }
 
 // ── Issuance, adjustments, semi-expendable ──

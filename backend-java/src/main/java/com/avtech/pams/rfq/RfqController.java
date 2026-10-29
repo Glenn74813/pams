@@ -572,7 +572,7 @@ public class RfqController {
         Map<Long, String> suppliers = new HashMap<>();
         Map<Long, Boolean> okSupplier = new HashMap<>();
         if (!supplierIds.isEmpty()) {
-            jdbc.query("select id, name, is_active and is_eligible from suppliers where id in (" + supplierIds.stream().map(x -> "?").collect(Collectors.joining(",")) + ")", rs -> {
+            jdbc.query("select s.id, s.name, " + AwardSupport.ELIGIBLE_SQL + " from suppliers s where s.id in (" + supplierIds.stream().map(x -> "?").collect(Collectors.joining(",")) + ")", rs -> {
                 suppliers.put(rs.getLong(1), rs.getString(2));
                 okSupplier.put(rs.getLong(1), rs.getBoolean(3));
             }, supplierIds.toArray());

@@ -809,6 +809,9 @@ public class BiddingController {
             }
             Evaluation ev = evaluation(b);
             boolean current = x.getId().equals(ev.postQualTurn()) || x.getId().equals(ev.recommended());
+            if ("passed".equals(result) && !awards.eligible(x.getSupplierId())) {
+                throw ApiException.validation("result", name + " is not eligible: verify its PhilGEPS, permits and tax documents in the supplier register (and check sanctions) first.");
+            }
             if (!current && !"pending".equals(result)) {
                 throw ApiException.validation("stage", "Post-qualification is for the " + (b.isMearb() ? "highest-rated" : "lowest calculated")
                         + " responsive bidder; it moves to the next only when that one fails.");
@@ -930,7 +933,7 @@ public class BiddingController {
         Map<Long, String> suppliers = new HashMap<>();
         Map<Long, Boolean> okSupplier = new HashMap<>();
         if (!supplierIds.isEmpty()) {
-            jdbc.query("select id, name, is_active and is_eligible from suppliers where id in (" + supplierIds.stream().map(x -> "?").collect(Collectors.joining(",")) + ")", rs -> {
+            jdbc.query("select s.id, s.name, " + AwardSupport.ELIGIBLE_SQL + " from suppliers s where s.id in (" + supplierIds.stream().map(x -> "?").collect(Collectors.joining(",")) + ")", rs -> {
                 suppliers.put(rs.getLong(1), rs.getString(2));
                 okSupplier.put(rs.getLong(1), rs.getBoolean(3));
             }, supplierIds.toArray());

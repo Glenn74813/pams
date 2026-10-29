@@ -1052,3 +1052,56 @@ export interface ContractSource {
   delivery_term: string | null
   purchase_order: NamedRef | null
 }
+
+// ── Suppliers ──
+
+export interface Supplier {
+  id: number
+  vendor_code: string | null
+  name: string
+  tin: string | null
+  philgeps_reg_number: string | null
+  contact_person: string | null
+  email: string | null
+  phone: string | null
+  mobile_number: string | null
+  address: string | null
+  website: string | null
+  credit_terms: string | null
+  notes: string | null
+  is_active: boolean
+  is_eligible: boolean
+  is_msme: boolean
+  is_sanctioned: boolean
+  sanction: string | null
+  awardable: boolean
+  eligibility: { required: { document_type: string; present: boolean; valid: boolean; expiry_date: string | null }[]; missing: string[]; expired: string[]; ready: boolean }
+  expiring_documents: number
+  documents: { id: number; document_type: string; reference_number: string | null; issued_date: string | null; expiry_date: string | null; status: 'valid' | 'expiring' | 'expired'; days_to_expiry: number | null; remarks: string | null }[] | null
+  sanctions: { id: number; sanction_type: string; grounds: string; reference_number: string | null; start_date: string; end_date: string | null; status: string; in_force: boolean; lifted_at: string | null; lifted_reason: string | null; recorded_by: NamedRef | null }[] | null
+  evaluations: { id: number; evaluation_date: string; delivery_rating: number; quality_rating: number; timeliness_rating: number | null; compliance_rating: number | null; after_sales_rating: number | null; overall_rating: number; reference: string | null; remarks: string | null; evaluator: NamedRef | null; can_delete: boolean }[] | null
+  performance: {
+    ratings: number
+    avg_overall: number | null
+    avg_delivery: number | null
+    avg_quality: number | null
+    satisfactory: boolean | null
+    purchase_orders: number
+    purchase_orders_value: number
+    contracts: number
+    contracts_value: number
+    rfqs_won: number
+    biddings_won: number
+    deliveries: number
+    on_time_deliveries: number
+    on_time_rate: number | null
+    units_received: number
+    units_rejected: number
+    rejection_rate: number | null
+    rejected_deliveries: number
+    liquidated_damages: number
+  } | null
+  can_edit: boolean
+  can_delete: boolean
+  created_at: string
+}

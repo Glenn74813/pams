@@ -20,6 +20,7 @@ import { BiddingPage } from './pages/bidding/BiddingPage'
 import { PurchaseOrdersPage } from './pages/purchasing/PurchaseOrdersPage'
 import { ReceivingPage } from './pages/purchasing/ReceivingPage'
 import { ContractsPage } from './pages/contracts/ContractsPage'
+import { SuppliersPage } from './pages/suppliers/SuppliersPage'
 import { BacPage } from './pages/bac/BacPage'
 import { PurchaseRequestsPage } from './pages/procurement/PurchaseRequestsPage'
 import { LoginPage } from './pages/LoginPage'
@@ -47,6 +48,7 @@ const ported: Record<string, React.ReactNode> = {
   '/procurement': <PurchaseOrdersPage />,
   '/receiving': <ReceivingPage />,
   '/contracts': <ContractsPage />,
+  '/suppliers': <SuppliersPage />,
   '/bac': <BacPage />,
 }
 
