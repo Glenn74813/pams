@@ -583,3 +583,178 @@ export interface PurchaseRequest {
   can_certify: boolean
   created_at: string
 }
+
+// ── RFQ & BAC ──
+
+export interface RfqLine {
+  id: number
+  purchase_request_item_id: number | null
+  general_description: string
+  specifications: string | null
+  unit: string | null
+  quantity: number
+  abc_unit_cost: number
+  abc_total: number
+  delivery_lead_time: string | null
+}
+
+export interface RfqQuotation {
+  id: number
+  supplier: NamedRef
+  quotation_number: string | null
+  submitted_at: string | null
+  total_amount: number
+  is_responsive: boolean
+  is_winner: boolean
+  over_abc: boolean
+  supplier_eligible: boolean
+  remarks: string | null
+  lines: { rfq_item_id: number; unit_price: number; total_price: number; over_abc: boolean }[]
+}
+
+export type RfqStatus = 'draft' | 'issued' | 'closed' | 'awarded' | 'cancelled'
+
+export interface Rfq {
+  id: number
+  rfq_number: string
+  title: string
+  procurement_method: string
+  single_source: boolean
+  status: RfqStatus
+  abc: number
+  deadline: string | null
+  deadline_passed: boolean
+  delivery_term: string | null
+  delivery_lead_days: number | null
+  description: string | null
+  justification: string | null
+  purchase_request: NamedRef | null
+  department: NamedRef | null
+  preparer: NamedRef | null
+  awarded_supplier: NamedRef | null
+  awarded_at: string | null
+  bac_resolution: NamedRef | null
+  remarks: string | null
+  noa_number: string | null
+  noa_date: string | null
+  ntp_number: string | null
+  ntp_date: string | null
+  items_count: number
+  quotations_count: number
+  items: RfqLine[] | null
+  quotations: RfqQuotation[] | null
+  can_edit: boolean
+  can_issue: boolean
+  can_close: boolean
+  can_cancel: boolean
+  can_delete: boolean
+  can_quote: boolean
+  can_award: boolean
+  can_noa: boolean
+  can_ntp: boolean
+  created_at: string
+}
+
+export interface RfqPrOption {
+  id: number
+  pr_number: string
+  purpose: string | null
+  department: string
+  total_amount: number
+  modes: string[]
+  lines: {
+    id: number
+    general_description: string
+    specifications: string | null
+    unit: string | null
+    quantity: number
+    remaining_quantity: number
+    estimated_unit_cost: number
+    procurement_mode: string | null
+  }[]
+}
+
+export interface RfqAbstract {
+  rfq: Rfq
+  suppliers: RfqQuotation[]
+  rows: { rfq_item_id: number; general_description: string; unit: string | null; quantity: number; abc_unit_cost: number; prices: Record<string, number | null>; lowest_unit_price: number | null }[]
+  recommended: RfqQuotation | null
+  quotation_count: number
+  single_source: boolean
+  insufficient_quotations: boolean
+}
+
+export interface BacMember {
+  id: number
+  user: NamedRef | null
+  full_name: string
+  position: string | null
+  office: string | null
+  designation: string
+  appointment_order_no: string | null
+  appointment_date: string | null
+  term_start: string | null
+  term_end: string | null
+  is_active: boolean
+  term_expired: boolean
+  sequence: number
+  remarks: string | null
+}
+
+export interface BacCompliance {
+  has_chairperson: boolean
+  has_vice_chairperson: boolean
+  voting_members: number
+  has_secretariat: boolean
+  has_twg: boolean
+  is_properly_constituted: boolean
+  issues: string[]
+}
+
+export interface BacQuorum {
+  voting_seated: number
+  voting_present: number
+  needed: number
+  met: boolean
+}
+
+export interface BacMeeting {
+  id: number
+  meeting_number: string
+  title: string
+  meeting_date: string
+  venue: string | null
+  agenda: string | null
+  status: 'scheduled' | 'ongoing' | 'completed' | 'cancelled'
+  minutes: string | null
+  caller: NamedRef | null
+  remarks: string | null
+  attendees_count: number
+  quorum: BacQuorum
+  attendees: { id: number; user_id: number | null; name: string; committee_role: string | null; present: boolean; remarks: string | null }[] | null
+  resolutions: { id: number; resolution_number: string; title: string; status: string }[] | null
+  can_edit: boolean
+  created_at: string
+}
+
+export interface BacResolution {
+  id: number
+  resolution_number: string
+  title: string
+  resolution_type: string
+  content: string | null
+  status: 'draft' | 'for_approval' | 'approved' | 'archived'
+  meeting: NamedRef | null
+  purchase_request: NamedRef | null
+  preparer: NamedRef | null
+  approver: NamedRef | null
+  approved_at: string | null
+  remarks: string | null
+  used_by: string[]
+  can_edit: boolean
+  can_submit: boolean
+  can_approve: boolean
+  can_archive: boolean
+  can_delete: boolean
+  created_at: string
+}

@@ -47,6 +47,8 @@ hashes, Manila-time timestamps and table layout unchanged.
 | Gate pass | `GET/POST /api/gate-pass`, `GET/PUT {id}`, `POST {id}/return`, `GET property/{propertyId}` |
 | Procurement planning | `GET /api/procurement-planning/options`, `GET/POST ppmps`, `GET/PUT/DELETE ppmps/{id}`, `POST ppmps/{id}/submit`, `review`, `approve`, `return`, `GET apps`, `GET/PUT/DELETE apps/{id}`, `POST apps/generate`, `POST apps/{id}/approve`, `GET budget-summary` |
 | Purchase requests | `GET/POST /api/purchase-requests`, `GET/PUT/DELETE {id}`, `POST {id}/submit`, `cancel`, `approve-step`, `return`, `certify-funds` |
+| RFQ / alternative modes | `GET/POST /api/rfq`, `GET purchase-requests`, `GET/PUT/DELETE {id}`, `GET {id}/abstract`, `POST {id}/issue`, `close`, `cancel`, `award`, `noa`, `ntp`, `POST {id}/quotations`, `PUT/DELETE quotations/{id}` |
+| BAC | `GET/POST /api/bac/members`, `PUT/DELETE members/{id}`, `GET/POST meetings`, `GET/PUT/DELETE meetings/{id}`, `POST meetings/{id}/attendance`, `GET/POST resolutions`, `GET/PUT/DELETE resolutions/{id}`, `POST resolutions/{id}/submit`, `return`, `approve`, `archive` |
 
 Same paths and snake_case JSON as Laravel. Security and integrity changes made on the way: tokens are re-checked
 against the user on every request (deleted users are locked out at once), logout and refresh revoke the old token,
@@ -75,6 +77,18 @@ certify funds on their own PR; the Budget Officer step needs a CAF covering the 
 the total later grows); only draft/returned PRs can be edited. V9 gives the PR signatory permissions to the Department
 Head, Budget Officer, Accountant and BAC Secretariat roles, and lets End Users raise PRs. Not ported yet: attaching
 the signed CAF or other files to a PR (needs the Documents module).
+
+RFQ: an RFQ draws its lines from an approved PR, within each line's quantity (across all live RFQs) and estimated
+cost, under the mode the PR planned; single-source methods need a justification and take one quotation; method
+ceilings apply to the ABC. Quotations must price every line and arrive by the deadline; the RFQ closes only after the
+deadline. The award (process_award, not the RFQ's preparer) goes to the lowest responsive, eligible quotation within the
+ABC, cites an approved BAC award resolution for the same PR (one award per resolution), and needs a justification
+with fewer than 3 quotations. NOA and NTP numbers are generated. Laravel's blacklist check read a column that does not
+exist; eligibility now uses suppliers.is_active / is_eligible.
+BAC: composition is checked against RA 12009 (chair, vice-chair, 5+ voting members, secretariat); meetings record
+attendance and quorum (a majority of seated voting members); a resolution is approved by someone other than its
+drafter, only after submission, and only if the meeting it cites was held with a quorum. Not ported yet: BAC
+evaluations and competitive bidding (next slice).
 
 Not ported yet: QR codes, Clone-PC assembly parts, receiving stock straight from an IAR line, the RSMI report and the Excel versions of the stock
 card, RIS, ICS and PAR (the React app prints RIS/ICS/PAR from the browser).

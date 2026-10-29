@@ -1,6 +1,10 @@
 import { api } from './client'
 import type {
   AppPlan,
+  BacCompliance,
+  BacMeeting,
+  BacMember,
+  BacResolution,
   Asset,
   AssetMove,
   BudgetSummary,
@@ -26,6 +30,9 @@ import type {
   Ppmp,
   ProcurementOptions,
   PurchaseRequest,
+  Rfq,
+  RfqAbstract,
+  RfqPrOption,
   Role,
   RoleOption,
   User,
@@ -356,4 +363,101 @@ export const prApi = {
   approveStep: (id: number, remarks?: string) => api<PurchaseRequest>('POST', `/purchase-requests/${id}/approve-step`, { remarks }),
   returnStep: (id: number, reason: string) => api<PurchaseRequest>('POST', `/purchase-requests/${id}/return`, { return_reason: reason }),
   certifyFunds: (id: number, input: { caf_amount?: number; caf_remarks?: string }) => api<PurchaseRequest>('POST', `/purchase-requests/${id}/certify-funds`, input),
+}
+
+export interface RfqInput {
+  title: string
+  procurement_method: string
+  purchase_request_id: number
+  deadline: string | null
+  delivery_term?: string | null
+  delivery_lead_days?: number | null
+  description?: string | null
+  justification?: string | null
+  items: { purchase_request_item_id: number; quantity: number; abc_unit_cost?: number; specifications?: string | null; delivery_lead_time?: string | null }[]
+}
+
+export interface QuotationInput {
+  supplier_id?: number | null
+  supplier_name?: string
+  quotation_number?: string | null
+  submitted_at?: string
+  remarks?: string | null
+  items: { rfq_item_id: number; unit_price: number }[]
+}
+
+export const rfqApi = {
+  list: (f: { page: number; status?: string; procurement_method?: string; search?: string }) => api<Paged<Rfq>>('GET', '/rfq', undefined, { params: f }),
+  get: (id: number) => api<Rfq>('GET', `/rfq/${id}`),
+  abstract: (id: number) => api<RfqAbstract>('GET', `/rfq/${id}/abstract`),
+  prOptions: () => api<{ data: RfqPrOption[]; methods: string[]; single_source: string[] }>('GET', '/rfq/purchase-requests'),
+  create: (input: RfqInput) => api<Rfq>('POST', '/rfq', input),
+  update: (id: number, input: RfqInput) => api<Rfq>('PUT', `/rfq/${id}`, input),
+  remove: (id: number) => api<{ message: string }>('DELETE', `/rfq/${id}`),
+  issue: (id: number) => api<Rfq>('POST', `/rfq/${id}/issue`),
+  close: (id: number) => api<Rfq>('POST', `/rfq/${id}/close`),
+  cancel: (id: number, remarks?: string) => api<Rfq>('POST', `/rfq/${id}/cancel`, { remarks }),
+  addQuotation: (id: number, input: QuotationInput) => api<Rfq>('POST', `/rfq/${id}/quotations`, input),
+  removeQuotation: (quotationId: number) => api<Rfq>('DELETE', `/rfq/quotations/${quotationId}`),
+  setResponsive: (quotationId: number, isResponsive: boolean, remarks?: string) =>
+    api<Rfq>('PUT', `/rfq/quotations/${quotationId}/responsive`, { is_responsive: isResponsive, remarks }),
+  award: (id: number, input: { quotation_id: number; bac_resolution_id: number; remarks?: string }) => api<Rfq>('POST', `/rfq/${id}/award`, input),
+  noa: (id: number, date?: string) => api<Rfq>('POST', `/rfq/${id}/noa`, { date: date || undefined }),
+  ntp: (id: number, date?: string) => api<Rfq>('POST', `/rfq/${id}/ntp`, { date: date || undefined }),
+}
+
+export interface BacMemberInput {
+  user_id?: number | null
+  full_name: string
+  position?: string | null
+  office?: string | null
+  designation: string
+  appointment_order_no?: string | null
+  appointment_date?: string | null
+  term_start?: string | null
+  term_end?: string | null
+  is_active?: boolean
+  sequence?: number
+  remarks?: string | null
+}
+
+export interface BacMeetingInput {
+  title?: string
+  meeting_date?: string
+  venue?: string | null
+  agenda?: string | null
+  minutes?: string | null
+  status?: string
+  remarks?: string | null
+}
+
+export interface BacResolutionInput {
+  title: string
+  resolution_type: string
+  bac_meeting_id?: number | null
+  purchase_request_id?: number | null
+  content?: string | null
+  remarks?: string | null
+}
+
+export const bacApi = {
+  members: () => api<{ data: BacMember[]; compliance: BacCompliance }>('GET', '/bac/members'),
+  addMember: (input: BacMemberInput) => api<BacMember>('POST', '/bac/members', input),
+  updateMember: (id: number, input: BacMemberInput) => api<BacMember>('PUT', `/bac/members/${id}`, input),
+  removeMember: (id: number) => api<{ message: string }>('DELETE', `/bac/members/${id}`),
+  meetings: (f: { page: number; status?: string; search?: string }) => api<Paged<BacMeeting>>('GET', '/bac/meetings', undefined, { params: f }),
+  meeting: (id: number) => api<BacMeeting>('GET', `/bac/meetings/${id}`),
+  createMeeting: (input: BacMeetingInput) => api<BacMeeting>('POST', '/bac/meetings', input),
+  updateMeeting: (id: number, input: BacMeetingInput) => api<BacMeeting>('PUT', `/bac/meetings/${id}`, input),
+  attendance: (id: number, attendees: { user_id?: number | null; name: string; committee_role: string | null; present: boolean }[]) =>
+    api<BacMeeting>('POST', `/bac/meetings/${id}/attendance`, { attendees }),
+  removeMeeting: (id: number) => api<{ message: string }>('DELETE', `/bac/meetings/${id}`),
+  resolutions: (f: { page: number; status?: string; resolution_type?: string; purchase_request_id?: number; search?: string }) =>
+    api<Paged<BacResolution>>('GET', '/bac/resolutions', undefined, { params: f }),
+  resolution: (id: number) => api<BacResolution>('GET', `/bac/resolutions/${id}`),
+  createResolution: (input: BacResolutionInput) => api<BacResolution>('POST', '/bac/resolutions', input),
+  updateResolution: (id: number, input: BacResolutionInput) => api<BacResolution>('PUT', `/bac/resolutions/${id}`, input),
+  resolutionAction: (id: number, action: 'submit' | 'approve' | 'archive') => api<BacResolution>('POST', `/bac/resolutions/${id}/${action}`),
+  returnResolution: (id: number, remarks: string) => api<BacResolution>('POST', `/bac/resolutions/${id}/return`, { remarks }),
+  removeResolution: (id: number) => api<{ message: string }>('DELETE', `/bac/resolutions/${id}`),
 }

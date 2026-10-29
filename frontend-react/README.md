@@ -25,4 +25,5 @@ Moved so far: login, layout, dashboard (account summary only), Users & Roles, It
 (reorder report, stock received, transfers, expiring stock), the stock card, Issuance & Requests (with printable
 RIS / ICS / PAR), Stock Adjustments, Semi-Expendable Property, Assets & Property (register, transfers/returns,
 depreciation, printable PAR / ICS / PTR / return slips), My Assets, Disposal, Gate Pass, Procurement Planning
-(PPMP, APP, budget monitoring) and Purchase Requests (approval routing, CAF, printable Appendix 60 PR form).
+(PPMP, APP, budget monitoring) and Purchase Requests (approval routing, CAF, printable Appendix 60 PR form), RFQ / alternative modes (quotations,
+printable abstract, award, NOA/NTP) and BAC Management (meetings and attendance, resolutions, composition).

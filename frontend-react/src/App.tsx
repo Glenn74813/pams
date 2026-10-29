@@ -15,6 +15,8 @@ import { IssuancePage } from './pages/issuance/IssuancePage'
 import { SemiExpendablePage } from './pages/issuance/SemiExpendablePage'
 import { WarehousePage } from './pages/inventory/WarehousePage'
 import { PlanningPage } from './pages/procurement/PlanningPage'
+import { RfqPage } from './pages/rfq/RfqPage'
+import { BacPage } from './pages/bac/BacPage'
 import { PurchaseRequestsPage } from './pages/procurement/PurchaseRequestsPage'
 import { LoginPage } from './pages/LoginPage'
 import { NotFoundPage } from './pages/NotFoundPage'
@@ -36,6 +38,8 @@ const ported: Record<string, React.ReactNode> = {
   '/gate-pass': <GatePassPage />,
   '/procurement-planning': <PlanningPage />,
   '/purchase-requests': <PurchaseRequestsPage />,
+  '/rfq': <RfqPage />,
+  '/bac': <BacPage />,
 }
 
 export function App() {

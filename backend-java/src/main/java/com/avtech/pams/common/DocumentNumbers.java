@@ -20,7 +20,9 @@ public class DocumentNumbers {
             "requests.request_number", "requests.ris_number", "requests.ics_number", "requests.par_number",
             "stock_adjustments.adjustment_number", "properties.tag_number", "properties.accountability_number",
             "property_transfers.reference_number", "disposal_requests.disposal_number", "gate_passes.gate_pass_number",
-            "ppmps.ppmp_number", "apps.app_number", "purchase_requests.pr_number", "purchase_requests.caf_number");
+            "ppmps.ppmp_number", "apps.app_number", "purchase_requests.pr_number", "purchase_requests.caf_number",
+            "rfqs.rfq_number", "rfqs.noa_number", "rfqs.ntp_number", "biddings.noa_number", "biddings.ntp_number",
+            "bac_meetings.meeting_number", "bac_resolutions.resolution_number");
 
     private final JdbcTemplate jdbc;
 
