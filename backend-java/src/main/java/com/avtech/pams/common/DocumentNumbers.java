@@ -27,9 +27,11 @@ public class DocumentNumbers {
             "physical_inventory_counts.count_number");
 
     private final JdbcTemplate jdbc;
+    private final Db db;
 
-    public DocumentNumbers(JdbcTemplate jdbc) {
+    public DocumentNumbers(JdbcTemplate jdbc, Db db) {
         this.jdbc = jdbc;
+        this.db = db;
     }
 
     /** PREFIX-YYYY-MM-NNNN, numbered within the month across every "table.column" given. */
@@ -53,7 +55,7 @@ public class DocumentNumbers {
     }
 
     private String next(String stem, int width, String... columns) {
-        jdbc.queryForList("select pg_advisory_xact_lock(hashtext(?))", "pams.number." + stem);
+        db.namedLock("pams.number." + stem);
         int max = 0;
         for (String tc : columns) {
             if (!COLUMNS.contains(tc)) throw new IllegalArgumentException("Not a numbered column: " + tc);

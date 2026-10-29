@@ -48,6 +48,19 @@ function SystemForm({ initial, editable }: { initial: SystemSettings; editable: 
           <input id="sys-pw" type="number" min={8} max={64} value={f.password_min_length} onChange={num('password_min_length')} disabled={!editable} />
           <span className="hint">8 to 64. Applies to new and changed passwords.</span>
         </div>
+        <div className="field">
+          <label htmlFor="sys-url">App address</label>
+          <input id="sys-url" type="url" placeholder={window.location.origin} value={f.app_url} onChange={(e) => setF({ ...f, app_url: e.target.value })} disabled={!editable} />
+          <span className="hint">
+            The address people open the system at, e.g. https://pams.agency.gov.ph. QR labels link here, so set it before printing stickers; labels
+            printed earlier keep the old address.{' '}
+            {editable && !f.app_url && (
+              <button type="button" className="link-btn" onClick={() => setF({ ...f, app_url: window.location.origin })}>
+                Use {window.location.origin}
+              </button>
+            )}
+          </span>
+        </div>
         {editable && (
           <button className="btn btn-primary" type="submit" disabled={save.isPending}>
             {save.isPending ? 'Saving…' : 'Save'}

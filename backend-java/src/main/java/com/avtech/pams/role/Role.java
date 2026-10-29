@@ -1,7 +1,9 @@
 package com.avtech.pams.role;
 
 import com.avtech.pams.common.Timestamped;
+import com.avtech.pams.common.JsonText;
 import jakarta.persistence.Column;
+import jakarta.persistence.Convert;
 import jakarta.persistence.Entity;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
@@ -29,8 +31,8 @@ public class Role extends Timestamped {
 
     private String description;
 
-    @JdbcTypeCode(SqlTypes.JSON)
-    @Column(columnDefinition = "json", nullable = false)
+    @Convert(converter = JsonText.StringList.class)
+    @Column(nullable = false)
     private List<String> permissions = new ArrayList<>();
 
     @Column(name = "is_system", nullable = false)

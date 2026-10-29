@@ -32,7 +32,7 @@ public class RpcppeForm {
      */
     public byte[] generate(String ppeType, LocalDate asAtDate, String fundCluster, Map<Long, ? extends Number> countData) {
         // Get PPE properties (items that are expandable/PPE)
-        String where = "semi_expandable".equals(ppeType) ? "i.is_semi_expandable = true" : "i.is_expandable = true";
+        String where = "semi_expandable".equals(ppeType) ? "i.is_semi_expandable = ?" : "i.is_expandable = ?";
         List<Map<String, Object>> properties = jdbc.queryForList("""
                 select p.id, p.tag_number, p.condition, p.status,
                        i.name as item_name, i.unit_of_measure, i.weighted_average_cost, c.name as category_name
@@ -41,7 +41,7 @@ public class RpcppeForm {
                 left join categories c on c.id = i.category_id
                 where %s
                 order by p.tag_number, p.id
-                """.formatted(where));
+                """.formatted(where), true);
 
         Xlsx x = new Xlsx("RPCPPE");
         x.defaultFont(FONT, 10);

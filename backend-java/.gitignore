@@ -34,3 +34,7 @@ build/
 
 ### local secrets ###
 .env
+
+# Uploaded files (signatures, logos, documents) and database backups
+storage/
+storage-mssql/

@@ -74,7 +74,6 @@ public class PropertyService {
     @Transactional
     public Registered register(RegisterInput in) {
         if (in.itemId() == null) throw ApiException.validation("item_id", "Choose the item.");
-        if (in.stockId() == null) throw ApiException.validation("stock_id", "Choose the stock lot the units come from.");
         if (in.assignedTo() == null) throw ApiException.validation("assigned_to", "Choose who will be accountable for the asset.");
         if (in.units() == null || in.units().isEmpty()) throw ApiException.validation("units", "Add at least one unit.");
         String condition = condition(in.condition(), "good");
@@ -87,9 +86,9 @@ public class PropertyService {
         if (!item.isPpe() && !item.isSemiExpendable()) {
             throw ApiException.validation("item_id", "Only PPE and semi-expendable items are registered as property; consumables are issued through requests.");
         }
-        if (item.isAssembly()) {
-            throw ApiException.validation("item_id", "Assembled units (e.g. a clone PC) are still registered in the current system.");
-        }
+        // An assembled unit (e.g. a Clone PC) draws stock through its parts list instead; a lot, if chosen, only supplies brand details.
+        boolean assembly = item.isAssembly();
+        if (in.stockId() == null && !assembly) throw ApiException.validation("stock_id", "Choose the stock lot the units come from.");
 
         Set<String> tags = new HashSet<>();
         Set<String> serials = new HashSet<>();
@@ -111,7 +110,7 @@ public class PropertyService {
 
         int qty = in.units().size();
         int before = item.getCurrentStock();
-        Stock lot = ledger.takeFromLot(item, in.stockId(), qty);
+        Stock lot = assembly ? (in.stockId() == null ? null : ledger.lot(item, in.stockId())) : ledger.takeFromLot(item, in.stockId(), qty);
         String doc = numbers.monthly(item.isPpe() ? "PAR" : "ICS", ACCOUNTABILITY_COLS);
         LocalDate date = in.assignedDate() == null ? LocalDate.now(Times.ZONE) : in.assignedDate();
 
@@ -119,33 +118,39 @@ public class PropertyService {
         for (UnitInput u : in.units()) {
             Property p = new Property();
             p.setItemId(item.getId());
-            p.setStockId(lot.getId());
+            p.setStockId(lot == null ? null : lot.getId());
             p.setTagNumber(u.tagNumber() != null && !u.tagNumber().isBlank() ? u.tagNumber().trim() : numbers.yearly("PROP", "properties.tag_number"));
             p.setSerialNumber(blank(u.serialNumber()));
-            p.setBrand(lot.getBrandName());
-            p.setSpecifications(lot.getSpecifications());
-            p.setWarranty(lot.getWarranty());
-            p.setWarrantyMonths(lot.getWarrantyMonths());
+            if (lot != null) {
+                p.setBrand(lot.getBrandName());
+                p.setSpecifications(lot.getSpecifications());
+                p.setWarranty(lot.getWarranty());
+                p.setWarrantyMonths(lot.getWarrantyMonths());
+            }
             p.setAssignedTo(in.assignedTo());
             p.setAssignedDate(date);
             p.setAccountabilityNumber(doc);
             p.setStatus(Property.ASSIGNED);
             p.setCondition(u.condition() != null && !u.condition().isBlank() ? u.condition() : condition);
-            p.setAcquisitionCost(lot.getUnitCost());
-            p.setAcquisitionDate(lot.getReceivedDate());
+            // An assembled unit is costed from its parts as they are added.
+            BigDecimal cost = assembly ? BigDecimal.ZERO : lot.getUnitCost();
+            p.setAcquisitionCost(cost);
+            p.setAcquisitionDate(lot == null || lot.getReceivedDate() == null ? date : lot.getReceivedDate());
             p.setUsefulLifeYears(life);
             p.setSalvageValue(in.salvageValue());
             // Semi-expendable is expensed on issue; only PPE depreciates.
             p.setDepreciable(item.isPpe());
-            p.setCurrentBookValue(lot.getUnitCost());
+            p.setCurrentBookValue(cost);
             properties.saveAndFlush(p);
             // The original PAR/ICS opens the asset's accountability history.
             transfers.save(new PropertyTransfer(p.getId(), PropertyTransfer.REISSUE, null, in.assignedTo(), date,
                     "Registered from stock", current.user().getId(), doc));
             created.add(p);
         }
-        ledger.log(item, current.user().getId(), "stock_out", qty, before, TYPE, created.get(0).getId(),
-                "Registered " + qty + " unit(s) as property under " + doc + (lot.getBrandName() == null ? "" : " (" + lot.getBrandName() + ")"));
+        if (!assembly) {
+            ledger.log(item, current.user().getId(), "stock_out", qty, before, TYPE, created.get(0).getId(),
+                    "Registered " + qty + " unit(s) as property under " + doc + (lot.getBrandName() == null ? "" : " (" + lot.getBrandName() + ")"));
+        }
         audit.record("created", TYPE, created.get(0).getId(), "Registered " + qty + " " + item.getName() + " under " + doc, null,
                 Map.of("tags", created.stream().map(Property::getTagNumber).toList(), "assigned_to", in.assignedTo(), "document", doc));
         notifications.notifyUser(in.assignedTo(), "property_transfer_in", "Property issued to you",
@@ -209,6 +214,7 @@ public class PropertyService {
         Property p = lock(id);
         if (p.getAssignedTo() == null) throw ApiException.of(HttpStatus.CONFLICT, "This asset has no holder; issue it instead of transferring it.");
         if (!Property.ASSIGNED.equals(p.getStatus())) throw ApiException.of(HttpStatus.CONFLICT, "Only assets in use can be transferred (this one is " + p.getStatus().replace('_', ' ') + ").");
+        requireOnSite(p);
         requireReason(in);
         if (in.toUser() == null || !users.existsById(in.toUser())) throw ApiException.validation("to_user", "Choose who the asset goes to.");
         if (in.toUser().equals(p.getAssignedTo())) throw ApiException.validation("to_user", "The asset is already with that person.");
@@ -336,9 +342,22 @@ public class PropertyService {
             throw ApiException.of(HttpStatus.CONFLICT, "This asset has transfers, gate passes, disposals or depreciation on record, so it cannot be deleted. Return or dispose of it instead.");
         }
         Item item = ledger.lock(p.getItemId());
-        int before = item.getCurrentStock();
-        ledger.putBack(item, p.getStockId(), 1, p.getAcquisitionCost(), "Returned from deleted asset " + p.getTagNumber());
-        ledger.log(item, current.user().getId(), "stock_in", 1, before, TYPE, p.getId(), "Asset " + p.getTagNumber() + " deleted — unit returned to stock");
+        if (item.isAssembly()) {
+            // An assembled unit goes back as its parts, each to the lot it was drawn from.
+            for (Map<String, Object> c : jdbc.queryForList("select description, quantity, stock_id from property_components where property_id = ? order by id", id)) {
+                if (c.get("stock_id") == null) continue;
+                int qty = ((Number) c.get("quantity")).intValue();
+                int before = item.getCurrentStock();
+                ledger.putBack(item, ((Number) c.get("stock_id")).longValue(), qty, null, null);
+                ledger.log(item, current.user().getId(), "stock_in", qty, before, TYPE, p.getId(),
+                        "Asset " + p.getTagNumber() + " deleted — " + c.get("description") + " returned to stock");
+            }
+            jdbc.update("delete from property_components where property_id = ?", id);
+        } else {
+            int before = item.getCurrentStock();
+            ledger.putBack(item, p.getStockId(), 1, p.getAcquisitionCost(), "Returned from deleted asset " + p.getTagNumber());
+            ledger.log(item, current.user().getId(), "stock_in", 1, before, TYPE, p.getId(), "Asset " + p.getTagNumber() + " deleted — unit returned to stock");
+        }
         Map<String, Object> snap = snapshot(p);
         transfers.deleteAll(moves);
         properties.delete(p);
@@ -357,7 +376,7 @@ public class PropertyService {
         return n == null ? 0 : n;
     }
 
-    /** An asset out on a gate pass isn't physically here to be turned in or retired. */
+    /** An asset out on a gate pass isn't physically here to be transferred, turned in or retired. */
     private void requireOnSite(Property p) {
         Integer out = jdbc.queryForObject("select count(*) from gate_passes where property_id = ? and status <> 'returned' and deleted_at is null",
                 Integer.class, p.getId());

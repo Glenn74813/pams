@@ -6,6 +6,9 @@ import type { AuthUser } from '../api/types'
 import { AuthContext, IDLE_FLAG, type AuthState, type LoginOutcome } from './AuthContext'
 
 const ACTIVITY_KEY = 'pams.lastActivity'
+// When the current token was issued, and when a tab last started renewing it (so only one tab does).
+const ISSUED_KEY = 'pams.tokenIssued'
+const RENEW_KEY = 'pams.tokenRenewing'
 const ACTIVITY_EVENTS = ['mousemove', 'mousedown', 'keydown', 'scroll', 'touchstart', 'wheel'] as const
 
 function store(kind: 'local' | 'session', key: string, value?: string): string | null {
@@ -54,6 +57,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       return { ok: false, twoFactorRequired: true }
     }
     tokenStore.set(res.access_token!)
+    store('local', ISSUED_KEY, String(Date.now()))
     setUser(await authApi.me())
     return { ok: true }
   }, [])
@@ -87,8 +91,23 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
     for (const e of ACTIVITY_EVENTS) window.addEventListener(e, touch, { passive: true })
     const timer = window.setInterval(() => {
-      if (!minutes || done) return
+      if (done) return
       const last = Number(store('local', ACTIVITY_KEY) ?? Date.now())
+      // Tokens last 60 minutes: renew one in use (activity in the last 10 minutes) once it is 40 minutes old.
+      // One tab renews; the others see the new token in shared storage.
+      const issued = Number(store('local', ISSUED_KEY) ?? 0)
+      const claim = Number(store('local', RENEW_KEY) ?? 0)
+      if (Date.now() - last < 10 * 60_000 && Date.now() - issued > 40 * 60_000 && Date.now() - claim > 60_000) {
+        store('local', RENEW_KEY, String(Date.now()))
+        authApi
+          .refresh()
+          .then((r) => {
+            tokenStore.set(r.access_token)
+            store('local', ISSUED_KEY, String(Date.now()))
+          })
+          .catch(() => undefined)
+      }
+      if (!minutes) return
       if (Date.now() - last >= minutes * 60_000) {
         done = true
         store('session', IDLE_FLAG, String(minutes))

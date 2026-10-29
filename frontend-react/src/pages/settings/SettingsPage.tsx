@@ -2,12 +2,13 @@ import { useState } from 'react'
 import { useAuth } from '../../auth/AuthContext'
 import { AccountTab } from './AccountTab'
 import { AgencyTab } from './AgencyTab'
+import { DataTab } from './DataTab'
 import { SignatoriesTab } from './SignatoriesTab'
 import { SystemTab } from './SystemTab'
 import '../inventory/inventory.css'
 import './settings.css'
 
-type Tab = 'account' | 'agency' | 'signatories' | 'system'
+type Tab = 'account' | 'agency' | 'signatories' | 'system' | 'data'
 
 export function SettingsPage() {
   const { can } = useAuth()
@@ -16,6 +17,7 @@ export function SettingsPage() {
     ['agency', 'Agency profile & logos', can('view_settings', 'edit_settings', 'manage_agency_profile')],
     ['signatories', 'Signatories', can('view_settings', 'edit_settings', 'manage_signatories')],
     ['system', 'System', can('view_settings', 'edit_settings', 'manage_system_settings')],
+    ['data', 'Data import/export', can('manage_system_settings')],
   ]
   const [tab, setTab] = useState<Tab>('account')
   const shown = tabs.filter(([, , ok]) => ok)
@@ -35,6 +37,7 @@ export function SettingsPage() {
       {tab === 'agency' && <AgencyTab />}
       {tab === 'signatories' && <SignatoriesTab />}
       {tab === 'system' && <SystemTab />}
+      {tab === 'data' && <DataTab />}
     </div>
   )
 }

@@ -31,14 +31,15 @@ import { ReportsPage } from './pages/reports/ReportsPage'
 import { ProcurementReportsPage } from './pages/reports/ProcurementReportsPage'
 import { ApcpiPage } from './pages/apcpi/ApcpiPage'
 import { PublicScanPage } from './pages/scan/PublicScanPage'
+import { HelpPage } from './pages/help/HelpPage'
+import { PettyCashPage } from './pages/payments/PettyCashPage'
 import { BacPage } from './pages/bac/BacPage'
 import { PurchaseRequestsPage } from './pages/procurement/PurchaseRequestsPage'
 import { LoginPage } from './pages/LoginPage'
 import { NotFoundPage } from './pages/NotFoundPage'
-import { NotPortedPage } from './pages/NotPortedPage'
 import { UsersPage } from './pages/users/UsersPage'
 
-/** Pages that have moved to React, by path. Everything else in the menu shows a link to the old app. */
+/** The page for each menu path. */
 const ported: Record<string, React.ReactNode> = {
   '/dashboard': <DashboardPage />,
   '/users': <UsersPage />,
@@ -69,6 +70,7 @@ const ported: Record<string, React.ReactNode> = {
   '/reports': <ReportsPage />,
   '/procurement-reports': <ProcurementReportsPage />,
   '/apcpi': <ApcpiPage />,
+  '/petty-cash': <PettyCashPage />,
 }
 
 export function App() {
@@ -91,9 +93,11 @@ export function App() {
                 <Route
                   key={item.path}
                   path={item.path}
-                  element={<RequireModule module={item.module}>{ported[item.path] ?? <NotPortedPage item={item} />}</RequireModule>}
+                  element={<RequireModule module={item.module}>{ported[item.path] ?? <NotFoundPage />}</RequireModule>}
                 />
               ))}
+              <Route path="/help" element={<HelpPage />} />
+              <Route path="/help/:slug" element={<HelpPage />} />
               <Route path="*" element={<NotFoundPage />} />
             </Route>
           </Routes>

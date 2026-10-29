@@ -5,6 +5,7 @@ import com.avtech.pams.adjustment.StockAdjustmentRepository;
 import com.avtech.pams.audit.AuditService;
 import com.avtech.pams.auth.CurrentUser;
 import com.avtech.pams.common.ApiException;
+import com.avtech.pams.common.Db;
 import com.avtech.pams.common.DocumentNumbers;
 import com.avtech.pams.common.PageResponse;
 import com.avtech.pams.common.Times;
@@ -80,11 +81,12 @@ public class PhysicalCountController {
     private final NotificationService notifications;
     private final CurrentUser current;
     private final JdbcTemplate jdbc;
+    private final Db db;
 
     public PhysicalCountController(PhysicalCountRepository counts, CountLineRepository lines, CountPropertyRepository tags,
                                    PropertyRepository properties, StockAdjustmentRepository adjustments, StockLedger ledger,
                                    DocumentNumbers numbers, AuditService audit, NotificationService notifications,
-                                   CurrentUser current, JdbcTemplate jdbc) {
+                                   CurrentUser current, JdbcTemplate jdbc, Db db) {
         this.counts = counts;
         this.lines = lines;
         this.tags = tags;
@@ -96,6 +98,7 @@ public class PhysicalCountController {
         this.notifications = notifications;
         this.current = current;
         this.jdbc = jdbc;
+        this.db = db;
     }
 
     public record Ref(Long id, String name) {
@@ -247,16 +250,18 @@ public class PhysicalCountController {
         c.setCutoffLogId(jdbc.queryForObject("select coalesce(max(id), 0) from inventory_logs", Long.class));
         int n;
         if (c.isSupplies()) {
+            List<Object> args = new ArrayList<>(List.of(c.getId(), now, now));
+            String scope = "";
+            if (c.getCategoryId() != null) {
+                List<Long> cats = categoryAndDescendants(c.getCategoryId());
+                scope = " where i.category_id in (" + cats.stream().map(x -> "?").collect(Collectors.joining(", ")) + ")";
+                args.addAll(cats);
+            }
             n = jdbc.update("""
-                    with recursive cats as (
-                        select id from categories where id = ?
-                        union all select ch.id from categories ch join cats on ch.parent_id = cats.id)
                     insert into physical_inventory_count_items
                         (physical_inventory_count_id, item_id, system_quantity, unit_cost, created_at, updated_at)
                     select ?, i.id, i.current_stock, i.weighted_average_cost, ?, ?
-                    from items i
-                    where ?::bigint is null or i.category_id in (select id from cats)
-                    """, c.getCategoryId(), c.getId(), now, now, c.getCategoryId());
+                    from items i""" + scope, args.toArray());
         } else {
             boolean ppe = PhysicalCount.PPE.equals(c.getCountType());
             n = jdbc.update("""
@@ -266,8 +271,9 @@ public class PhysicalCountController {
                     select ?, p.id, p.tag_number, %s, p.assigned_to, u.department_id,
                            coalesce(p.current_book_value, p.acquisition_cost), p.condition, ?, ?
                     from properties p join items i on i.id = p.item_id left join users u on u.id = p.assigned_to
-                    where p.status <> 'disposed' and %s and (?::bigint is null or u.department_id = ?)
-                    """.formatted(DESCRIPTION, ppe ? "i.is_expandable" : "i.is_semi_expandable and not i.is_expandable"),
+                    where p.status <> 'disposed' and %s and (cast(? as bigint) is null or u.department_id = ?)
+                    """.formatted(DESCRIPTION, ppe ? "i.is_expandable = " + db.t()
+                            : "i.is_semi_expandable = " + db.t() + " and i.is_expandable = " + db.f()),
                     c.getId(), now, now, c.getDepartmentId(), c.getDepartmentId());
         }
         if (n == 0) {
@@ -284,7 +290,8 @@ public class PhysicalCountController {
     }
 
     private static final String DESCRIPTION =
-            "i.name || coalesce(' — ' || nullif(p.brand, ''), '') || coalesce(' (S/N ' || nullif(p.serial_number, '') || ')', '')";
+            "concat(i.name, case when p.brand <> '' then concat(' — ', p.brand) else '' end,"
+            + " case when p.serial_number <> '' then concat(' (S/N ', p.serial_number, ')') else '' end)";
 
     // ---------------------------------------------------------------- counting
 
@@ -634,16 +641,25 @@ public class PhysicalCountController {
             if (c.getCutoffLogId() != null) {
                 // Net stock-card movement after the cut-off, leaving out this count's own postings. Stored times are
                 // rounded to the second, so the verification time gets a second of slack.
+                List<Object> args = new ArrayList<>(List.of(c.getCutoffLogId(), c.getId()));
+                String until = "";
+                if (c.getVerifiedAt() != null) {
+                    until = " and l.created_at <= ?";
+                    args.add(java.sql.Timestamp.valueOf(c.getVerifiedAt().plusSeconds(1)));
+                }
+                args.add(ADJUSTMENT);
+                args.add(c.getId());
                 jdbc.query("""
                         select l.item_id, sum(l.new_quantity - l.previous_quantity) from inventory_logs l
-                        where l.id > ? and l.item_id in (select item_id from physical_inventory_count_items where physical_inventory_count_id = ?)
-                          and (?::timestamp is null or l.created_at <= ?::timestamp + interval '1 second')
+                        where l.id > ? and l.item_id in (select item_id from physical_inventory_count_items where physical_inventory_count_id = ?)"""
+                        + until + " " + """
+
                           and not (l.reference_type = ? and l.reference_id in
                                    (select stock_adjustment_id from physical_inventory_count_items where physical_inventory_count_id = ? and stock_adjustment_id is not null))
                         group by l.item_id
                         """, rs -> {
                     moved.put(rs.getLong(1), rs.getInt(2));
-                }, c.getCutoffLogId(), c.getId(), c.getVerifiedAt(), c.getVerifiedAt(), ADJUSTMENT, c.getId());
+                }, args.toArray());
             }
             Map<Long, String> adjNumbers = new HashMap<>();
             Set<Long> adjIds = ls.stream().map(CountLine::getStockAdjustmentId).filter(Objects::nonNull).collect(Collectors.toSet());
@@ -744,6 +760,24 @@ public class PhysicalCountController {
     private String itemCodes(List<Long> itemIds) {
         String in = itemIds.stream().map(String::valueOf).collect(Collectors.joining(","));
         return String.join(", ", jdbc.queryForList("select code from items where id in (" + in + ") order by code", String.class));
+    }
+
+    /** The category and every category below it (the tree is small, so it is walked in memory). */
+    private List<Long> categoryAndDescendants(Long root) {
+        Map<Long, List<Long>> children = new HashMap<>();
+        jdbc.query("select id, parent_id from categories where parent_id is not null", rs -> {
+            children.computeIfAbsent(rs.getLong(2), k -> new ArrayList<>()).add(rs.getLong(1));
+        });
+        List<Long> out = new ArrayList<>();
+        Set<Long> seen = new HashSet<>();
+        java.util.ArrayDeque<Long> todo = new java.util.ArrayDeque<>(List.of(root));
+        while (!todo.isEmpty()) {
+            Long id = todo.pop();
+            if (!seen.add(id)) continue;
+            out.add(id);
+            todo.addAll(children.getOrDefault(id, List.of()));
+        }
+        return out;
     }
 
     private boolean exists(String table, Long id) {

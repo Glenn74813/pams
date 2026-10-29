@@ -191,7 +191,7 @@ public class BacController {
         m.setTermEnd(in.termEnd());
         if (in.isActive() != null) m.setActive(in.isActive());
         if (in.sequence() != null) m.setSequence(Math.max(0, in.sequence()));
-        m.setRemarks(text(in.remarks()));
+        if (in.remarks() != null) m.setRemarks(text(in.remarks()));
     }
 
     private MemberView memberView(BacMember m) {
@@ -349,9 +349,14 @@ public class BacController {
         if (in.status() != null) m.setStatus(in.status());
     }
 
-    /** Quorum: a majority of the seated voting members, counted from attendees present in a voting designation. */
+    /**
+     * Quorum: a majority of the voting members seated on the meeting date (term covering that day),
+     * counted from attendees present in a voting designation.
+     */
     private Quorum quorum(BacMeeting m) {
-        int seated = (int) members.findByActiveTrue().stream().filter(BacMember::isVoting).count();
+        java.time.LocalDate day = m.getMeetingDate() == null ? java.time.LocalDate.now(com.avtech.pams.common.Times.ZONE) : m.getMeetingDate().toLocalDate();
+        int seated = (int) members.findByActiveTrue().stream().filter(BacMember::isVoting)
+                .filter(x -> (x.getTermStart() == null || !x.getTermStart().isAfter(day)) && (x.getTermEnd() == null || !x.getTermEnd().isBefore(day))).count();
         int present = (int) m.getAttendees().stream().filter(a -> a.isPresent() && a.getCommitteeRole() != null && BacMember.VOTING.contains(a.getCommitteeRole())).count();
         int needed = seated / 2 + 1;
         return new Quorum(seated, present, needed, seated > 0 && present >= needed);

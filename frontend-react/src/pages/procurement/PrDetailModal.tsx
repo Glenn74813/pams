@@ -58,7 +58,7 @@ function Details({ p, onPrint, onEdit, onChanged }: { p: PurchaseRequest; onPrin
   }
   const done = (m: string, closed?: boolean) => () => onChanged(m, closed)
   const submit = useMutation({ mutationFn: () => prApi.submit(p.id), onSuccess: done(`${p.pr_number} submitted for approval.`), onError: fail })
-  const approve = useMutation({ mutationFn: () => prApi.approveStep(p.id, text || undefined), onSuccess: (r) => onChanged(r.status === 'approved' ? `${p.pr_number} is fully approved.` : `Signed; ${p.pr_number} is now with ${r.stage_label}.`), onError: fail })
+  const approve = useMutation({ mutationFn: () => prApi.approveStep(p.id), onSuccess: (r) => onChanged(r.status === 'approved' ? `${p.pr_number} is fully approved.` : `Signed; ${p.pr_number} is now with ${r.stage_label}.`), onError: fail })
   const ret = useMutation({ mutationFn: () => prApi.returnStep(p.id, text), onSuccess: done(`${p.pr_number} returned to the requester.`), onError: fail })
   const caf = useMutation({ mutationFn: () => prApi.certifyFunds(p.id, { caf_amount: Number(amount), caf_remarks: text || undefined }), onSuccess: (r) => onChanged(`${r.caf_number} issued for ${p.pr_number}.`), onError: fail })
   const cancel = useMutation({ mutationFn: () => prApi.cancel(p.id), onSuccess: done(`${p.pr_number} cancelled.`), onError: fail })

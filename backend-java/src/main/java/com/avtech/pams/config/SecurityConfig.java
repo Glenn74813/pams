@@ -21,8 +21,11 @@ import org.springframework.security.web.authentication.UsernamePasswordAuthentic
 @EnableMethodSecurity
 public class SecurityConfig {
 
+    /** pams.security.require-https: redirect plain HTTP to HTTPS (HSTS is sent on every HTTPS response). */
     @Bean
-    SecurityFilterChain api(HttpSecurity http, JwtAuthFilter jwtAuthFilter) throws Exception {
+    SecurityFilterChain api(HttpSecurity http, JwtAuthFilter jwtAuthFilter,
+                            @org.springframework.beans.factory.annotation.Value("${pams.security.require-https:false}") boolean requireHttps) throws Exception {
+        if (requireHttps) http.redirectToHttps(org.springframework.security.config.Customizer.withDefaults());
         http
                 // Stateless bearer-token API: no cookies, so no CSRF surface.
                 .csrf(AbstractHttpConfigurer::disable)
@@ -35,10 +38,17 @@ public class SecurityConfig {
                         // QR scan pages opened from a phone; every request carries a signed checksum.
                         .requestMatchers(HttpMethod.GET, "/api/public/qr/**").permitAll()
                         .requestMatchers("/api/**").authenticated()
+                        // The built React app, when this process serves it (pams.frontend-dir).
+                        .requestMatchers(HttpMethod.GET, "/**").permitAll()
                         .anyRequest().denyAll())
                 .exceptionHandling(e -> e
                         .authenticationEntryPoint((req, res, ex) -> json(res, 401, "{\"status\":\"Authorization Token not found\"}"))
                         .accessDeniedHandler((req, res, ex) -> json(res, 403, "{\"error\":\"You do not have permission to perform this action.\"}")))
+                .headers(h -> h
+                        .contentTypeOptions(org.springframework.security.config.Customizer.withDefaults())
+                        .frameOptions(f -> f.deny())
+                        .referrerPolicy(r -> r.policy(org.springframework.security.web.header.writers.ReferrerPolicyHeaderWriter.ReferrerPolicy.SAME_ORIGIN))
+                        .httpStrictTransportSecurity(hsts -> hsts.includeSubDomains(true).maxAgeInSeconds(31536000)))
                 .addFilterBefore(jwtAuthFilter, UsernamePasswordAuthenticationFilter.class);
         return http.build();
     }

@@ -453,9 +453,10 @@ function AwardForm({ r, onCancel, onSaved }: { r: Rfq; onCancel: () => void; onS
           <select id="aw-q" value={chosen} onChange={(e) => setPick(e.target.value)}>
             <option value="">Choose</option>
             {r.quotations?.filter((x) => x.is_responsive && !x.over_abc).map((x) => (
-              <option key={x.id} value={x.id}>
+              <option key={x.id} value={x.id} disabled={!x.supplier_eligible}>
                 {x.supplier.name} — {formatPeso(x.total_amount)}
                 {recommended?.id === x.id ? ' (lowest)' : ''}
+                {x.supplier_eligible ? '' : ' — not eligible (documents or sanctions)'}
               </option>
             ))}
           </select>

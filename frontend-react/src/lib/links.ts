@@ -20,6 +20,9 @@ const PAGES: Record<string, string> = {
   PhysicalInventoryCount: '/physical',
   Document: '/documents',
   ApcpiAssessment: '/apcpi',
+  PaymentTranche: '/contracts',
+  PettyCashFund: '/petty-cash',
+  PettyCashVoucher: '/petty-cash',
 }
 
 export function pageFor(relatedType: string | null | undefined): string | null {
@@ -36,4 +39,5 @@ export const WATCH_KINDS: Record<string, string> = {
   security_expiry: 'Security validity',
   supplier_document: 'Supplier document',
   app_schedule: 'APP schedule',
+  payment_due: 'Payment due',
 }

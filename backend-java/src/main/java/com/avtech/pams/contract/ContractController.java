@@ -3,6 +3,7 @@ package com.avtech.pams.contract;
 import com.avtech.pams.audit.AuditService;
 import com.avtech.pams.auth.CurrentUser;
 import com.avtech.pams.common.ApiException;
+import com.avtech.pams.common.Db;
 import com.avtech.pams.common.DocumentNumbers;
 import com.avtech.pams.common.PageResponse;
 import com.avtech.pams.common.Times;
@@ -77,9 +78,10 @@ public class ContractController {
     private final AuditService audit;
     private final CurrentUser current;
     private final JdbcTemplate jdbc;
+    private final Db db;
 
     public ContractController(ContractRepository contracts, UserRepository users, AwardSupport awards, DocumentNumbers numbers,
-                              NotificationService notifications, AuditService audit, CurrentUser current, JdbcTemplate jdbc) {
+                              NotificationService notifications, AuditService audit, CurrentUser current, JdbcTemplate jdbc, Db db) {
         this.contracts = contracts;
         this.users = users;
         this.awards = awards;
@@ -88,6 +90,7 @@ public class ContractController {
         this.audit = audit;
         this.current = current;
         this.jdbc = jdbc;
+        this.db = db;
     }
 
     // ───────────────────────── views ─────────────────────────
@@ -169,12 +172,12 @@ public class ContractController {
         jdbc.query("""
                 select r.id, r.rfq_number, r.title, r.awarded_supplier_id, s.name, r.purchase_request_id, pr.pr_number, q.total_amount, r.noa_number,
                        r.ntp_date, r.delivery_lead_days, r.delivery_term, po.id, po.po_number
-                from rfqs r join rfq_quotations q on q.rfq_id = r.id and q.is_winner join suppliers s on s.id = r.awarded_supplier_id
+                from rfqs r join rfq_quotations q on q.rfq_id = r.id and q.is_winner = %s join suppliers s on s.id = r.awarded_supplier_id
                 left join purchase_requests pr on pr.id = r.purchase_request_id
                 left join purchase_orders po on po.rfq_id = r.id and po.deleted_at is null and po.status <> 'cancelled'
                 where r.status = 'awarded' and r.noa_number is not null and r.deleted_at is null
                   and not exists (select 1 from contracts c where c.rfq_id = r.id and c.deleted_at is null and c.status <> 'terminated')
-                order by r.id""", rs -> {
+                order by r.id""".formatted(db.t()), rs -> {
             out.add(source("rfq", rs));
         });
         jdbc.query("""
@@ -210,7 +213,7 @@ public class ContractController {
         if (in.sourceId() == null || !List.of("rfq", "bidding").contains(in.sourceType())) {
             throw ApiException.validation("source_id", "A contract rests on an award: choose the awarded RFQ or bidding.");
         }
-        jdbc.queryForList("select pg_advisory_xact_lock(hashtext(?))", "pams.contract." + in.sourceType() + "." + in.sourceId());
+        db.namedLock("pams.contract." + in.sourceType() + "." + in.sourceId());
         AwardSource src = sources().stream().filter(s -> s.type().equals(in.sourceType()) && s.id().equals(in.sourceId())).findFirst()
                 .orElseThrow(() -> ApiException.validation("source_id", "That award has no Notice of Award yet, or already has a contract."));
         if (!awards.eligible(src.supplier().id())) throw ApiException.validation("source_id", src.supplier().name() + " is inactive or not eligible.");

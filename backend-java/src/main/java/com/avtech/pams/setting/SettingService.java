@@ -1,9 +1,11 @@
 package com.avtech.pams.setting;
 
+import com.avtech.pams.common.Times;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
 
 import java.math.BigDecimal;
+import java.sql.Timestamp;
 import java.util.List;
 import java.util.Map;
 
@@ -15,6 +17,8 @@ public class SettingService {
     public static final String FEFO_WARNING_DAYS = "fefo_expiry_warning_days";
     public static final String IDLE_TIMEOUT_MINUTES = "idle_timeout_minutes";
     public static final String PASSWORD_MIN_LENGTH = "password_min_length";
+    /** Address people open the app at; QR labels link here. Empty = the pams.app-url setting. */
+    public static final String APP_URL = "app_url";
 
     private static final Map<String, String> DEFAULTS = Map.of(
             CAPITALIZATION_THRESHOLD, "50000",
@@ -35,14 +39,15 @@ public class SettingService {
 
     /** Inserts or replaces one setting (null stores an empty value, as Laravel's Setting::put did). */
     public void put(String key, String value) {
-        jdbc.update("""
-                insert into settings (key, value, created_at, updated_at) values (?, ?, now(), now())
-                on conflict (key) do update set value = excluded.value, updated_at = now()
-                """, key, value == null ? "" : value);
+        String v = value == null ? "" : value;
+        Timestamp now = Timestamp.valueOf(Times.now());
+        if (jdbc.update("update settings set value = ?, updated_at = ? where \"key\" = ?", v, now, key) == 0) {
+            jdbc.update("insert into settings (\"key\", value, created_at, updated_at) values (?, ?, ?, ?)", key, v, now, now);
+        }
     }
 
     public String get(String key) {
-        List<String> values = jdbc.queryForList("select value from settings where key = ?", String.class, key);
+        List<String> values = jdbc.queryForList("select value from settings where \"key\" = ?", String.class, key);
         return values.isEmpty() || values.get(0) == null ? DEFAULTS.get(key) : values.get(0);
     }
 

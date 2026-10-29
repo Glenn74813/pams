@@ -122,6 +122,11 @@ public final class Permissions {
                 "view_contracts", "View Contracts",
                 "create_contracts", "Create Contracts",
                 "edit_contracts", "Edit / Amend Contracts"));
+        c.put("Payments", group(
+                "view_payments", "View Payment Schedules & Petty Cash",
+                "manage_payments", "Schedule & Release Payments",
+                "approve_payments", "Approve Payments & Petty Cash Vouchers",
+                "manage_petty_cash", "Keep a Petty Cash Fund (custodian)"));
         c.put("Document Management", group(
                 "view_documents", "View Documents",
                 "upload_documents", "Upload / Version Documents",
@@ -164,13 +169,15 @@ public final class Permissions {
         m.put("warehouse", List.of("view_warehouse"));
         m.put("requests", List.of("view_requests", "view_own_requests", "create_requests"));
         m.put("monitoring", List.of("view_monitoring"));
-        m.put("physical", List.of("view_physical_inventory"));
+        m.put("physical", List.of("view_physical_inventory", "create_physical_inventory", "conduct_physical_inventory"));
         m.put("stock-adjustments", List.of("create_adjustments", "approve_adjustments"));
         m.put("semi-expendable", List.of("view_inventory", "manage_warehouse", "add_stock"));
         m.put("gate-pass", List.of("view_gate_pass"));
-        m.put("disposal", List.of("view_disposal"));
+        m.put("disposal", List.of("view_disposal", "create_disposal", "approve_disposal"));
         m.put("reports", List.of("view_reports"));
+        m.put("apcpi", List.of("view_procurement", "approve_procurement", "manage_bac_meetings", "view_reports"));
         m.put("documents", List.of("view_documents"));
+        m.put("payments", List.of("view_payments", "manage_payments", "approve_payments", "manage_petty_cash"));
         m.put("audit", List.of("view_audit_trail"));
         m.put("log-trails", List.of("view_log_trails"));
         m.put("users", List.of("view_users"));

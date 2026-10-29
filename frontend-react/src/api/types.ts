@@ -904,7 +904,7 @@ export interface PurchaseOrder {
   supplier: NamedRef
   purchase_request: NamedRef | null
   department: NamedRef | null
-  source: { type: 'rfq' | 'bidding'; id: number; number: string; noa_number: string | null } | null
+  source: { type: 'rfq' | 'bidding'; id: number; number: string; noa_number: string | null; mode: string | null } | null
   order_date: string
   delivery_date: string | null
   late: boolean
@@ -1210,6 +1210,7 @@ export interface SystemSettings {
   capitalization_threshold: number
   idle_timeout_minutes: number
   password_min_length: number
+  app_url: string
 }
 
 export interface MisSettings {
@@ -1524,3 +1525,37 @@ export interface QrLabel {
 }
 
 export type ScanResult = Record<string, string | number | null> & { type: 'item' | 'property' | 'gate-pass'; id: number; code: string; title: string; path: string }
+
+export interface AssemblyPart {
+  id: number
+  description: string
+  specifications: string | null
+  serial_number: string | null
+  quantity: number
+  remarks: string | null
+  stock_id: number | null
+  unit_cost: number
+  amount: number
+  warranty: string | null
+  warranty_months: number | null
+  warranty_start: string | null
+}
+
+export interface LinkedAsset {
+  id: number
+  tag_number: string
+  serial_number: string | null
+  item: string | null
+  holder: string | null
+}
+
+export interface Assembly {
+  is_assembly: boolean
+  parts: AssemblyPart[]
+  total: number
+  threshold: number
+  classification: 'ppe' | 'semi_expendable' | null
+  lots: { id: number; label: string; brand: string | null; specifications: string | null; quantity: number; unit_cost: number }[]
+  linked: LinkedAsset[]
+  parent: LinkedAsset | null
+}

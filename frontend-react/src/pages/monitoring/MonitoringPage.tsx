@@ -3,7 +3,8 @@ import { Link } from 'react-router'
 import { useMutation, useQuery } from '@tanstack/react-query'
 import { ApiError } from '../../api/client'
 import { inventoryApi, monitoringApi } from '../../api/endpoints'
-import type { MonitorLevel, Movement, RequestTrend, StockRow } from '../../api/types'
+import type { MonitorLevel, Movement, RequestTrend, StockRow, WatchEntry } from '../../api/types'
+import { paymentsApi } from '../../api/payments'
 import { useAuth } from '../../auth/AuthContext'
 import { Modal } from '../../components/Modal'
 import { useToast } from '../../components/toast-context'
@@ -412,19 +413,25 @@ function TrendChart({ rows }: { rows: RequestTrend[] }) {
 }
 
 function ProcurementTab() {
+  const { can } = useAuth()
   const [kind, setKind] = useState('')
   const q = useQuery({ queryKey: ['monitor-procurement'], queryFn: monitoringApi.procurement })
-  const rows = (q.data?.rows ?? []).filter((r) => !kind || r.kind === kind)
+  const payments = useQuery({ queryKey: ['monitor-payments'], queryFn: () => paymentsApi.due(7), enabled: can('view_payments', 'view_monitoring') })
+  const all: WatchEntry[] = [...(q.data?.rows ?? []), ...((payments.data?.data ?? []) as WatchEntry[])]
+  const rows = all.filter((r) => !kind || r.kind === kind)
+  const byKind: Record<string, number> = { ...(q.data?.by_kind ?? {}), payment_due: payments.data?.data.length ?? 0 }
+  const overdue = all.filter((r) => r.severity === 'overdue').length
+  const dueSoon = all.length - overdue
   if (q.isLoading) return <div className="page-loading">Loading…</div>
   return (
     <>
       <div className="kpi-row">
-        <div className={'kpi' + (q.data?.overdue ? ' kpi-bad' : '')}>
-          <span className="kpi-value">{q.data?.overdue ?? 0}</span>
+        <div className={'kpi' + (overdue ? ' kpi-bad' : '')}>
+          <span className="kpi-value">{overdue}</span>
           <span className="kpi-label">Overdue</span>
         </div>
-        <div className={'kpi' + (q.data?.due_soon ? ' kpi-warn' : '')}>
-          <span className="kpi-value">{q.data?.due_soon ?? 0}</span>
+        <div className={'kpi' + (dueSoon ? ' kpi-warn' : '')}>
+          <span className="kpi-value">{dueSoon}</span>
           <span className="kpi-label">Due soon</span>
         </div>
       </div>
@@ -433,7 +440,7 @@ function ProcurementTab() {
           <option value="">All deadlines</option>
           {Object.entries(WATCH_KINDS).map(([k, l]) => (
             <option key={k} value={k}>
-              {l} ({q.data?.by_kind[k] ?? 0})
+              {l} ({byKind[k] ?? 0})
             </option>
           ))}
         </select>

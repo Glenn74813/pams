@@ -17,6 +17,8 @@ spring:
         # Timestamps are stored as Asia/Manila wall-clock time (inherited from the Laravel app).
         jdbc.time_zone: Asia/Manila
   flyway:
+    # One folder per database: postgresql/ (V1..) and sqlserver/ (a V18 baseline of the same schema).
+    locations: classpath:db/migration/{vendor}
     # The existing database was built by Laravel; V1 is a snapshot of that schema and is only
     # executed on an empty database. Every schema change from now on is a Flyway migration.
     baseline-on-migrate: true

@@ -3,6 +3,7 @@ package com.avtech.pams.purchasing;
 import com.avtech.pams.audit.AuditService;
 import com.avtech.pams.auth.CurrentUser;
 import com.avtech.pams.common.ApiException;
+import com.avtech.pams.common.Db;
 import com.avtech.pams.common.DocumentNumbers;
 import com.avtech.pams.common.PageResponse;
 import com.avtech.pams.common.Times;
@@ -68,10 +69,11 @@ public class PurchaseOrderController {
     private final AuditService audit;
     private final CurrentUser current;
     private final JdbcTemplate jdbc;
+    private final Db db;
 
     public PurchaseOrderController(PurchaseOrderRepository orders, InspectionReportRepository reports, UserRepository users, AwardSupport awards,
                                    Deliveries deliveries, DocumentNumbers numbers, NotificationService notifications, AuditService audit,
-                                   CurrentUser current, JdbcTemplate jdbc) {
+                                   CurrentUser current, JdbcTemplate jdbc, Db db) {
         this.orders = orders;
         this.reports = reports;
         this.users = users;
@@ -82,6 +84,7 @@ public class PurchaseOrderController {
         this.audit = audit;
         this.current = current;
         this.jdbc = jdbc;
+        this.db = db;
     }
 
     // ───────────────────────── views ─────────────────────────
@@ -89,7 +92,8 @@ public class PurchaseOrderController {
     public record Ref(Long id, String name) {
     }
 
-    public record Source(String type, Long id, String number, String noaNumber) {
+    /** {@code mode} is the mode of procurement printed on the PO (COA Appendix 61). */
+    public record Source(String type, Long id, String number, String noaNumber, String mode) {
     }
 
     public record LineView(Long id, String description, String specifications, String unit, int quantity, BigDecimal unitCost, BigDecimal totalCost,
@@ -132,7 +136,7 @@ public class PurchaseOrderController {
         jdbc.query("""
                 select r.id, r.rfq_number, r.title, r.awarded_supplier_id, s.name, r.purchase_request_id, pr.pr_number, r.noa_number,
                        q.total_amount, r.delivery_lead_days, r.delivery_term, q.id
-                from rfqs r join rfq_quotations q on q.rfq_id = r.id and q.is_winner
+                from rfqs r join rfq_quotations q on q.rfq_id = r.id and q.is_winner = """ + db.t() + " " + """
                 join suppliers s on s.id = r.awarded_supplier_id left join purchase_requests pr on pr.id = r.purchase_request_id
                 where r.status = 'awarded' and r.noa_number is not null and r.deleted_at is null
                   and not exists (select 1 from purchase_orders po where po.rfq_id = r.id and po.deleted_at is null and po.status <> 'cancelled')
@@ -233,7 +237,7 @@ public class PurchaseOrderController {
         if (in.sourceId() == null || !List.of("rfq", "bidding").contains(in.sourceType())) {
             throw ApiException.validation("source_id", "A purchase order is issued on an award: choose the awarded RFQ or bidding.");
         }
-        jdbc.queryForList("select pg_advisory_xact_lock(hashtext(?))", "pams.po." + in.sourceType() + "." + in.sourceId());
+        db.namedLock("pams.po." + in.sourceType() + "." + in.sourceId());
         AwardSource src = sources().stream()
                 .filter(s -> s.type().equals(in.sourceType()) && s.id().equals(in.sourceId())).findFirst()
                 .orElseThrow(() -> ApiException.validation("source_id", "That award has no Notice of Award yet, or already has a purchase order."));
@@ -427,8 +431,9 @@ public class PurchaseOrderController {
     }
 
     private Source sourceOf(String type, Long id) {
-        String sql = "rfq".equals(type) ? "select rfq_number, noa_number from rfqs where id = ?" : "select bidding_number, noa_number from biddings where id = ?";
-        return jdbc.query(sql, rs -> rs.next() ? new Source(type, id, rs.getString(1), rs.getString(2)) : null, id);
+        String sql = "rfq".equals(type) ? "select rfq_number, noa_number, procurement_method from rfqs where id = ?"
+                : "select bidding_number, noa_number, 'Competitive Bidding' from biddings where id = ?";
+        return jdbc.query(sql, rs -> rs.next() ? new Source(type, id, rs.getString(1), rs.getString(2), rs.getString(3)) : null, id);
     }
 
     private String fundSource(Long prId) {

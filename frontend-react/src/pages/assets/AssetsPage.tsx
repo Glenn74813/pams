@@ -104,9 +104,11 @@ function Register() {
             </option>
           ))}
         </select>
-        <button className="btn btn-outline" disabled={!list.data?.data.length} onClick={() => setStickers(list.data!.data.map((a) => a.id))}>
-          ▦ QR stickers for this page
-        </button>
+        {can('view_properties') && (
+          <button className="btn btn-outline" disabled={!list.data?.data.length} onClick={() => setStickers(list.data!.data.map((a) => a.id))}>
+            ▦ QR stickers for this page
+          </button>
+        )}
       </div>
       {stickers && <QrLabelSheet title={`Asset QR stickers (${stickers.length})`} load={() => qrApi.properties(stickers)} onClose={() => setStickers(null)} />}
       {list.isError && <div className="alert alert-error">{(list.error as Error).message}</div>}

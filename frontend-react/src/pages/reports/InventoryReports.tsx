@@ -224,7 +224,7 @@ export function RsmiReport() {
           { key: 'generated_by', label: 'By' },
         ]}
         rows={history.data?.map((h) => ({ ...h, period: `${MONTHS[h.month - 1]} ${h.year}`, generated_at: formatDateTime(h.generated_at) }))}
-        empty="None yet. The month-end job generates one automatically."
+        empty="None yet. One is generated automatically at the end of each month."
       />
     </>
   )

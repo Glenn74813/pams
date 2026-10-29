@@ -1,6 +1,7 @@
 package com.avtech.pams.audit;
 
 import com.avtech.pams.common.ApiException;
+import com.avtech.pams.common.Db;
 import com.avtech.pams.common.PageResponse;
 import com.avtech.pams.common.Times;
 import com.avtech.pams.setting.SettingService;
@@ -27,9 +28,11 @@ public class LogTrailController {
 
     private final JdbcTemplate jdbc;
     private final SettingService settings;
+    private final Db db;
 
-    public LogTrailController(JdbcTemplate jdbc, SettingService settings) {
+    public LogTrailController(JdbcTemplate jdbc, SettingService settings, Db db) {
         this.jdbc = jdbc;
+        this.db = db;
         this.settings = settings;
     }
 
@@ -51,7 +54,7 @@ public class LogTrailController {
                                                   @RequestParam(name = "start_date", required = false) String start,
                                                   @RequestParam(name = "end_date", required = false) String end) {
         List<Object> args = new ArrayList<>();
-        StringBuilder w = new StringBuilder(" where true");
+        StringBuilder w = new StringBuilder(" where 1 = 1");
         if (blank(action) != null) {
             w.append(" and l.action = ?");
             args.add(action.trim());
@@ -61,7 +64,7 @@ public class LogTrailController {
             args.add(itemId);
         }
         if (blank(search) != null) {
-            w.append(" and (i.name ilike ? or i.code ilike ? or l.notes ilike ? or u.name ilike ?)");
+            w.append(" and (lower(i.name) like lower(?) or lower(i.code) like lower(?) or lower(l.notes) like lower(?) or lower(u.name) like lower(?))");
             for (int k = 0; k < 4; k++) args.add("%" + search.trim() + "%");
         }
         range(w, args, "l.created_at", start, end);
@@ -94,9 +97,9 @@ public class LogTrailController {
                                                   @RequestParam(name = "start_date", required = false) String start,
                                                   @RequestParam(name = "end_date", required = false) String end) {
         List<Object> args = new ArrayList<>();
-        StringBuilder w = new StringBuilder(" where true");
+        StringBuilder w = new StringBuilder(" where 1 = 1");
         if (blank(email) != null) {
-            w.append(" and a.email ilike ?");
+            w.append(" and lower(a.email) like lower(?)");
             args.add("%" + email.trim() + "%");
         }
         if (blank(successful) != null) {
@@ -126,10 +129,11 @@ public class LogTrailController {
         List<ActiveUser> users = jdbc.query("""
                 select u.id, u.name, u.email, r.name, d.name, u.last_seen_at, s.created_at, s.ip_address
                 from users u join roles r on r.id = u.role_id left join departments d on d.id = u.department_id
-                left join lateral (select created_at, ip_address from login_attempts
-                                   where lower(email) = lower(u.email) and successful order by created_at desc limit 1) s on true
-                where u.last_seen_at >= ? order by u.last_seen_at desc
-                """, (rs, i) -> new ActiveUser(rs.getLong(1), rs.getString(2), rs.getString(3), rs.getString(4), rs.getString(5),
+                left join (select lower(email) email, created_at, ip_address,
+                                  row_number() over (partition by lower(email) order by created_at desc, id desc) rn
+                           from login_attempts where successful = """ + db.t() + " " + """
+                ) s on s.email = lower(u.email) and s.rn = 1
+                where u.last_seen_at >= ? order by u.last_seen_at desc""", (rs, i) -> new ActiveUser(rs.getLong(1), rs.getString(2), rs.getString(3), rs.getString(4), rs.getString(5),
                 offset(rs.getTimestamp(6)), offset(rs.getTimestamp(7)), rs.getString(8)), since);
         return Map.of("window_minutes", window, "users", users);
     }
@@ -141,9 +145,9 @@ public class LogTrailController {
         int p = Math.max(1, page);
         Long total = jdbc.queryForObject("select count(*) from " + from + where, Long.class, args.toArray());
         List<Object> all = new ArrayList<>(args);
-        all.add(size);
         all.add((long) (p - 1) * size);
-        List<T> rows = jdbc.query(select + where + " order by " + order + " limit ? offset ?", map, all.toArray());
+        all.add(size);
+        List<T> rows = jdbc.query(select + where + " order by " + order + " offset ? rows fetch next ? rows only", map, all.toArray());
         long t = total == null ? 0 : total;
         return new PageResponse<>(rows, new PageResponse.Pagination(t, size, p, (int) Math.max(1, (t + size - 1) / size)));
     }

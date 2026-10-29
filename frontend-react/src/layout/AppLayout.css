@@ -256,3 +256,4 @@ a.user-menu-item { text-decoration: none; }
 .notif-msg { font-size: 0.85rem; color: var(--text-light); }
 .notif-time { font-size: 0.75rem; opacity: 0.7; }
 .notif-empty { padding: 1rem; text-align: center; opacity: 0.75; }
+.notif-bell { text-decoration: none; font-weight: 700; }

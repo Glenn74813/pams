@@ -1,0 +1,23 @@
+<!--
+  Windows service definition for WinSW (https://github.com/winsw/winsw): put WinSW-x64.exe next to
+  this file, rename it pams-service.exe, then run "pams-service.exe install" and "pams-service.exe start"
+  from an administrator prompt. See ../../../docs/deployment-windows.md.
+-->
+<service>
+  <id>pams</id>
+  <name>PAMS — Procurement and Asset Management</name>
+  <description>PAMS application server (Spring Boot) serving the API and the web app over HTTPS.</description>
+  <executable>%JAVA_HOME%\bin\java.exe</executable>
+  <arguments>-Xms512m -Xmx2g -jar "%BASE%\pams-backend.jar"</arguments>
+  <workingdirectory>%BASE%</workingdirectory>
+  <startmode>Automatic</startmode>
+  <delayedAutoStart>true</delayedAutoStart>
+  <onfailure action="restart" delay="10 sec"/>
+  <onfailure action="restart" delay="60 sec"/>
+  <log mode="roll-by-size">
+    <sizeThreshold>10240</sizeThreshold>
+    <keepFiles>10</keepFiles>
+  </log>
+  <!-- Settings are read from %BASE%\.env (see pams.env.example); keep that file readable by administrators only. -->
+  <env name="SPRING_PROFILES_ACTIVE" value="sqlserver,prod"/>
+</service>

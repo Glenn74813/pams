@@ -8,6 +8,7 @@ import com.avtech.pams.contract.Contract;
 import com.avtech.pams.contract.ContractController;
 import com.avtech.pams.contract.ContractRepository;
 import com.avtech.pams.procurement.ProcurementRules;
+import com.avtech.pams.common.Db;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
@@ -38,9 +39,11 @@ public class ProcurementWatch {
     private final BiddingRepository biddings;
     private final ContractRepository contracts;
     private final ContractController contractRules;
+    private final Db db;
 
-    public ProcurementWatch(JdbcTemplate jdbc, BiddingRepository biddings, ContractRepository contracts, ContractController contractRules) {
+    public ProcurementWatch(JdbcTemplate jdbc, BiddingRepository biddings, ContractRepository contracts, ContractController contractRules, Db db) {
         this.jdbc = jdbc;
+        this.db = db;
         this.biddings = biddings;
         this.contracts = contracts;
         this.contractRules = contractRules;
@@ -86,8 +89,8 @@ public class ProcurementWatch {
 
     private void quotationDeadlines(LocalDate today, List<Entry> out) {
         jdbc.query("""
-                select id, rfq_number, title, deadline::date from rfqs
-                where deleted_at is null and status = 'issued' and deadline is not null and deadline::date <= ?""", rs -> {
+                select id, rfq_number, title, cast(deadline as date) from rfqs
+                where deleted_at is null and status = 'issued' and deadline is not null and cast(deadline as date) <= ?""", rs -> {
             LocalDate d = rs.getDate(4).toLocalDate();
             int left = (int) ChronoUnit.DAYS.between(today, d);
             out.add(new Entry("rfq_deadline", left < 0 ? OVERDUE : DUE_SOON, rs.getString(2), rs.getString(3),
@@ -153,7 +156,8 @@ public class ProcurementWatch {
         jdbc.query("""
                 select s.id, s.name, d.document_type, d.expiry_date from supplier_compliance_documents d
                 join suppliers s on s.id = d.supplier_id
-                where s.is_active and d.expiry_date is not null and d.expiry_date <= ?
+                where s.is_active = """ + db.t() + " " + """
+                  and d.expiry_date is not null and d.expiry_date <= ?
                   and not exists (select 1 from supplier_compliance_documents n where n.supplier_id = d.supplier_id
                                   and n.document_type = d.document_type and n.expiry_date > d.expiry_date)""", rs -> {
             LocalDate d = rs.getDate(4).toLocalDate();
@@ -172,8 +176,7 @@ public class ProcurementWatch {
                        coalesce((select sum(pri.quantity) from purchase_request_items pri join purchase_requests pr on pr.id = pri.purchase_request_id
                                  where pri.app_item_id = ai.id and pr.deleted_at is null and pr.status not in ('cancelled', 'rejected')), 0)
                 from app_items ai join apps a on a.id = ai.app_id
-                where a.deleted_at is null and a.status = 'approved' and a.fiscal_year = ? and ai.schedule in ('Q1', 'Q2', 'Q3', 'Q4')
-                  and cast(substring(ai.schedule from 2) as int) <= ?""", rs -> {
+                where a.deleted_at is null and a.status = 'approved' and a.fiscal_year = ? and ai.schedule in (?, ?, ?, ?)""", rs -> {
             int requested = rs.getInt(7), qty = rs.getInt(5);
             if (requested >= qty) return;
             int q = Integer.parseInt(rs.getString(4).substring(1));
@@ -184,6 +187,6 @@ public class ProcurementWatch {
                     (q < quarter ? "Scheduled for " + rs.getString(4) + " and still not requested" : "Scheduled for this quarter")
                             + " — " + (qty - requested) + " of " + qty + " unit(s) without a purchase request (est. ₱" + ProcurementRules.peso(budget) + ")",
                     end, left, "App\\Models\\App", rs.getLong(1)));
-        }, today.getYear(), quarter);
+        }, today.getYear(), "Q1", quarter >= 2 ? "Q2" : "Q1", quarter >= 3 ? "Q3" : "Q1", quarter >= 4 ? "Q4" : "Q1");
     }
 }

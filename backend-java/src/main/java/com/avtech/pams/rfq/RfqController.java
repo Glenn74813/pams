@@ -5,6 +5,7 @@ import com.avtech.pams.auth.CurrentUser;
 import com.avtech.pams.bac.BacResolution;
 import com.avtech.pams.bac.BacResolutionRepository;
 import com.avtech.pams.common.ApiException;
+import com.avtech.pams.common.Db;
 import com.avtech.pams.common.DocumentNumbers;
 import com.avtech.pams.common.PageResponse;
 import com.avtech.pams.common.Times;
@@ -75,9 +76,10 @@ public class RfqController {
     private final AuditService audit;
     private final CurrentUser current;
     private final JdbcTemplate jdbc;
+    private final Db db;
 
     public RfqController(RfqRepository rfqs, BacResolutionRepository resolutions, UserRepository users, ProcurementRules rules, PrLineUsage usage, AwardSupport awards,
-                         DocumentNumbers numbers, NotificationService notifications, AuditService audit, CurrentUser current, JdbcTemplate jdbc) {
+                         DocumentNumbers numbers, NotificationService notifications, AuditService audit, CurrentUser current, JdbcTemplate jdbc, Db db) {
         this.rfqs = rfqs;
         this.resolutions = resolutions;
         this.users = users;
@@ -89,6 +91,7 @@ public class RfqController {
         this.audit = audit;
         this.current = current;
         this.jdbc = jdbc;
+        this.db = db;
     }
 
     // ───────────────────────── views ─────────────────────────
@@ -493,7 +496,7 @@ public class RfqController {
         if (method == null || !Rfq.METHODS.contains(method)) throw ApiException.validation("procurement_method", "Choose an alternative mode of procurement.");
         if (in.purchaseRequestId() == null) throw ApiException.validation("purchase_request_id", "Choose the approved purchase request this RFQ is for.");
         // Locking the PR serialises RFQs drawing on the same lines.
-        List<Map<String, Object>> pr = jdbc.queryForList("select status from purchase_requests where id = ? and deleted_at is null for update", in.purchaseRequestId());
+        List<Map<String, Object>> pr = db.lockRows("purchase_requests", "id = ? and deleted_at is null", in.purchaseRequestId());
         if (pr.isEmpty()) throw ApiException.validation("purchase_request_id", "That purchase request does not exist.");
         if (!"approved".equals(pr.get(0).get("status"))) throw ApiException.validation("purchase_request_id", "Only fully approved purchase requests go to RFQ.");
         Map<Long, PrLine> prLines = new HashMap<>();
@@ -572,10 +575,11 @@ public class RfqController {
         Map<Long, String> suppliers = new HashMap<>();
         Map<Long, Boolean> okSupplier = new HashMap<>();
         if (!supplierIds.isEmpty()) {
-            jdbc.query("select s.id, s.name, " + AwardSupport.ELIGIBLE_SQL + " from suppliers s where s.id in (" + supplierIds.stream().map(x -> "?").collect(Collectors.joining(",")) + ")", rs -> {
+            jdbc.query("select s.id, s.name from suppliers s where s.id in (" + supplierIds.stream().map(x -> "?").collect(Collectors.joining(",")) + ")", rs -> {
                 suppliers.put(rs.getLong(1), rs.getString(2));
-                okSupplier.put(rs.getLong(1), rs.getBoolean(3));
             }, supplierIds.toArray());
+            // Eligibility through AwardSupport, which owns the (dialect-aware) rule.
+            suppliers.keySet().forEach(id -> okSupplier.put(id, awards.eligible(id)));
         }
         Map<Long, String[]> prs = new HashMap<>();
         List<Long> prIds = list.stream().map(Rfq::getPurchaseRequestId).filter(Objects::nonNull).distinct().toList();

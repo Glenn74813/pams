@@ -2,7 +2,9 @@ package com.avtech.pams.bidding;
 
 import com.avtech.pams.common.Timestamped;
 import jakarta.persistence.CascadeType;
+import com.avtech.pams.common.JsonText;
 import jakarta.persistence.Column;
+import jakarta.persistence.Convert;
 import jakarta.persistence.Entity;
 import jakarta.persistence.FetchType;
 import jakarta.persistence.GeneratedValue;
@@ -77,8 +79,8 @@ public class BiddingBidder extends Timestamped {
     @Column(name = "bid_security_posted", nullable = false)
     private boolean bidSecurityPosted;
 
-    @JdbcTypeCode(SqlTypes.JSON)
-    @Column(name = "eligibility_checklist", columnDefinition = "json")
+    @Convert(converter = JsonText.ObjectMap.class)
+    @Column(name = "eligibility_checklist")
     private Map<String, Object> eligibilityChecklist;
 
     @OneToMany(mappedBy = "bidder", cascade = CascadeType.ALL, orphanRemoval = true)

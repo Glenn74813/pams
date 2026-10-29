@@ -3,6 +3,7 @@ package com.avtech.pams.document;
 import com.avtech.pams.audit.AuditService;
 import com.avtech.pams.auth.CurrentUser;
 import com.avtech.pams.common.ApiException;
+import com.avtech.pams.common.Db;
 import com.avtech.pams.common.PageResponse;
 import com.avtech.pams.common.Times;
 import org.springframework.beans.factory.annotation.Value;
@@ -69,9 +70,11 @@ public class DocumentController {
     private final CurrentUser current;
     private final AuditService audit;
     private final Path root;
+    private final Db db;
 
-    public DocumentController(JdbcTemplate jdbc, CurrentUser current, AuditService audit, @Value("${pams.storage.public-dir}") String publicDir) {
+    public DocumentController(JdbcTemplate jdbc, CurrentUser current, AuditService audit, Db db, @Value("${pams.storage.public-dir}") String publicDir) {
         this.jdbc = jdbc;
+        this.db = db;
         this.current = current;
         this.audit = audit;
         this.root = Path.of(publicDir).toAbsolutePath().normalize();
@@ -118,7 +121,7 @@ public class DocumentController {
             args.add("App\\Models\\" + model);
         }
         if (blank(search) != null) {
-            w.append(" and (d.title ilike ? or d.document_number ilike ? or d.category ilike ?)");
+            w.append(" and (lower(d.title) like lower(?) escape '\\' or lower(d.document_number) like lower(?) escape '\\' or lower(d.category) like lower(?) escape '\\')");
             String like = "%" + search.trim().replace("%", "\\%").replace("_", "\\_") + "%";
             args.add(like);
             args.add(like);
@@ -126,9 +129,9 @@ public class DocumentController {
         }
         Long total = jdbc.queryForObject("select count(*) from documents d" + w, Long.class, args.toArray());
         List<Object> pageArgs = new ArrayList<>(args);
-        pageArgs.add(size);
         pageArgs.add((p - 1) * size);
-        List<DocumentView> rows = jdbc.query(SELECT + w + " order by d.created_at desc, d.id desc limit ? offset ?", (rs, i) -> doc(rs, null), pageArgs.toArray());
+        pageArgs.add(size);
+        List<DocumentView> rows = jdbc.query(SELECT + w + " order by d.created_at desc, d.id desc offset ? rows fetch next ? rows only", (rs, i) -> doc(rs, null), pageArgs.toArray());
         long n = total == null ? 0 : total;
         return new PageResponse<>(rows, new PageResponse.Pagination(n, size, p, Math.max(1, (int) ((n + size - 1) / size))));
     }
@@ -200,7 +203,7 @@ public class DocumentController {
         Map<String, Object> d = lock(id);
         if ("archived".equals(d.get("status"))) throw ApiException.of(HttpStatus.CONFLICT, "Restore the document from the archive before adding a version.");
         checkFile(file);
-        String latest = jdbc.query("select checksum from document_versions where document_id = ? order by version_number desc limit 1",
+        String latest = jdbc.query("select checksum from document_versions where document_id = ? order by version_number desc offset 0 rows fetch next 1 rows only",
                 rs -> rs.next() ? rs.getString(1) : null, id);
         int next = ((Number) d.get("current_version")).intValue();
         int v = storeVersion(id, next, latest, file, remarks);
@@ -212,7 +215,7 @@ public class DocumentController {
     @GetMapping("/{id}/download")
     @PreAuthorize("@perm.any('view_documents', 'upload_documents')")
     public ResponseEntity<byte[]> download(@PathVariable Long id) {
-        Long version = jdbc.query("select id from document_versions where document_id = ? order by version_number desc limit 1",
+        Long version = jdbc.query("select id from document_versions where document_id = ? order by version_number desc offset 0 rows fetch next 1 rows only",
                 rs -> rs.next() ? rs.getLong(1) : null, id);
         if (version == null) throw ApiException.of(HttpStatus.NOT_FOUND, "This document has no file.");
         return downloadVersion(id, version);
@@ -277,7 +280,8 @@ public class DocumentController {
                    v.remarks v_remarks, v.uploaded_by v_by, vu.name v_by_name, v.created_at v_at
             from documents d
             left join users u on u.id = d.uploaded_by
-            left join lateral (select * from document_versions x where x.document_id = d.id order by x.version_number desc limit 1) v on true
+            left join document_versions v on v.document_id = d.id
+                  and v.version_number = (select max(x.version_number) from document_versions x where x.document_id = d.id)
             left join users vu on vu.id = v.uploaded_by""";
 
     private DocumentView load(Long id) {
@@ -287,7 +291,7 @@ public class DocumentController {
     }
 
     private Map<String, Object> lock(Long id) {
-        List<Map<String, Object>> rows = jdbc.queryForList("select * from documents where id = ? and deleted_at is null for update", id);
+        List<Map<String, Object>> rows = db.lockRows("documents", "id = ? and deleted_at is null", id);
         if (rows.isEmpty()) throw ApiException.notFound("Document");
         return rows.get(0);
     }

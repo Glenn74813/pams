@@ -160,7 +160,21 @@ public class QrController {
      * gate-pass number — to the record. Links must carry a valid checksum.
      */
     @PostMapping("/api/inventory/scan-qr")
+    @PreAuthorize("@perm.any('view_inventory', 'view_warehouse', 'manage_warehouse', 'view_properties', 'view_own_properties', 'view_gate_pass')")
     public Map<String, Object> scan(@RequestBody ScanInput in) {
+        Map<String, Object> rec = resolve(in);
+        String type = (String) rec.get("type");
+        boolean allowed = switch (type) {
+            case "item" -> current.any("view_inventory", "view_warehouse", "manage_warehouse");
+            case "property" -> current.any("view_properties") || current.user().getId().equals(rec.get("holder_id"));
+            default -> current.any("view_gate_pass");
+        };
+        if (!allowed) throw ApiException.forbidden("You do not have access to that record.");
+        rec.remove("holder_id");
+        return rec;
+    }
+
+    private Map<String, Object> resolve(ScanInput in) {
         String raw = in.data() == null ? "" : in.data().trim();
         if (raw.isEmpty()) throw ApiException.validation("data", "Scan or type a code.");
         Matcher m = SCAN_URL.matcher(raw);
@@ -178,12 +192,12 @@ public class QrController {
             if (rec == null || !qr.verify(type, id, (String) rec.get("code"), c)) throw ApiException.validation("data", "This QR code is not valid for this system.");
             return rec;
         }
-        Long id = jdbc.query("select id from properties where lower(tag_number) = lower(?) or lower(serial_number) = lower(?) order by id limit 1",
+        Long id = jdbc.query("select id from properties where lower(tag_number) = lower(?) or lower(serial_number) = lower(?) order by id offset 0 rows fetch next 1 rows only",
                 rs -> rs.next() ? rs.getLong(1) : null, raw, raw);
         if (id != null) return lookup("property", id);
-        id = jdbc.query("select id from items where lower(code) = lower(?) limit 1", rs -> rs.next() ? rs.getLong(1) : null, raw);
+        id = jdbc.query("select id from items where lower(code) = lower(?) order by id offset 0 rows fetch next 1 rows only", rs -> rs.next() ? rs.getLong(1) : null, raw);
         if (id != null) return lookup("item", id);
-        id = jdbc.query("select id from gate_passes where lower(gate_pass_number) = lower(?) and deleted_at is null limit 1", rs -> rs.next() ? rs.getLong(1) : null, raw);
+        id = jdbc.query("select id from gate_passes where lower(gate_pass_number) = lower(?) and deleted_at is null order by id offset 0 rows fetch next 1 rows only", rs -> rs.next() ? rs.getLong(1) : null, raw);
         if (id != null) return lookup("gate-pass", id);
         throw ApiException.of(org.springframework.http.HttpStatus.NOT_FOUND, "Nothing matches “" + raw + "”.");
     }
@@ -193,9 +207,18 @@ public class QrController {
     public Map<String, Object> publicScan(@PathVariable String type, @PathVariable long id, @RequestParam(name = "c", required = false) String c) {
         Map<String, Object> rec = lookup(type, id);
         if (rec == null || !qr.verify(type, id, (String) rec.get("code"), c)) throw ApiException.notFound("Record");
-        rec.put("agency", settings.get("agency_name", ""));
-        return rec;
+        // Anyone holding the label can open this page: show what confirms the label, not who holds the asset.
+        Map<String, Object> out = new LinkedHashMap<>();
+        for (String k : PUBLIC.getOrDefault(type, List.of())) if (rec.get(k) != null) out.put(k, rec.get(k));
+        out.put("agency", settings.get("agency_name", ""));
+        return out;
     }
+
+    private static final Map<String, List<String>> PUBLIC = Map.of(
+            "item", List.of("type", "code", "title", "category", "unit_of_measure", "path"),
+            "property", List.of("type", "code", "title", "serial_number", "brand", "status", "condition", "department", "path"),
+            "gate-pass", List.of("type", "code", "title", "status", "purpose", "received_by", "date_released", "expected_return_date",
+                    "actual_return_date", "tag_number", "item", "path"));
 
     private Map<String, Object> lookup(String type, long id) {
         List<Map<String, Object>> rows = switch (type) {
@@ -204,11 +227,12 @@ public class QrController {
                            '/items' as path from items i left join categories c on c.id = i.category_id where i.id = ?""", id);
             case "property" -> jdbc.queryForList("""
                     select 'property' as type, p.id, p.tag_number as code, i.name as title, p.serial_number, p.brand, p.status, p.condition,
-                           u.name as custodian, d.name as department, p.accountability_number, p.acquisition_date, '/properties' as path
+                           u.name as custodian, d.name as department, p.accountability_number, p.acquisition_date, p.assigned_to as holder_id,
+                           '/properties' as path
                     from properties p left join items i on i.id = p.item_id left join users u on u.id = p.assigned_to
                     left join departments d on d.id = u.department_id where p.id = ?""", id);
             case "gate-pass" -> jdbc.queryForList("""
-                    select 'gate-pass' as type, g.id, g.gate_pass_number as code, 'Gate Pass ' || g.gate_pass_number as title, g.status, g.purpose,
+                    select 'gate-pass' as type, g.id, g.gate_pass_number as code, concat('Gate Pass ', g.gate_pass_number) as title, g.status, g.purpose,
                            g.received_by, g.date_released, g.expected_return_date, g.actual_return_date, p.tag_number, i.name as item, '/gate-pass' as path
                     from gate_passes g left join properties p on p.id = g.property_id left join items i on i.id = p.item_id
                     where g.id = ? and g.deleted_at is null""", id);

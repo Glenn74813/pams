@@ -38,7 +38,7 @@ export function AdjustmentsPage() {
       else await adjustmentsApi.remove(a.id)
     },
     onSuccess: (_, { a, action }) => {
-      toast(`${a.adjustment_number} ${action === 'withdraw' ? 'withdrawn' : action + 'd'}.`, 'success')
+      toast(`${a.adjustment_number} ${action === 'withdraw' ? 'withdrawn' : action === 'reject' ? 'rejected' : action + 'd'}.`, 'success')
       setConfirm(null)
       refresh()
     },

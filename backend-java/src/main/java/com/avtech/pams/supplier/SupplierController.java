@@ -3,6 +3,7 @@ package com.avtech.pams.supplier;
 import com.avtech.pams.audit.AuditService;
 import com.avtech.pams.auth.CurrentUser;
 import com.avtech.pams.common.ApiException;
+import com.avtech.pams.common.Db;
 import com.avtech.pams.common.DocumentNumbers;
 import com.avtech.pams.common.PageResponse;
 import com.avtech.pams.common.Times;
@@ -63,9 +64,10 @@ public class SupplierController {
     private final AuditService audit;
     private final CurrentUser current;
     private final JdbcTemplate jdbc;
+    private final Db db;
 
     public SupplierController(SupplierRepository suppliers, UserRepository users, DocumentNumbers numbers, NotificationService notifications,
-                              AuditService audit, CurrentUser current, JdbcTemplate jdbc) {
+                              AuditService audit, CurrentUser current, JdbcTemplate jdbc, Db db) {
         this.suppliers = suppliers;
         this.users = users;
         this.numbers = numbers;
@@ -73,12 +75,13 @@ public class SupplierController {
         this.audit = audit;
         this.current = current;
         this.jdbc = jdbc;
+        this.db = db;
     }
 
     /** Supplier names for pickers. */
     @GetMapping("/options")
     public Map<String, Object> options() {
-        return Map.of("data", jdbc.queryForList("select id, name from suppliers where is_active = true order by name"));
+        return Map.of("data", jdbc.queryForList("select id, name from suppliers where is_active = " + db.t() + " order by name"));
     }
 
     // ───────────────────────── views ─────────────────────────
@@ -463,12 +466,13 @@ public class SupplierController {
         Integer rfqs = jdbc.queryForObject("select count(*) from rfqs where awarded_supplier_id = ? and deleted_at is null and status = 'awarded'", Integer.class, s.getId());
         Integer bids = jdbc.queryForObject("select count(*) from biddings where awarded_supplier_id = ? and deleted_at is null and status = 'awarded'", Integer.class, s.getId());
         Map<String, Object> dl = jdbc.queryForMap("""
-                select count(*) filter (where r.acceptance_status in ('accepted', 'partially_accepted')) delivered,
-                       count(*) filter (where r.acceptance_status in ('accepted', 'partially_accepted') and po.delivery_date is not null and r.delivery_date <= po.delivery_date) on_time,
-                       count(*) filter (where r.acceptance_status = 'rejected') rejected,
-                       coalesce(sum(r.total_items_received) filter (where r.acceptance_status <> 'pending'), 0) units,
-                       coalesce(sum(r.total_items_rejected) filter (where r.acceptance_status <> 'pending'), 0)
-                         + coalesce(sum(r.total_items_accepted) filter (where r.acceptance_status = 'rejected'), 0) units_rejected
+                select coalesce(sum(case when r.acceptance_status in ('accepted', 'partially_accepted') then 1 else 0 end), 0) delivered,
+                       coalesce(sum(case when r.acceptance_status in ('accepted', 'partially_accepted') and po.delivery_date is not null
+                                          and r.delivery_date <= po.delivery_date then 1 else 0 end), 0) on_time,
+                       coalesce(sum(case when r.acceptance_status = 'rejected' then 1 else 0 end), 0) rejected,
+                       coalesce(sum(case when r.acceptance_status <> 'pending' then r.total_items_received end), 0) units,
+                       coalesce(sum(case when r.acceptance_status <> 'pending' then r.total_items_rejected end), 0)
+                         + coalesce(sum(case when r.acceptance_status = 'rejected' then r.total_items_accepted end), 0) units_rejected
                 from inspection_acceptance_reports r join purchase_orders po on po.id = r.purchase_order_id where po.supplier_id = ?""", s.getId());
         int delivered = ((Number) dl.get("delivered")).intValue(), onTime = ((Number) dl.get("on_time")).intValue();
         int units = ((Number) dl.get("units")).intValue(), unitsRejected = ((Number) dl.get("units_rejected")).intValue();

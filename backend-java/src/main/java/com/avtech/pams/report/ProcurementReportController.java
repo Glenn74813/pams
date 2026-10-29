@@ -1,6 +1,7 @@
 package com.avtech.pams.report;
 
 import com.avtech.pams.audit.AuditService;
+import com.avtech.pams.common.Db;
 import com.avtech.pams.common.Times;
 import com.avtech.pams.report.coa.Xlsx;
 import org.springframework.http.ContentDisposition;
@@ -35,10 +36,12 @@ public class ProcurementReportController {
 
     private final JdbcTemplate jdbc;
     private final AuditService audit;
+    private final Db db;
 
-    public ProcurementReportController(JdbcTemplate jdbc, AuditService audit) {
+    public ProcurementReportController(JdbcTemplate jdbc, AuditService audit, Db db) {
         this.jdbc = jdbc;
         this.audit = audit;
+        this.db = db;
     }
 
     private static int year(Integer fy) {
@@ -51,7 +54,8 @@ public class ProcurementReportController {
         int year = year(fy);
         List<Map<String, Object>> rows = jdbc.query("""
                 select coalesce(d.name, '-') department, ai.general_description, coalesce(nullif(ai.fund_source, ''), '-') fund, ai.procurement_mode,
-                       ai.quantity, coalesce(ai.estimated_budget, 0) est, coalesce(ai.utilized_amount, 0) used, ai.status
+                       ai.quantity, coalesce(ai.estimated_budget, 0) est, 
+                       (select coalesce(sum(pri.estimated_total), 0) from purchase_request_items pri join purchase_requests pr on pr.id = pri.purchase_request_id where pri.app_item_id = ai.id and pr.deleted_at is null and pr.status = 'approved') used, ai.status
                 from app_items ai join apps a on a.id = ai.app_id left join departments d on d.id = ai.department_id
                 where a.deleted_at is null and a.fiscal_year = ? order by ai.id""", (rs, i) -> {
             Map<String, Object> m = new LinkedHashMap<>();
@@ -81,10 +85,10 @@ public class ProcurementReportController {
         Map<String, Object> out = new LinkedHashMap<>();
         out.put("fiscal_year", year);
         out.put("purchase_requests", block("purchase_requests", "fiscal_year = ?", "total_amount", year));
-        out.put("rfqs", block("rfqs", "extract(year from created_at) = ?", null, year));
-        out.put("biddings", block("biddings", "extract(year from created_at) = ?", null, year));
-        out.put("purchase_orders", block("purchase_orders", "extract(year from created_at) = ?", "total_amount", year));
-        out.put("contracts", block("contracts", "extract(year from created_at) = ?", "amount", year));
+        out.put("rfqs", block("rfqs", db.year("created_at") + " = ?", null, year));
+        out.put("biddings", block("biddings", db.year("created_at") + " = ?", null, year));
+        out.put("purchase_orders", block("purchase_orders", db.year("created_at") + " = ?", "total_amount", year));
+        out.put("contracts", block("contracts", db.year("created_at") + " = ?", "amount", year));
         return out;
     }
 
@@ -114,29 +118,30 @@ public class ProcurementReportController {
         List<Map<String, Object>> rows = new ArrayList<>();
         jdbc.query("""
                 select coalesce(pr.pr_number, b.bidding_number), b.title, coalesce(d.name, '-'), coalesce(b.abc, 0), coalesce(b.awarded_amount, 0),
-                       coalesce(s.name, '-'), b.itb_posted_at, b.bid_opening_date::date, b.noa_date, b.ntp_date, b.contract_recommendation,
+                       coalesce(s.name, '-'), b.itb_posted_at, cast(b.bid_opening_date as date), b.noa_date, b.ntp_date, b.contract_recommendation,
                        (select min(c.signed_date) from contracts c where c.bidding_id = b.id and c.deleted_at is null),
-                       (select max(r.accepted_at)::date from inspection_acceptance_reports r join purchase_orders po on po.id = r.purchase_order_id
+                       (select cast(max(r.accepted_at) as date) from inspection_acceptance_reports r join purchase_orders po on po.id = r.purchase_order_id
                         where po.bidding_id = b.id and po.deleted_at is null and r.acceptance_status in ('accepted', 'partially_accepted')),
-                       (select string_agg(distinct pri.fund_source, ', ') from purchase_request_items pri where pri.purchase_request_id = pr.id)
+                       (select string_agg(f.fund_source, ', ') from (select distinct pri.fund_source from purchase_request_items pri where pri.purchase_request_id = pr.id) f)
                 from biddings b left join purchase_requests pr on pr.id = b.purchase_request_id left join departments d on d.id = pr.department_id
                 left join suppliers s on s.id = b.awarded_supplier_id
-                where b.deleted_at is null and b.status = 'awarded' and extract(year from coalesce(b.awarded_at, b.updated_at)) = ?""", rs -> {
+                where b.deleted_at is null and b.status = 'awarded' and""" + " " + db.year("coalesce(b.awarded_at, b.updated_at)") + " = ?", rs -> {
             rows.add(pmrRow(rs.getString(1), rs.getString(2), rs.getString(3), "Competitive Bidding", rs.getBigDecimal(4), rs.getBigDecimal(5), rs.getString(6),
                     rs.getDate(7), rs.getDate(8), rs.getDate(9), rs.getDate(12), rs.getDate(10), rs.getDate(13), rs.getString(14),
                     rs.getBoolean(11) ? "For contract" : null));
         }, year);
         jdbc.query("""
                 select coalesce(pr.pr_number, r.rfq_number), r.title, coalesce(d.name, '-'), coalesce(r.procurement_method, 'Alternative (RFQ)'), coalesce(r.abc, 0),
-                       coalesce((select q.total_amount from rfq_quotations q where q.rfq_id = r.id and q.is_winner limit 1), 0),
-                       coalesce(s.name, '-'), r.created_at::date, r.deadline::date, r.noa_date, r.ntp_date,
+                       coalesce((select max(q.total_amount) from rfq_quotations q where q.rfq_id = r.id and q.is_winner = """ + db.t() + " " + """
+                       ), 0),
+                       coalesce(s.name, '-'), cast(r.created_at as date), cast(r.deadline as date), r.noa_date, r.ntp_date,
                        (select min(c.signed_date) from contracts c where c.rfq_id = r.id and c.deleted_at is null),
-                       (select max(i.accepted_at)::date from inspection_acceptance_reports i join purchase_orders po on po.id = i.purchase_order_id
+                       (select cast(max(i.accepted_at) as date) from inspection_acceptance_reports i join purchase_orders po on po.id = i.purchase_order_id
                         where po.rfq_id = r.id and po.deleted_at is null and i.acceptance_status in ('accepted', 'partially_accepted')),
-                       (select string_agg(distinct pri.fund_source, ', ') from purchase_request_items pri where pri.purchase_request_id = pr.id)
+                       (select string_agg(f.fund_source, ', ') from (select distinct pri.fund_source from purchase_request_items pri where pri.purchase_request_id = pr.id) f)
                 from rfqs r left join purchase_requests pr on pr.id = r.purchase_request_id left join departments d on d.id = pr.department_id
                 left join suppliers s on s.id = r.awarded_supplier_id
-                where r.deleted_at is null and r.status = 'awarded' and extract(year from coalesce(r.awarded_at, r.updated_at)) = ?""", rs -> {
+                where r.deleted_at is null and r.status = 'awarded' and""" + " " + db.year("coalesce(r.awarded_at, r.updated_at)") + " = ?", rs -> {
             rows.add(pmrRow(rs.getString(1), rs.getString(2), rs.getString(3), rs.getString(4), rs.getBigDecimal(5), rs.getBigDecimal(6), rs.getString(7),
                     rs.getDate(8), rs.getDate(9), rs.getDate(10), rs.getDate(12), rs.getDate(11), rs.getDate(13), rs.getString(14), null));
         }, year);
@@ -179,7 +184,7 @@ public class ProcurementReportController {
         int year = year(fy);
         List<Map<String, Object>> meetings = jdbc.query("""
                 select m.id, m.meeting_number, m.title, m.meeting_date, m.status, (select count(*) from bac_meeting_attendees a where a.bac_meeting_id = m.id)
-                from bac_meetings m where m.deleted_at is null and extract(year from m.meeting_date) = ? order by m.meeting_date""", (rs, i) -> {
+                from bac_meetings m where m.deleted_at is null and""" + " " + db.year("m.meeting_date") + " = ? order by m.meeting_date", (rs, i) -> {
             Map<String, Object> m = new LinkedHashMap<>();
             m.put("id", rs.getLong(1));
             m.put("meeting_number", rs.getString(2));
@@ -191,7 +196,7 @@ public class ProcurementReportController {
         }, year);
         List<Map<String, Object>> resolutions = jdbc.query("""
                 select id, resolution_number, title, resolution_type, status from bac_resolutions
-                where deleted_at is null and extract(year from created_at) = ? order by created_at""", (rs, i) -> {
+                where deleted_at is null and""" + " " + db.year("created_at") + " = ? order by created_at", (rs, i) -> {
             Map<String, Object> m = new LinkedHashMap<>();
             m.put("id", rs.getLong(1));
             m.put("resolution_number", rs.getString(2));
@@ -203,7 +208,7 @@ public class ProcurementReportController {
         Map<String, Long> byType = new LinkedHashMap<>();
         resolutions.forEach(r -> byType.merge(String.valueOf(r.get("resolution_type")), 1L, Long::sum));
         Map<String, Long> byStage = new LinkedHashMap<>();
-        jdbc.query("select stage, count(*) from bac_evaluations where extract(year from created_at) = ? group by stage order by stage",
+        jdbc.query("select stage, count(*) from bac_evaluations where " + db.year("created_at") + " = ? group by stage order by stage",
                 rs -> { byStage.put(rs.getString(1), rs.getLong(2)); }, year);
         Map<String, Object> out = new LinkedHashMap<>();
         out.put("fiscal_year", year);
@@ -221,13 +226,14 @@ public class ProcurementReportController {
         jdbc.query("""
                 select b.bidding_number, b.title, coalesce(s.name, '-'), coalesce(b.awarded_amount, 0), b.noa_number, b.ntp_number
                 from biddings b left join suppliers s on s.id = b.awarded_supplier_id
-                where b.deleted_at is null and b.status = 'awarded' and extract(year from coalesce(b.awarded_at, b.updated_at)) = ? order by b.id""",
+                where b.deleted_at is null and b.status = 'awarded' and""" + " " + db.year("coalesce(b.awarded_at, b.updated_at)") + " = ? order by b.id",
                 rs -> { rows.add(awardRow("Competitive Bidding", rs.getString(1), rs.getString(2), rs.getString(3), rs.getBigDecimal(4), rs.getString(5), rs.getString(6))); }, year);
         jdbc.query("""
                 select r.procurement_method, r.rfq_number, r.title, coalesce(s.name, '-'),
-                       coalesce((select q.total_amount from rfq_quotations q where q.rfq_id = r.id and q.is_winner limit 1), 0), r.noa_number, r.ntp_number
+                       coalesce((select max(q.total_amount) from rfq_quotations q where q.rfq_id = r.id and q.is_winner = """ + db.t() + " " + """
+                       ), 0), r.noa_number, r.ntp_number
                 from rfqs r left join suppliers s on s.id = r.awarded_supplier_id
-                where r.deleted_at is null and r.status = 'awarded' and extract(year from coalesce(r.awarded_at, r.updated_at)) = ? order by r.id""",
+                where r.deleted_at is null and r.status = 'awarded' and""" + " " + db.year("coalesce(r.awarded_at, r.updated_at)") + " = ? order by r.id",
                 rs -> { rows.add(awardRow(rs.getString(1), rs.getString(2), rs.getString(3), rs.getString(4), rs.getBigDecimal(5), rs.getString(6), rs.getString(7))); }, year);
         Map<String, Object> out = new LinkedHashMap<>();
         out.put("fiscal_year", year);

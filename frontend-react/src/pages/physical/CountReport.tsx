@@ -8,7 +8,7 @@ export type GroupBy = 'none' | 'holder' | 'department'
 const TITLE: Record<string, [string, string]> = {
   supplies: ['Appendix 66', 'REPORT ON THE PHYSICAL COUNT OF INVENTORIES'],
   ppe: ['Appendix 73', 'REPORT ON THE PHYSICAL COUNT OF PROPERTY, PLANT AND EQUIPMENT'],
-  semi_expendable: ['', 'REPORT ON THE PHYSICAL COUNT OF SEMI-EXPENDABLE PROPERTY'],
+  semi_expendable: ['Appendix 68', 'REPORT ON THE PHYSICAL COUNT OF SEMI-EXPENDABLE PROPERTY'],
 }
 
 function tagRemark(t: CountTag) {

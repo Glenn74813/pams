@@ -1,5 +1,6 @@
 package com.avtech.pams.monitoring;
 
+import com.avtech.pams.common.Db;
 import com.avtech.pams.common.Times;
 import com.avtech.pams.notification.NotificationService;
 import com.avtech.pams.property.DepreciationService;
@@ -8,6 +9,7 @@ import com.avtech.pams.property.PropertyRepository;
 import com.avtech.pams.setting.SettingService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.scheduling.annotation.Scheduled;
@@ -43,15 +45,17 @@ public class AlertJobs {
     private static final Logger log = LoggerFactory.getLogger(AlertJobs.class);
 
     public static final List<String> JOBS = List.of("low_stock", "expiring_stock", "procurement_deadlines", "contracts", "supplier_documents",
-            "procurement_schedule", "depreciation", "clean_notifications", "backup");
+            "procurement_schedule", "depreciation", "rsmi", "clean_notifications", "backup");
 
-    public static final Map<String, String> SCHEDULE = Map.of(
-            "low_stock", "Daily 08:45", "expiring_stock", "Daily 08:50", "procurement_deadlines", "Daily 08:15", "contracts", "Daily 08:30",
-            "supplier_documents", "Daily 08:40", "procurement_schedule", "08:20 on the first day of each quarter",
-            "depreciation", "01:00 on the first day of each month", "clean_notifications", "Sundays 03:00", "backup", "Daily 02:00");
+    public static final Map<String, String> SCHEDULE = Map.ofEntries(
+            Map.entry("low_stock", "Daily 08:45"), Map.entry("expiring_stock", "Daily 08:50"), Map.entry("procurement_deadlines", "Daily 08:15"),
+            Map.entry("contracts", "Daily 08:30"), Map.entry("supplier_documents", "Daily 08:40"),
+            Map.entry("procurement_schedule", "08:20 on the first day of each quarter"), Map.entry("depreciation", "01:00 on the first day of each month"),
+            Map.entry("rsmi", "23:59 on the last day of each month"), Map.entry("clean_notifications", "Sundays 03:00"), Map.entry("backup", "Daily 02:00"));
 
     private static final List<String> STOCK_PEOPLE = List.of("manage_warehouse", "create_adjustments", "approve_adjustments", "view_monitoring");
-    private static final List<String> PROCUREMENT_PEOPLE = List.of("manage_bidding", "process_award", "create_rfq", "create_procurement");
+    // Not create_procurement: End Users hold it to raise purchase requests.
+    private static final List<String> PROCUREMENT_PEOPLE = List.of("manage_bidding", "process_award", "create_rfq");
     private static final List<String> CONTRACT_PEOPLE = List.of("create_contracts", "edit_contracts");
     private static final String ITEM = "App\\Models\\Item";
 
@@ -62,13 +66,19 @@ public class AlertJobs {
     private final PropertyRepository properties;
     private final DepreciationService depreciation;
     private final TransactionTemplate tx;
-    private final String dbUrl, dbUser, dbPassword, storageDir;
+    private final Db db;
+    private final String dbUrl, dbUser, dbPassword, storageDir, backupDir;
+    private final ObjectProvider<com.avtech.pams.report.ReportController> reports;
 
     public AlertJobs(JdbcTemplate jdbc, NotificationService notifications, ProcurementWatch watch, SettingService settings,
                      PropertyRepository properties, DepreciationService depreciation, TransactionTemplate tx,
                      @Value("${spring.datasource.url}") String dbUrl, @Value("${spring.datasource.username}") String dbUser,
-                     @Value("${spring.datasource.password}") String dbPassword, @Value("${pams.storage.public-dir}") String storageDir) {
+                     @Value("${spring.datasource.password}") String dbPassword, @Value("${pams.storage.public-dir}") String storageDir, Db db,
+                     @Value("${pams.backup-dir:}") String backupDir, ObjectProvider<com.avtech.pams.report.ReportController> reports) {
+        this.backupDir = backupDir;
+        this.reports = reports;
         this.jdbc = jdbc;
+        this.db = db;
         this.notifications = notifications;
         this.watch = watch;
         this.settings = settings;
@@ -94,6 +104,7 @@ public class AlertJobs {
                 case "depreciation" -> depreciation();
                 case "clean_notifications" -> cleanNotifications();
                 case "backup" -> backup();
+                case "rsmi" -> rsmi();
                 default -> throw new IllegalArgumentException("Unknown job " + job);
             };
         } catch (RuntimeException e) {
@@ -126,6 +137,9 @@ public class AlertJobs {
     @Scheduled(cron = "0 0 3 * * SUN", zone = Times.ZONE_ID)
     void weeklyClean() { log.info("clean_notifications: {}", run("clean_notifications")); }
 
+    @Scheduled(cron = "0 59 23 L * *", zone = Times.ZONE_ID)
+    void monthEndRsmi() { log.info("rsmi: {}", run("rsmi")); }
+
     @Scheduled(cron = "0 0 2 * * *", zone = Times.ZONE_ID)
     void dailyBackup() { log.info("backup: {}", run("backup")); }
 
@@ -153,8 +167,8 @@ public class AlertJobs {
         int[] n = {0, 0};
         jdbc.query("""
                 select i.id, i.code, i.name,
-                       coalesce(sum(s.quantity) filter (where s.expiration_date < ?), 0),
-                       coalesce(sum(s.quantity) filter (where s.expiration_date >= ?), 0), min(s.expiration_date)
+                       coalesce(sum(case when s.expiration_date < ? then s.quantity end), 0),
+                       coalesce(sum(case when s.expiration_date >= ? then s.quantity end), 0), min(s.expiration_date)
                 from stocks s join items i on i.id = s.item_id
                 where s.quantity > 0 and s.expiration_date is not null and s.expiration_date <= ?
                 group by i.id, i.code, i.name order by min(s.expiration_date)""", rs -> {
@@ -175,7 +189,7 @@ public class AlertJobs {
 
     String procurementDeadlines() {
         return notifyWatch(Map.of("bidding_stage", PROCUREMENT_PEOPLE, "rfq_deadline", PROCUREMENT_PEOPLE,
-                "po_delivery", List.of("view_receiving", "create_procurement", "manage_warehouse")), "procurement_deadline", "Procurement deadline");
+                "po_delivery", List.of("view_receiving", "manage_warehouse", "view_procurement")), "procurement_deadline", "Procurement deadline");
     }
 
     String contracts() {
@@ -223,7 +237,7 @@ public class AlertJobs {
         List<ProcurementWatch.Entry> due = watch.scan().stream().filter(e -> "app_schedule".equals(e.kind())).toList();
         if (due.isEmpty()) return "Every scheduled APP line up to this quarter has a purchase request.";
         int quarter = (LocalDate.now(Times.ZONE).getMonthValue() - 1) / 3 + 1;
-        notifications.notifyPermission(List.of("create_procurement", "view_procurement", "create_rfq", "manage_bidding"), null, "procurement_schedule",
+        notifications.notifyPermission(List.of("view_procurement", "manage_app", "create_rfq", "manage_bidding"), null, "procurement_schedule",
                 "Items due for procurement — Q" + quarter,
                 due.size() + " approved APP line(s) scheduled up to Q" + quarter + " still have no purchase request: "
                         + due.stream().limit(5).map(ProcurementWatch.Entry::title).collect(Collectors.joining(", "))
@@ -247,19 +261,33 @@ public class AlertJobs {
     }
 
     String cleanNotifications() {
-        int n = jdbc.update("delete from notifications where is_read = true and created_at < ?", Timestamp.valueOf(Times.now().minusDays(30)));
+        int n = jdbc.update("delete from notifications where is_read = " + db.t() + " and created_at < ?", Timestamp.valueOf(Times.now().minusDays(30)));
         return "Deleted " + n + " read notification(s) older than 30 days.";
     }
 
-    /** pg_dump of the whole database into storage/backups, keeping the last 7 days. */
+    /** The month's RSMI summary, as Laravel's generate:rsmi did at month end (Reports → RSMI lists it). */
+    String rsmi() {
+        java.time.LocalDate today = java.time.LocalDate.now(Times.ZONE);
+        var r = reports.getObject();
+        Map<String, Object> saved = r.store(today.getYear(), today.getMonthValue(), r.rsmiData(today.getYear(), today.getMonthValue()), null);
+        return "RSMI " + saved.get("report_number") + " generated for " + today.getMonth() + " " + today.getYear() + ".";
+    }
+
+    /** storage/backups beside the uploads unless pams.backup-dir (PAMS_BACKUP_DIR) says otherwise. */
+    private Path backupDir() {
+        return backupDir == null || backupDir.isBlank() ? Path.of(storageDir).toAbsolutePath().getParent().resolve("backups") : Path.of(backupDir).toAbsolutePath();
+    }
+
+    /** A full database backup, kept 7 days: pg_dump on PostgreSQL, BACKUP DATABASE on SQL Server. */
     String backup() {
+        if (db.sqlServer()) return sqlServerBackup();
         // jdbc:postgresql://host:port/db
         String rest = dbUrl.replaceFirst("^jdbc:postgresql://", "");
         String hostPort = rest.contains("/") ? rest.substring(0, rest.indexOf('/')) : rest;
         String db = rest.contains("/") ? rest.substring(rest.indexOf('/') + 1).replaceFirst("\\?.*$", "") : "inventory";
         String host = hostPort.contains(":") ? hostPort.substring(0, hostPort.indexOf(':')) : hostPort;
         String port = hostPort.contains(":") ? hostPort.substring(hostPort.indexOf(':') + 1) : "5432";
-        Path dir = Path.of(storageDir).toAbsolutePath().getParent().resolve("backups");
+        Path dir = backupDir();
         try {
             Files.createDirectories(dir);
             Path file = dir.resolve("backup_" + Times.now().format(DateTimeFormatter.ofPattern("yyyy-MM-dd_HH-mm-ss")) + ".dump");
@@ -292,6 +320,46 @@ public class AlertJobs {
         }
     }
 
+    /**
+     * BACKUP DATABASE to the backup folder. The path is opened by the SQL Server service, so it must be a folder
+     * that service can write (on the database server, or a share). Old files are pruned when this process can see them.
+     */
+    private String sqlServerBackup() {
+        String name = jdbc.queryForObject("select db_name()", String.class);
+        String folder = backupDir == null || backupDir.isBlank() ? backupDir().toString() : backupDir;
+        String sep = folder.contains("\\") ? "\\" : "/";
+        String file = folder.replaceAll("[\\\\/]+$", "") + sep + "backup_" + Times.now().format(DateTimeFormatter.ofPattern("yyyy-MM-dd_HH-mm-ss")) + ".bak";
+        try {
+            jdbc.execute((java.sql.Connection c) -> {
+                boolean auto = c.getAutoCommit();
+                c.setAutoCommit(true); // BACKUP cannot run inside a transaction
+                try (java.sql.PreparedStatement ps = c.prepareStatement("BACKUP DATABASE [" + name.replace("]", "]]") + "] TO DISK = ? WITH INIT, CHECKSUM")) {
+                    ps.setString(1, file);
+                    ps.execute();
+                    while (ps.getMoreResults() || ps.getUpdateCount() != -1) { /* drain informational results */ }
+                } finally {
+                    c.setAutoCommit(auto);
+                }
+                return null;
+            });
+        } catch (org.springframework.dao.DataAccessException e) {
+            return "Failed: " + e.getMostSpecificCause().getMessage();
+        }
+        int removed = 0;
+        Path dir = Path.of(folder);
+        if (Files.isDirectory(dir)) {
+            Instant cutoff = Instant.now().minus(Duration.ofDays(7));
+            try (Stream<Path> old = Files.list(dir)) {
+                for (Path f : old.filter(f -> f.getFileName().toString().startsWith("backup_")).toList()) {
+                    if (Files.getLastModifiedTime(f).toInstant().isBefore(cutoff) && Files.deleteIfExists(f)) removed++;
+                }
+            } catch (IOException ignored) {
+                // Pruning is best effort.
+            }
+        }
+        return "Backup written to " + file + (removed > 0 ? "; removed " + removed + " older than 7 days." : ".");
+    }
+
     private boolean recentlyAlerted(String type, String relatedType, Long relatedId, int days) {
         return recentlyAlerted(type, relatedType, relatedId, days, null);
     }
@@ -299,9 +367,18 @@ public class AlertJobs {
     /** True when the same alert (same title ending, if given) went out in the last {@code days} days; one day = since midnight. */
     private boolean recentlyAlerted(String type, String relatedType, Long relatedId, int days, String titleEnd) {
         Timestamp since = Timestamp.valueOf(LocalDate.now(Times.ZONE).minusDays(days - 1L).atStartOfDay());
-        return Boolean.TRUE.equals(jdbc.queryForObject("""
-                select exists (select 1 from notifications where type = ? and related_type is not distinct from ? and related_id is not distinct from ?
-                               and created_at >= ? and (cast(? as text) is null or title like '%— ' || cast(? as text)))""",
-                Boolean.class, type, relatedType, relatedId, since, titleEnd, titleEnd));
+        List<Object> args = new java.util.ArrayList<>();
+        StringBuilder where = new StringBuilder("type = ?");
+        args.add(type);
+        if (relatedType == null) where.append(" and related_type is null");
+        else { where.append(" and related_type = ?"); args.add(relatedType); }
+        if (relatedId == null) where.append(" and related_id is null");
+        else { where.append(" and related_id = ?"); args.add(relatedId); }
+        where.append(" and created_at >= ?");
+        args.add(since);
+        if (titleEnd != null) { where.append(" and title like concat('%— ', ?)"); args.add(titleEnd); }
+        Integer hit = jdbc.queryForObject("select case when exists (select 1 from notifications where " + where + ") then 1 else 0 end",
+                Integer.class, args.toArray());
+        return hit != null && hit == 1;
     }
 }

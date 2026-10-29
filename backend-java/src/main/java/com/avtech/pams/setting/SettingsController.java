@@ -2,10 +2,12 @@ package com.avtech.pams.setting;
 
 import com.avtech.pams.audit.AuditService;
 import com.avtech.pams.common.ApiException;
+import com.avtech.pams.common.Times;
 import com.avtech.pams.user.SignatureStore;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.jdbc.support.GeneratedKeyHolder;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.bind.annotation.DeleteMapping;
@@ -20,6 +22,8 @@ import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.math.BigDecimal;
+import java.sql.PreparedStatement;
+import java.sql.Timestamp;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -84,10 +88,11 @@ public class SettingsController {
         m.put("capitalization_threshold", settings.capitalizationThreshold());
         m.put("idle_timeout_minutes", settings.idleTimeoutMinutes());
         m.put("password_min_length", settings.passwordMinLength());
+        m.put("app_url", settings.get(SettingService.APP_URL, ""));
         return m;
     }
 
-    public record SystemInput(BigDecimal capitalizationThreshold, Integer idleTimeoutMinutes, Integer passwordMinLength) {
+    public record SystemInput(BigDecimal capitalizationThreshold, Integer idleTimeoutMinutes, Integer passwordMinLength, String appUrl) {
     }
 
     @PutMapping
@@ -103,7 +108,12 @@ public class SettingsController {
         if (in.passwordMinLength() != null && (in.passwordMinLength() < 8 || in.passwordMinLength() > 64)) {
             throw ApiException.validation("password_min_length", "Minimum password length must be between 8 and 64.");
         }
+        String appUrl = in.appUrl() == null ? null : in.appUrl().trim().replaceAll("/+$", "");
+        if (appUrl != null && !appUrl.isEmpty() && !appUrl.matches("https?://[^\\s/?#]+(:\\d+)?(/[^\\s?#]*)?")) {
+            throw ApiException.validation("app_url", "Enter the address people open the app at, e.g. https://pams.agency.gov.ph.");
+        }
         Map<String, Object> before = system();
+        if (appUrl != null) settings.put(SettingService.APP_URL, appUrl);
         settings.put(SettingService.CAPITALIZATION_THRESHOLD, in.capitalizationThreshold().stripTrailingZeros().toPlainString());
         if (in.idleTimeoutMinutes() != null) settings.put(SettingService.IDLE_TIMEOUT_MINUTES, String.valueOf(in.idleTimeoutMinutes()));
         if (in.passwordMinLength() != null) settings.put(SettingService.PASSWORD_MIN_LENGTH, String.valueOf(in.passwordMinLength()));
@@ -159,7 +169,7 @@ public class SettingsController {
     @GetMapping("/signatories")
     @PreAuthorize("@perm.any('view_settings', 'edit_settings', 'manage_signatories')")
     public Map<String, Object> signatories() {
-        List<Map<String, Object>> users = jdbc.query("select id, name, signature_path is not null from users order by name", (rs, i) -> {
+        List<Map<String, Object>> users = jdbc.query("select id, name, case when signature_path is not null then 1 else 0 end from users order by name", (rs, i) -> {
             Map<String, Object> u = new LinkedHashMap<>();
             u.put("id", rs.getLong(1));
             u.put("name", rs.getString(2));
@@ -180,7 +190,7 @@ public class SettingsController {
             row.put("user_name", null);
             row.put("has_signature", false);
             if (userId != null) {
-                jdbc.query("select id, name, signature_path is not null from users where id = ?", rs -> {
+                jdbc.query("select id, name, case when signature_path is not null then 1 else 0 end from users where id = ?", rs -> {
                     row.put("user_id", rs.getLong(1));
                     row.put("user_name", rs.getString(2));
                     row.put("has_signature", rs.getBoolean(3));
@@ -289,10 +299,21 @@ public class SettingsController {
         if (cleanLabel != null && cleanLabel.length() > 100) throw ApiException.validation("label", "Keep the label under 100 characters.");
         String path = logos.save(logo);
         Integer next = jdbc.queryForObject("select coalesce(max(sequence), 0) + 1 from document_logos where position = ?", Integer.class, position);
-        Long id = jdbc.queryForObject("""
-                insert into document_logos (path, position, sequence, label, created_at, updated_at)
-                values (?, ?, ?, ?, now(), now()) returning id
-                """, Long.class, path, position, next, cleanLabel);
+        Timestamp now = Timestamp.valueOf(Times.now());
+        GeneratedKeyHolder key = new GeneratedKeyHolder();
+        jdbc.update(c -> {
+            PreparedStatement ps = c.prepareStatement("""
+                    insert into document_logos (path, position, sequence, label, created_at, updated_at)
+                    values (?, ?, ?, ?, ?, ?)""", new String[]{"id"});
+            ps.setString(1, path);
+            ps.setString(2, position);
+            ps.setObject(3, next);
+            ps.setString(4, cleanLabel);
+            ps.setTimestamp(5, now);
+            ps.setTimestamp(6, now);
+            return ps;
+        }, key);
+        Long id = key.getKeyAs(Number.class).longValue();
         audit.record("created", "App\\Models\\DocumentLogo", id, "Added a document logo (" + position + ")", null,
                 Map.of("position", position, "label", Objects.toString(cleanLabel, "")));
         return ResponseEntity.status(HttpStatus.CREATED).body(logo(id, path, position, next == null ? 1 : next, cleanLabel));
@@ -310,8 +331,8 @@ public class SettingsController {
         if (in.sequence() != null && in.sequence() < 0) throw ApiException.validation("sequence", "Order cannot be negative.");
         String label = in.label() == null || in.label().isBlank() ? null : in.label().trim();
         if (label != null && label.length() > 100) throw ApiException.validation("label", "Keep the label under 100 characters.");
-        jdbc.update("update document_logos set position = coalesce(?, position), sequence = coalesce(?, sequence), label = ?, updated_at = now() where id = ?",
-                in.position(), in.sequence(), label, id);
+        jdbc.update("update document_logos set position = coalesce(?, position), sequence = coalesce(?, sequence), label = ?, updated_at = ? where id = ?",
+                in.position(), in.sequence(), label, Timestamp.valueOf(Times.now()), id);
         Map<String, Object> after = logoRow(id);
         audit.record("updated", "App\\Models\\DocumentLogo", id, "Updated a document logo",
                 Map.of("position", row.get("position"), "sequence", row.get("sequence"), "label", Objects.toString(row.get("label"), "")),

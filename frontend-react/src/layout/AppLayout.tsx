@@ -4,6 +4,7 @@ import { auditApi } from '../api/endpoints'
 import { useAuth } from '../auth/AuthContext'
 import { dashboardItem, menuGroups } from './menu'
 import { NotificationBell } from './NotificationBell'
+import { PageHelp } from './PageHelp'
 import { ScanButton } from './ScanButton'
 import { ThemeSelect } from './ThemeSelect'
 import './AppLayout.css'
@@ -70,6 +71,7 @@ export function AppLayout() {
           <div className="navbar-welcome">Hello! Welcome {user.name}!</div>
         </div>
         <div className="navbar-right">
+          <PageHelp />
           <ScanButton />
           <NotificationBell />
           <ThemeSelect />
@@ -110,7 +112,6 @@ export function AppLayout() {
                         >
                           <span className="icon">{item.icon}</span>
                           <span className="label">{item.label}</span>
-                          {!item.ported && <span className="soon" title="Still in the old system">old</span>}
                         </NavLink>
                       ))}
                     </div>
@@ -127,6 +128,9 @@ export function AppLayout() {
                 <div className="user-menu-role">{user.role.name}</div>
                 <NavLink className="user-menu-item" role="menuitem" to="/settings">
                   <span className="user-menu-icon">⚙</span> My account
+                </NavLink>
+                <NavLink className="user-menu-item" role="menuitem" to="/help">
+                  <span className="user-menu-icon">?</span> Help &amp; user manual
                 </NavLink>
                 <button className="user-menu-item logout" role="menuitem" onClick={() => void logout()}>
                   <span className="user-menu-icon">⏻</span> Logout

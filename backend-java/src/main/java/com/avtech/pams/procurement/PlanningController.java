@@ -3,6 +3,7 @@ package com.avtech.pams.procurement;
 import com.avtech.pams.audit.AuditService;
 import com.avtech.pams.auth.CurrentUser;
 import com.avtech.pams.common.ApiException;
+import com.avtech.pams.common.Db;
 import com.avtech.pams.common.DocumentNumbers;
 import com.avtech.pams.common.PageResponse;
 import com.avtech.pams.common.Times;
@@ -71,10 +72,11 @@ public class PlanningController {
     private final AuditService audit;
     private final CurrentUser current;
     private final JdbcTemplate jdbc;
+    private final Db db;
 
     public PlanningController(PpmpRepository ppmps, AppPlanRepository apps, DepartmentRepository departments, UserRepository users,
                               ProcurementRules rules, AppUsage usage, DocumentNumbers numbers, NotificationService notifications,
-                              AuditService audit, CurrentUser current, JdbcTemplate jdbc) {
+                              AuditService audit, CurrentUser current, JdbcTemplate jdbc, Db db) {
         this.ppmps = ppmps;
         this.apps = apps;
         this.departments = departments;
@@ -86,6 +88,7 @@ public class PlanningController {
         this.audit = audit;
         this.current = current;
         this.jdbc = jdbc;
+        this.db = db;
     }
 
     // ───────────────────────── views ─────────────────────────
@@ -321,7 +324,7 @@ public class PlanningController {
     public ResponseEntity<AppView> generateApp(@RequestBody GenerateInput in) {
         Integer year = in == null ? null : in.fiscalYear();
         if (year == null || year < 2000 || year > 2100) throw ApiException.validation("fiscal_year", "Enter the fiscal year.");
-        jdbc.queryForList("select pg_advisory_xact_lock(hashtext(?))", "pams.app." + year);
+        db.namedLock("pams.app." + year);
         AppPlan a = apps.lockForYear(year).orElse(null);
         boolean created = a == null;
         if (a != null && a.isApproved()) {
@@ -531,7 +534,7 @@ public class PlanningController {
         String now = "Q" + ((LocalDate.now(Times.ZONE).getMonthValue() + 2) / 3);
         String due = byQ.containsKey(now) && a.getFiscalYear() == LocalDate.now(Times.ZONE).getYear()
                 ? " " + byQ.get(now).size() + " item(s) are due this quarter (" + quarterLabel(now) + "); start the purchase requests." : "";
-        notifications.notifyPermission(List.of("view_procurement", "create_procurement", "view_bac", "manage_bidding", "create_rfq"),
+        notifications.notifyPermission(List.of("view_procurement", "view_bac", "manage_bidding", "create_rfq"),
                 current.user().getId(), "procurement_schedule", "APP " + a.getAppNumber() + " approved — procurement schedule",
                 "APP " + a.getAppNumber() + " (FY " + a.getFiscalYear() + ") is approved. Scheduled procurement: " + summary + "." + due, APP_TYPE, a.getId());
     }

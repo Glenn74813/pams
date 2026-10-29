@@ -1,6 +1,7 @@
 package com.avtech.pams.monitoring;
 
 import com.avtech.pams.common.ApiException;
+import com.avtech.pams.common.Db;
 import com.avtech.pams.common.Times;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -36,9 +37,11 @@ public class MonitoringController {
     private final JdbcTemplate jdbc;
     private final ProcurementWatch watch;
     private final AlertJobs alerts;
+    private final Db db;
 
-    public MonitoringController(JdbcTemplate jdbc, ProcurementWatch watch, AlertJobs alerts) {
+    public MonitoringController(JdbcTemplate jdbc, ProcurementWatch watch, AlertJobs alerts, Db db) {
         this.jdbc = jdbc;
+        this.db = db;
         this.watch = watch;
         this.alerts = alerts;
     }
@@ -149,19 +152,19 @@ public class MonitoringController {
         YearMonth first = last.minusMonths(n - 1L);
         Map<YearMonth, long[]> counts = new LinkedHashMap<>();
         for (YearMonth m = first; !m.isAfter(last); m = m.plusMonths(1)) counts.put(m, new long[5]);
-        jdbc.query("""
-                select extract(year from request_date)::int, extract(month from request_date)::int, count(*),
-                       count(*) filter (where status = 'fulfilled'), count(*) filter (where status = 'rejected')
-                from requests where request_date >= ? group by 1, 2""", rs -> {
+        String y = db.year("request_date"), mo = db.month("request_date");
+        jdbc.query("select " + y + ", " + mo + ", count(*),"
+                + " sum(case when status = 'fulfilled' then 1 else 0 end), sum(case when status = 'rejected' then 1 else 0 end)"
+                + " from requests where request_date >= ? group by " + y + ", " + mo, rs -> {
             long[] c = counts.get(YearMonth.of(rs.getInt(1), rs.getInt(2)));
             if (c == null) return;
             c[0] = rs.getLong(3);
             c[1] = rs.getLong(4);
             c[2] = rs.getLong(5);
         }, Date.valueOf(first.atDay(1)));
-        jdbc.query("""
-                select extract(year from created_at)::int, extract(month from created_at)::int, sum(abs(quantity))
-                from inventory_logs where action = 'item_issued' and created_at >= ? group by 1, 2""", rs -> {
+        String ly = db.year("created_at"), lm = db.month("created_at");
+        jdbc.query("select " + ly + ", " + lm + ", sum(abs(quantity))"
+                + " from inventory_logs where action = 'item_issued' and created_at >= ? group by " + ly + ", " + lm, rs -> {
             long[] c = counts.get(YearMonth.of(rs.getInt(1), rs.getInt(2)));
             if (c != null) c[4] = rs.getLong(3);
         }, java.sql.Timestamp.valueOf(first.atDay(1).atStartOfDay()));

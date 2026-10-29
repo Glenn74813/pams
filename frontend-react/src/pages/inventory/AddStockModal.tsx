@@ -52,7 +52,7 @@ export function AddStockModal({ item, onClose, onSaved }: Props) {
           locations={locations.data ?? []}
         />
         <p className="hint" style={{ marginTop: '0.75rem' }}>
-          Deliveries inspected in Receiving are still recorded in the current system until the receiving module moves.
+          Deliveries from a purchase order are recorded through Receiving (inspection and acceptance) instead.
         </p>
         <div className="modal-footer">
           <button type="button" className="btn btn-secondary" onClick={onClose}>

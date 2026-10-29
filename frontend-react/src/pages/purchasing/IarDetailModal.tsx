@@ -176,11 +176,13 @@ interface Pick {
   lot_number: string
   expiration_date: string
   location: string
+  brand_name: string
+  warranty_months: string
 }
 
 function AcceptForm({ r, onCancel, onDone, onError }: { r: InspectionReport; onCancel: () => void; onDone: (m: string) => void; onError: (m: string) => void }) {
   const lines = (r.items ?? []).filter((l) => l.quantity_accepted > 0)
-  const [picks, setPicks] = useState<Record<number, Pick>>(() => Object.fromEntries(lines.map((l) => [l.id, { item: null, lot_number: '', expiration_date: '', location: '' }])))
+  const [picks, setPicks] = useState<Record<number, Pick>>(() => Object.fromEntries(lines.map((l) => [l.id, { item: null, lot_number: '', expiration_date: '', location: '', brand_name: '', warranty_months: '' }])))
   const [creating, setCreating] = useState<IarLine | null>(null)
   const set = (id: number, patch: Partial<Pick>) => setPicks((p) => ({ ...p, [id]: { ...p[id], ...patch } }))
   const accept = useMutation({
@@ -194,6 +196,8 @@ function AcceptForm({ r, onCancel, onDone, onError }: { r: InspectionReport; onC
             lot_number: picks[l.id].lot_number || null,
             expiration_date: picks[l.id].expiration_date || null,
             location: picks[l.id].location || null,
+            brand_name: picks[l.id].brand_name || null,
+            warranty_months: picks[l.id].warranty_months ? Number(picks[l.id].warranty_months) : null,
           }),
         ),
       ),
@@ -234,6 +238,14 @@ function AcceptForm({ r, onCancel, onDone, onError }: { r: InspectionReport; onC
                     </button>
                   </>
                 )}
+              </div>
+              <div className="field">
+                <label htmlFor={`ac-brand-${l.id}`}>Brand / model</label>
+                <input id={`ac-brand-${l.id}`} value={p.brand_name} onChange={(e) => set(l.id, { brand_name: e.target.value })} />
+              </div>
+              <div className="field">
+                <label htmlFor={`ac-war-${l.id}`}>Warranty (months)</label>
+                <input id={`ac-war-${l.id}`} type="number" min={0} value={p.warranty_months} onChange={(e) => set(l.id, { warranty_months: e.target.value })} />
               </div>
               <div className="field">
                 <label htmlFor={`ac-lot-${l.id}`}>Lot no.</label>

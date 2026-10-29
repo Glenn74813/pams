@@ -5,17 +5,26 @@ import { procurementReportsApi, type PreviewRow } from '../../api/endpoints'
 import { useToast } from '../../components/toast-context'
 import { formatPeso } from '../../lib/format'
 import { fiscalYears, thisYear } from '../procurement/labels'
+import { AgencyProcurementReport, AppCseReport, AppGppbReport, CoaTransmittalReport, PpmpGppbReport } from './PlanningForms'
 import { PreviewTable } from './shared'
 import '../inventory/inventory.css'
 import '../issuance/issuance.css'
 
-type Tab = 'app' | 'pmr' | 'pmr_gppb' | 'bac' | 'award'
+type Tab = 'app' | 'pmr' | 'pmr_gppb' | 'bac' | 'award' | 'f_ppmp' | 'f_app' | 'f_cse' | 'f_apr' | 'f_coa'
 const TABS: [Tab, string][] = [
   ['app', 'APP Report'],
   ['pmr', 'PMR'],
   ['pmr_gppb', 'PMR (GPPB)'],
   ['bac', 'BAC Report'],
   ['award', 'Award Report'],
+]
+/** GPPB / COA forms, each with its own filters and Excel download. */
+const FORMS: [Tab, string][] = [
+  ['f_ppmp', 'PPMP (GPPB)'],
+  ['f_app', 'APP (GPPB)'],
+  ['f_cse', 'APP-CSE'],
+  ['f_apr', 'APR'],
+  ['f_coa', 'COA Transmittal'],
 ]
 
 const cap = (s: unknown) => (typeof s === 'string' ? s.replace(/_/g, ' ').replace(/^\w/, (c) => c.toUpperCase()) : String(s ?? ''))
@@ -26,7 +35,8 @@ export function ProcurementReportsPage() {
   const [tab, setTab] = useState<Tab>('app')
   const [year, setYear] = useState(thisYear())
   const [exporting, setExporting] = useState(false)
-  const q = useQuery({ queryKey: ['proc-report', tab, year], queryFn: () => procurementReportsApi.get(tab, year) })
+  const isForm = tab.startsWith('f_')
+  const q = useQuery({ queryKey: ['proc-report', tab, year], queryFn: () => procurementReportsApi.get(tab, year), enabled: !isForm })
   const d = q.data as Record<string, any> | undefined // eslint-disable-line @typescript-eslint/no-explicit-any
   const exportIt = async () => {
     setExporting(true)
@@ -43,25 +53,44 @@ export function ProcurementReportsPage() {
       <h1 className="page-title">Procurement Reports</h1>
       <p className="muted small">APP Report, Procurement Monitoring Report (PMR), BAC Report, and Award Report.</p>
       <div className="toolbar">
-        <div className="tabs" role="tablist">
+        <div className="tabs" role="tablist" aria-label="Reports">
           {TABS.map(([k, l]) => (
             <button key={k} role="tab" aria-selected={tab === k} className={tab === k ? 'active' : ''} onClick={() => setTab(k)}>
               {l}
             </button>
           ))}
         </div>
-        <select value={year} onChange={(e) => setYear(Number(e.target.value))} aria-label="Fiscal year">
-          {fiscalYears().map((y) => (
-            <option key={y} value={y}>
-              FY {y}
-            </option>
-          ))}
-        </select>
-        <button className="btn btn-primary" disabled={exporting} onClick={() => void exportIt()}>
-          {exporting ? 'Exporting…' : '⬇ Export Excel'}
-        </button>
+        {!isForm && (
+          <>
+            <select value={year} onChange={(e) => setYear(Number(e.target.value))} aria-label="Fiscal year">
+              {fiscalYears().map((y) => (
+                <option key={y} value={y}>
+                  FY {y}
+                </option>
+              ))}
+            </select>
+            <button className="btn btn-primary" disabled={exporting} onClick={() => void exportIt()}>
+              {exporting ? 'Exporting…' : '⬇ Export Excel'}
+            </button>
+          </>
+        )}
       </div>
-      {q.isLoading && <div className="page-loading">Loading…</div>}
+      <div className="toolbar">
+        <span className="muted small">GPPB / COA forms:</span>
+        <div className="tabs" role="tablist" aria-label="GPPB and COA forms">
+          {FORMS.map(([k, l]) => (
+            <button key={k} role="tab" aria-selected={tab === k} className={tab === k ? 'active' : ''} onClick={() => setTab(k)}>
+              {l}
+            </button>
+          ))}
+        </div>
+      </div>
+      {tab === 'f_ppmp' && <PpmpGppbReport initialYear={year} />}
+      {tab === 'f_app' && <AppGppbReport initialYear={year} />}
+      {tab === 'f_cse' && <AppCseReport initialYear={year} />}
+      {tab === 'f_apr' && <AgencyProcurementReport initialYear={year} />}
+      {tab === 'f_coa' && <CoaTransmittalReport />}
+      {!isForm && q.isLoading && <div className="page-loading">Loading…</div>}
       {d && tab === 'app' && (
         <>
           <div className="kpi-row">

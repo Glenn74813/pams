@@ -1,0 +1,12 @@
+# Run on Microsoft SQL Server instead of PostgreSQL: SPRING_PROFILES_ACTIVE=sqlserver.
+# Flyway creates the schema from db/migration/sqlserver on an empty database.
+spring:
+  datasource:
+    url: ${MSSQL_URL:jdbc:sqlserver://127.0.0.1:14330;databaseName=pams;encrypt=true;trustServerCertificate=true;sendTimeAsDatetime=false}
+    username: ${MSSQL_USERNAME:sa}
+    password: ${MSSQL_PASSWORD:${MSSQL_SA_PASSWORD:}}
+  jpa:
+    properties:
+      hibernate:
+        # Text columns are nvarchar so Filipino names (ñ) and the peso sign keep their characters.
+        use_nationalized_character_data: true

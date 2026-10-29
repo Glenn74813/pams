@@ -36,13 +36,17 @@ public class RpciForm {
     public byte[] generate(String inventoryType, LocalDate asAtDate, String fundCluster, Map<Long, ? extends Number> countData) {
         // Get items that are NOT expandable (i.e., consumable or semi-expandable inventory)
         String where;
+        Object[] args;
         if ("consumable".equals(inventoryType)) {
-            where = "i.is_expandable = false and i.is_semi_expandable = false";
+            where = "i.is_expandable = ? and i.is_semi_expandable = ?";
+            args = new Object[]{false, false};
         } else if ("semi_expandable".equals(inventoryType)) {
-            where = "i.is_semi_expandable = true";
+            where = "i.is_semi_expandable = ?";
+            args = new Object[]{true};
         } else {
             // All inventory items (non-PPE)
-            where = "i.is_expandable = false";
+            where = "i.is_expandable = ?";
+            args = new Object[]{false};
         }
         List<Map<String, Object>> items = jdbc.queryForList("""
                 select i.id, i.code, i.name, i.unit_of_measure, i.weighted_average_cost, i.current_stock, c.name as category_name
@@ -50,7 +54,7 @@ public class RpciForm {
                 left join categories c on c.id = i.category_id
                 where %s
                 order by i.name, i.id
-                """.formatted(where));
+                """.formatted(where), args);
 
         Xlsx x = new Xlsx("RPCI");
         x.defaultFont(FONT, 10);

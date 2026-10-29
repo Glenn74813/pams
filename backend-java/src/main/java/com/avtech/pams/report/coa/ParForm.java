@@ -124,10 +124,10 @@ public class ParForm {
                        coalesce(s.received_date, p.acquisition_date) as acquisition_date
                 from request_items ri
                 join items i on i.id = ri.item_id
-                left join lateral (select * from properties pp where pp.item_id = i.id order by pp.id limit 1) p on true
+                left join properties p on p.id = (select min(pp.id) from properties pp where pp.item_id = i.id)
                 left join stocks s on s.id = p.stock_id
-                where ri.request_id = ? and not i.is_expandable
-                order by ri.id""", requestId);
+                where ri.request_id = ? and i.is_expandable = ?
+                order by ri.id""", requestId, false);
 
         int dataStartRow = 10;
         int dataEndRow = 43;

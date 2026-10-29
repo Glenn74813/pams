@@ -61,7 +61,7 @@ public class AuditController {
 
     public record Filter(Long userId, String action, String type, String search, LocalDate from, LocalDate to) {
         String where(List<Object> args) {
-            StringBuilder w = new StringBuilder(" where true");
+            StringBuilder w = new StringBuilder(" where 1 = 1");
             if (userId != null) {
                 w.append(" and a.user_id = ?");
                 args.add(userId);
@@ -76,7 +76,7 @@ public class AuditController {
                 args.add("App\\Models\\" + type);
             }
             if (search != null) {
-                w.append(" and (a.description ilike ? or a.user_name ilike ?)");
+                w.append(" and (lower(a.description) like lower(?) or lower(a.user_name) like lower(?))");
                 args.add("%" + search + "%");
                 args.add("%" + search + "%");
             }
@@ -115,9 +115,9 @@ public class AuditController {
         List<Object> args = new ArrayList<>();
         String where = f.where(args);
         Long total = jdbc.queryForObject("select count(*) from audit_trails a" + where, Long.class, args.toArray());
-        args.add(size);
         args.add((long) (p - 1) * size);
-        List<Entry> rows = jdbc.query(SELECT + where + " order by a.created_at desc, a.id desc limit ? offset ?", (rs, i) -> entry(rs, false), args.toArray());
+        args.add(size);
+        List<Entry> rows = jdbc.query(SELECT + where + " order by a.created_at desc, a.id desc offset ? rows fetch next ? rows only", (rs, i) -> entry(rs, false), args.toArray());
         long t = total == null ? 0 : total;
         return new PageResponse<>(rows, new PageResponse.Pagination(t, size, p, (int) Math.max(1, (t + size - 1) / size)));
     }
@@ -136,10 +136,8 @@ public class AuditController {
     public Map<String, Object> filters() {
         return Map.of(
                 "actions", jdbc.queryForList("select distinct action from audit_trails order by action", String.class),
-                "types", jdbc.queryForList("""
-                        select distinct regexp_replace(auditable_type, '^.*\\\\', '') t from audit_trails
-                        where auditable_type is not null order by t
-                        """, String.class),
+                "types", jdbc.queryForList("select distinct auditable_type from audit_trails where auditable_type is not null", String.class)
+                        .stream().map(t -> t.substring(t.lastIndexOf('\\') + 1)).distinct().sorted().toList(),
                 "users", jdbc.query("""
                         select distinct a.user_id, coalesce(u.name, a.user_name) from audit_trails a left join users u on u.id = a.user_id
                         where a.user_id is not null order by 2
@@ -159,7 +157,7 @@ public class AuditController {
         List<Object> args = new ArrayList<>();
         String where = f.where(args);
         args.add(EXPORT_LIMIT);
-        List<Entry> rows = jdbc.query(SELECT + where + " order by a.created_at desc, a.id desc limit ?", (rs, i) -> entry(rs, true), args.toArray());
+        List<Entry> rows = jdbc.query(SELECT + where + " order by a.created_at desc, a.id desc offset 0 rows fetch next ? rows only", (rs, i) -> entry(rs, true), args.toArray());
         StringBuilder csv = new StringBuilder("﻿Date/Time,User,Role,Action,Record,Description,IP Address,Old values,New values\r\n");
         DateTimeFormatter fmt = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
         for (Entry e : rows) {
@@ -204,7 +202,7 @@ public class AuditController {
 
     private static final String SELECT = """
             select a.id, a.user_id, u.name, a.user_name, a.user_role, a.action, a.auditable_type, a.auditable_id, a.description,
-                   a.ip_address, a.created_at, a.old_values::text, a.new_values::text, a.user_agent, a.url, a.method
+                   a.ip_address, a.created_at, a.old_values, a.new_values, a.user_agent, a.url, a.method
             from audit_trails a left join users u on u.id = a.user_id""";
 
     private static Entry entry(ResultSet rs, boolean full) throws SQLException {

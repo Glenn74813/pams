@@ -98,8 +98,8 @@ public class IcsForm {
                 select ri.quantity, ri.approved_quantity, i.name, i.description, i.unit_of_measure, i.weighted_average_cost, i.code
                 from request_items ri
                 join items i on i.id = ri.item_id
-                where ri.request_id = ? and i.is_semi_expandable
-                order by ri.id""", requestId);
+                where ri.request_id = ? and i.is_semi_expandable = ?
+                order by ri.id""", requestId, true);
 
         int start = 10;
         int end = Math.max(start + 14, start + lines.size() - 1); // at least 15 rows

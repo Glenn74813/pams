@@ -36,7 +36,7 @@ public class Deliveries {
                 select ii.purchase_order_item_id, sum(ii.quantity_accepted) from iar_items ii
                 join inspection_acceptance_reports r on r.id = ii.inspection_acceptance_report_id
                 where r.purchase_order_id = ? and r.id <> ? and ii.purchase_order_item_id is not null
-                  and r.acceptance_status in (""" + String.join(",", statuses.stream().map(x -> "?").toList()) + ") group by 1",
+                  and r.acceptance_status in (""" + String.join(",", statuses.stream().map(x -> "?").toList()) + ") group by ii.purchase_order_item_id",
                 rs -> {
                     out.put(rs.getLong(1), rs.getInt(2));
                 }, prepend(poId, exceptIar == null ? -1L : exceptIar, statuses));

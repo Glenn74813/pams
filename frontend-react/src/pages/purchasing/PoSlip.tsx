@@ -24,7 +24,7 @@ export function PoSlip({ po, config }: { po: PurchaseOrder; config?: InventoryCo
           Date: <strong>{formatDate(po.order_date)}</strong>
         </span>
         <span>
-          Mode of Procurement: <strong>{po.source ? `${po.source.number}` : '—'}</strong>
+          Mode of Procurement: <strong>{po.source?.mode ?? "—"}</strong>
         </span>
         <span>
           Place of Delivery: <strong>{po.delivery_address ?? '—'}</strong>

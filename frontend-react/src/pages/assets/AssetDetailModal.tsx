@@ -12,6 +12,8 @@ import { AttachmentsPanel } from '../documents/AttachmentsPanel'
 import { ExcelButton } from '../../components/ExcelButton'
 import { QrLabelSheet } from '../../components/QrLabelSheet'
 import { qrApi } from '../../api/endpoints'
+import { AssemblyPanel } from './AssemblyPanel'
+import { useAuth } from '../../auth/AuthContext'
 
 type Tab = 'details' | 'history' | 'depreciation' | 'gate'
 type Action = 'transfer' | 'return' | 'issue' | 'edit' | null
@@ -25,6 +27,7 @@ interface Props {
 export function AssetDetailModal({ assetId, onClose, onChanged }: Props) {
   const [tab, setTab] = useState<Tab>('details')
   const [qrOpen, setQrOpen] = useState(false)
+  const { can } = useAuth()
   const [action, setAction] = useState<Action>(null)
   const [slip, setSlip] = useState<{ kind: AssetSlipKind; move?: AssetMove } | null>(null)
   const [error, setError] = useState<string | null>(null)
@@ -116,7 +119,7 @@ export function AssetDetailModal({ assetId, onClose, onChanged }: Props) {
                 🖨 {a.item?.classification === 'ppe' ? 'PAR' : 'ICS'}
               </button>
             )}
-            <ExcelButton path={`/reports/property-card/${a.id}/export`} name={`PropertyCard_${a.tag_number}.xlsx`} label="Property Card" />
+            {can('view_properties') && <ExcelButton path={`/reports/property-card/${a.id}/export`} name={`PropertyCard_${a.tag_number}.xlsx`} label="Property Card" />}
           </div>
 
           {action && action !== 'edit' && (
@@ -219,7 +222,9 @@ export function AssetDetailModal({ assetId, onClose, onChanged }: Props) {
                         <button className="btn btn-outline btn-sm" onClick={() => setSlip({ kind: 'move', move: m })}>
                           🖨
                         </button>{' '}
-                        <ExcelButton path={`/properties/transfers/${m.id}/export`} name={`PTR_${m.reference_number ?? m.id}.xlsx`} label="PTR" />
+                        {m.transfer_type === 'transfer' && can('view_properties') && (
+                          <ExcelButton path={`/properties/transfers/${m.id}/export`} name={`PTR_${m.reference_number ?? m.id}.xlsx`} label="PTR" />
+                        )}
                       </td>
                     </tr>
                   ))}
@@ -325,6 +330,7 @@ export function AssetDetailModal({ assetId, onClose, onChanged }: Props) {
         </>
       )}
       {a && <AttachmentsPanel type="Property" id={a.id} label={a.tag_number} docType="OTHER" />}
+      {a && <AssemblyPanel asset={a} />}
       {qrOpen && a && <QrLabelSheet title={`QR sticker — ${a.tag_number}`} load={() => qrApi.properties([a.id])} onClose={() => setQrOpen(false)} />}
     </Modal>
   )

@@ -122,10 +122,15 @@ public class StockLedger {
         return consumed;
     }
 
+    /** One lot of the item, without taking anything from it. */
+    public Stock lot(Item item, Long lotId) {
+        return stocks.findById(lotId).filter(l -> l.getItemId().equals(item.getId()))
+                .orElseThrow(() -> ApiException.validation("stock_id", "That lot does not belong to this item."));
+    }
+
     /** Takes units out of one specific lot (e.g. registering serialised assets from a chosen brand lot). */
     public Stock takeFromLot(Item item, Long lotId, int qty) {
-        Stock lot = stocks.findById(lotId).filter(l -> l.getItemId().equals(item.getId()))
-                .orElseThrow(() -> ApiException.validation("stock_id", "That lot does not belong to this item."));
+        Stock lot = lot(item, lotId);
         if (qty > lot.getQuantity()) {
             throw ApiException.validation("units", "Only " + lot.getQuantity() + " unit(s) left in that lot.");
         }

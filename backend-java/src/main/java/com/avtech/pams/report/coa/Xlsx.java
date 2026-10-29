@@ -272,13 +272,15 @@ public final class Xlsx {
         private String printArea;
         private Short scale;
         private boolean centerH;
+        /** As PhpSpreadsheet: a fit setter turns fit-to-page on, a scale turns it off; fit values are always written. */
+        private boolean fit;
 
         public Page landscape() { landscape = true; return this; }
         public Page portrait() { landscape = false; return this; }
         public Page paper(short size) { paper = size; return this; }
-        public Page fitToWidth(int n) { fitWidth = (short) n; return this; }
-        public Page fitToHeight(int n) { fitHeight = (short) n; return this; }
-        public Page scale(int percent) { scale = (short) percent; return this; }
+        public Page fitToWidth(int n) { fitWidth = (short) n; fit = true; return this; }
+        public Page fitToHeight(int n) { fitHeight = (short) n; fit = true; return this; }
+        public Page scale(int percent) { scale = (short) percent; fit = false; return this; }
         public Page horizontalCentered() { centerH = true; return this; }
         /** Inches, as PhpSpreadsheet's getPageMargins(). */
         public Page margins(double top, double right, double bottom, double left) {
@@ -300,11 +302,26 @@ public final class Xlsx {
     // ───────────────────────── output ─────────────────────────
 
     public byte[] bytes() {
+        // PhpSpreadsheet keeps only the top-left value of a merged range.
+        for (String m : merges) {
+            CellRangeAddress a = CellRangeAddress.valueOf(m);
+            for (int r = a.getFirstRow(); r <= a.getLastRow(); r++)
+                for (int c = a.getFirstColumn(); c <= a.getLastColumn(); c++)
+                    if (r != a.getFirstRow() || c != a.getFirstColumn()) values.remove(key(r, c));
+        }
         try (XSSFWorkbook wb = new XSSFWorkbook(); ByteArrayOutputStream out = new ByteArrayOutputStream()) {
             XSSFFont base = wb.getFontAt(0);
             base.setFontName(defaultFont);
             base.setFontHeightInPoints((short) Math.round(defaultSize));
+            // The default font is the named font, not the theme's (Excel would otherwise show Calibri).
+            base.setScheme(org.apache.poi.ss.usermodel.FontScheme.NONE);
+            // POI marks its default font as a sans-serif (Swiss) family; PhpSpreadsheet gives no family.
+            base.getCTFont().setFamilyArray(new org.openxmlformats.schemas.spreadsheetml.x2006.main.CTFontFamily[0]);
             Sheet sheet = wb.createSheet(title.length() > 31 ? title.substring(0, 31) : title);
+            // PhpSpreadsheet always writes a default row height of 14.4 pt.
+            sheet.setDefaultRowHeightInPoints(14.4f);
+            // ...but, as there, not as a fixed height: rows without their own height still fit their text.
+            ((org.apache.poi.xssf.usermodel.XSSFSheet) sheet).getCTWorksheet().getSheetFormatPr().unsetCustomHeight();
             Map<Key, CellStyle> cache = new HashMap<>();
             Map<String, XSSFFont> fonts = new HashMap<>();
             java.util.Set<Long> keys = new java.util.HashSet<>(values.keySet());
@@ -354,6 +371,10 @@ public final class Xlsx {
                 }
             }
             widths.forEach((c, w) -> sheet.setColumnWidth(c, (int) Math.round(w * 256)));
+            // Write the widths exactly as given (POI rounds to 1/256 of a character).
+            for (org.openxmlformats.schemas.spreadsheetml.x2006.main.CTCols cols : ((org.apache.poi.xssf.usermodel.XSSFSheet) sheet).getCTWorksheet().getColsList())
+                for (org.openxmlformats.schemas.spreadsheetml.x2006.main.CTCol col : cols.getColList())
+                    if (col.getMin() == col.getMax() && widths.containsKey((int) col.getMin() - 1)) col.setWidth(widths.get((int) col.getMin() - 1));
             for (int c : autoSize) sheet.autoSizeColumn(c, true);
             for (int c : autoSizeUnmerged) sheet.autoSizeColumn(c, false);
             heights.forEach((r, h) -> {
@@ -363,12 +384,10 @@ public final class Xlsx {
             PrintSetup ps = sheet.getPrintSetup();
             ps.setLandscape(page.landscape);
             ps.setPaperSize(page.paper);
-            if (page.fitWidth != null || page.fitHeight != null) {
-                sheet.setFitToPage(true);
-                ps.setFitWidth(page.fitWidth == null ? 1 : page.fitWidth);
-                ps.setFitHeight(page.fitHeight == null ? 0 : page.fitHeight);
-            }
-            if (page.scale != null) ps.setScale(page.scale);
+            sheet.setFitToPage(page.fit);
+            ps.setFitWidth(page.fitWidth == null ? 1 : page.fitWidth);
+            ps.setFitHeight(page.fitHeight == null ? 1 : page.fitHeight);
+            ps.setScale(page.scale != null ? page.scale : 100);
             if (page.top != null) sheet.setMargin(Sheet.TopMargin, page.top);
             if (page.right != null) sheet.setMargin(Sheet.RightMargin, page.right);
             if (page.bottom != null) sheet.setMargin(Sheet.BottomMargin, page.bottom);
@@ -381,10 +400,35 @@ public final class Xlsx {
                 wb.setPrintArea(0, a.getFirstColumn(), a.getLastColumn(), a.getFirstRow(), a.getLastRow());
             }
             wb.write(out);
-            return out.toByteArray();
+            return withNormalStyle(out.toByteArray());
         } catch (IOException e) {
             throw new UncheckedIOException(e);
         }
+    }
+
+    /**
+     * Declares the "Normal" cell style on the default format, as PhpSpreadsheet does, so viewers use the default
+     * font for unstyled cells rather than their own (POI's lightweight schema cannot add it directly).
+     */
+    private static byte[] withNormalStyle(byte[] xlsx) throws IOException {
+        ByteArrayOutputStream out = new ByteArrayOutputStream();
+        try (java.util.zip.ZipInputStream in = new java.util.zip.ZipInputStream(new java.io.ByteArrayInputStream(xlsx));
+             java.util.zip.ZipOutputStream zip = new java.util.zip.ZipOutputStream(out)) {
+            for (java.util.zip.ZipEntry e; (e = in.getNextEntry()) != null; ) {
+                byte[] data = in.readAllBytes();
+                if (e.getName().equals("xl/styles.xml")) {
+                    String xml = new String(data, java.nio.charset.StandardCharsets.UTF_8);
+                    if (!xml.contains("<cellStyles")) {
+                        xml = xml.replaceFirst("</cellXfs>", "</cellXfs><cellStyles count=\"1\"><cellStyle name=\"Normal\" xfId=\"0\" builtinId=\"0\"/></cellStyles>");
+                    }
+                    data = xml.getBytes(java.nio.charset.StandardCharsets.UTF_8);
+                }
+                zip.putNextEntry(new java.util.zip.ZipEntry(e.getName()));
+                zip.write(data);
+                zip.closeEntry();
+            }
+        }
+        return out.toByteArray();
     }
 
     private CellStyle style(XSSFWorkbook wb, Key k, Map<String, XSSFFont> fonts) {
@@ -395,6 +439,7 @@ public final class Xlsx {
         String fk = fontName + "|" + size + "|" + bold + italic + under;
         XSSFFont font = fonts.computeIfAbsent(fk, x -> {
             XSSFFont f = wb.createFont();
+            f.setScheme(org.apache.poi.ss.usermodel.FontScheme.NONE);
             f.setFontName(fontName);
             f.setFontHeight(size);
             f.setBold(bold);

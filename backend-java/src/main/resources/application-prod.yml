@@ -1,0 +1,17 @@
+# Production settings: SPRING_PROFILES_ACTIVE=prod (with sqlserver for SQL Server).
+# HTTPS: set SERVER_SSL_KEY_STORE (a .pfx), SERVER_SSL_KEY_STORE_PASSWORD and SERVER_SSL_KEY_STORE_TYPE=PKCS12,
+# or terminate TLS in IIS/a reverse proxy and keep this service on localhost.
+server:
+  port: ${SERVER_PORT:443}
+  ssl:
+    enabled: ${SERVER_SSL_ENABLED:true}
+  # Trust X-Forwarded-* from a reverse proxy (IIS ARR, nginx) for scheme and client address.
+  forward-headers-strategy: native
+  error:
+    include-stacktrace: never
+    include-message: never
+
+pams:
+  frontend-dir: ${PAMS_FRONTEND_DIR:}
+  security:
+    require-https: ${PAMS_REQUIRE_HTTPS:true}

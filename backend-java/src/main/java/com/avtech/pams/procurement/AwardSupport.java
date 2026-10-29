@@ -3,12 +3,18 @@ package com.avtech.pams.procurement;
 import com.avtech.pams.bac.BacResolution;
 import com.avtech.pams.bac.BacResolutionRepository;
 import com.avtech.pams.common.ApiException;
+import com.avtech.pams.common.Db;
 import com.avtech.pams.common.DocumentNumbers;
 import com.avtech.pams.common.Times;
 import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.jdbc.support.GeneratedKeyHolder;
+import org.springframework.jdbc.support.KeyHolder;
 import org.springframework.stereotype.Component;
 
+import java.sql.Date;
+import java.sql.PreparedStatement;
 import java.sql.Timestamp;
+import java.time.LocalDate;
 import java.util.List;
 import java.util.Objects;
 
@@ -19,11 +25,13 @@ public class AwardSupport {
     private final BacResolutionRepository resolutions;
     private final DocumentNumbers numbers;
     private final JdbcTemplate jdbc;
+    private final Db db;
 
-    public AwardSupport(BacResolutionRepository resolutions, DocumentNumbers numbers, JdbcTemplate jdbc) {
+    public AwardSupport(BacResolutionRepository resolutions, DocumentNumbers numbers, JdbcTemplate jdbc, Db db) {
         this.resolutions = resolutions;
         this.numbers = numbers;
         this.jdbc = jdbc;
+        this.db = db;
     }
 
     /**
@@ -39,7 +47,7 @@ public class AwardSupport {
         String name = supplierName == null || supplierName.isBlank() ? null : supplierName.trim();
         if (name == null) throw ApiException.validation("supplier_id", "Choose or name the supplier.");
         if (name.length() > 255) throw ApiException.validation("supplier_name", "The supplier name is too long.");
-        List<Long> found = jdbc.queryForList("select id from suppliers where lower(name) = lower(?) order by id limit 1", Long.class, name);
+        List<Long> found = jdbc.queryForList("select id from suppliers where lower(name) = lower(?) order by id offset 0 rows fetch next 1 rows only", Long.class, name);
         if (!found.isEmpty()) {
             Boolean active = jdbc.query("select is_active from suppliers where id = ?", rs -> rs.next() ? rs.getBoolean(1) : null, found.get(0));
             if (!Boolean.TRUE.equals(active)) throw ApiException.validation("supplier_name", name + " is inactive.");
@@ -47,19 +55,32 @@ public class AwardSupport {
         }
         // Named here for the first time: registered, but not eligible for an award until its compliance documents are verified.
         Timestamp now = Timestamp.valueOf(Times.now());
-        return jdbc.queryForObject("insert into suppliers (name, vendor_code, is_active, is_eligible, is_msme, created_at, updated_at) values (?, ?, true, false, false, ?, ?) returning id",
-                Long.class, name, numbers.series("VND-", 4, "suppliers.vendor_code"), now, now);
+        String vendorCode = numbers.series("VND-", 4, "suppliers.vendor_code");
+        KeyHolder key = new GeneratedKeyHolder();
+        jdbc.update(con -> {
+            PreparedStatement ps = con.prepareStatement("insert into suppliers (name, vendor_code, is_active, is_eligible, is_msme, created_at, updated_at) values (?, ?, ?, ?, ?, ?, ?)",
+                    new String[]{"id"});
+            ps.setString(1, name);
+            ps.setString(2, vendorCode);
+            ps.setBoolean(3, true);
+            ps.setBoolean(4, false);
+            ps.setBoolean(5, false);
+            ps.setTimestamp(6, now);
+            ps.setTimestamp(7, now);
+            return ps;
+        }, key);
+        return key.getKey().longValue();
     }
 
-    /** SQL for "supplier s may be awarded": active, marked eligible, and under no blacklist or suspension today. */
-    public static final String ELIGIBLE_SQL = """
-            (s.is_active and s.is_eligible and not exists (
-              select 1 from supplier_blacklists b where b.supplier_id = s.id and b.status = 'active'
-                and b.start_date <= current_date and (b.end_date is null or b.end_date >= current_date)))""";
-
+    /** "Supplier s may be awarded": active, marked eligible, and under no blacklist or suspension today (Manila date). */
     public boolean eligible(Long supplierId) {
-        Boolean ok = jdbc.query("select " + ELIGIBLE_SQL + " from suppliers s where s.id = ?", rs -> rs.next() ? rs.getBoolean(1) : null, supplierId);
-        return Boolean.TRUE.equals(ok);
+        Date today = Date.valueOf(LocalDate.now(Times.ZONE));
+        Integer ok = jdbc.query("select case when s.is_active = " + db.t() + " and s.is_eligible = " + db.t() + " and not exists ("
+                        + " select 1 from supplier_blacklists b where b.supplier_id = s.id and b.status = 'active'"
+                        + " and b.start_date <= ? and (b.end_date is null or b.end_date >= ?)) then 1 else 0 end"
+                        + " from suppliers s where s.id = ?",
+                rs -> rs.next() ? rs.getInt(1) : null, today, today, supplierId);
+        return ok != null && ok == 1;
     }
 
     public String supplierName(Long id) {

@@ -76,7 +76,7 @@ export function DashboardPage() {
                 📦 Inventory {canOpen('monitoring') && <Link to="/monitoring">Monitoring →</Link>}
               </h2>
               <div className="kpi-row">
-                <Kpi label="Items" value={d.inventory.total_items} to="/items" />
+                <Kpi label="Items" value={d.inventory.total_items} to={canOpen('items') ? '/items' : undefined} />
                 <Kpi label="Stock value" value={formatPeso(d.inventory.total_value)} />
                 <Kpi label="Low stock" value={d.inventory.low_stock} tone={warnIf(d.inventory.low_stock)} />
                 <Kpi label="Out of stock" value={d.inventory.out_of_stock} tone={warnIf(d.inventory.out_of_stock, 'bad')} />

@@ -3,12 +3,14 @@ import { useMutation, useQuery } from '@tanstack/react-query'
 import { ApiError } from '../../api/client'
 import { inventoryApi, poApi } from '../../api/endpoints'
 import type { PurchaseOrder } from '../../api/types'
+import { useAuth } from '../../auth/AuthContext'
 import { ConfirmDialog, Modal } from '../../components/Modal'
 import { formatDate, formatPeso, formatQty } from '../../lib/format'
 import { Badge } from '../assets/pickers'
 import { ACCEPTANCE, PO_STATUS } from './labels'
 import { PoSlip } from './PoSlip'
 import { AttachmentsPanel } from '../documents/AttachmentsPanel'
+import { PaymentsPanel } from '../payments/PaymentsPanel'
 
 interface Props {
   poId: number
@@ -19,6 +21,7 @@ interface Props {
 }
 
 export function PoDetailModal({ poId, onClose, onEdit, onReceive, onChanged }: Props) {
+  const { can } = useAuth()
   const q = useQuery({ queryKey: ['po', poId], queryFn: () => poApi.get(poId) })
   const config = useQuery({ queryKey: ['inventory-config'], queryFn: inventoryApi.config })
   const [printing, setPrinting] = useState(false)
@@ -202,6 +205,7 @@ export function PoDetailModal({ poId, onClose, onEdit, onReceive, onChanged }: P
           )}
         </>
       )}
+      {po && !printing && can('view_payments', 'manage_payments', 'approve_payments') && <PaymentsPanel type="purchase_order" id={po.id} amount={po.total_amount} />}
       {po && !printing && <AttachmentsPanel type="PurchaseOrder" id={po.id} label={po.po_number} docType="PO" />}
     </Modal>
   )

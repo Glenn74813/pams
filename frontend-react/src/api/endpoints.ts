@@ -56,6 +56,8 @@ import type {
   ApcpiListRow,
   QrLabel,
   ScanResult,
+  Assembly,
+  LinkedAsset,
   LoginResponse,
   Paged,
   PermissionCatalogue,
@@ -75,6 +77,7 @@ export const authApi = {
   login: (email: string, password: string, otp?: string) =>
     api<LoginResponse>('POST', '/auth/login', { email, password, otp: otp || undefined }, { skipAuthRedirect: true }),
   me: () => api<AuthUser>('GET', '/auth/me'),
+  refresh: () => api<{ access_token: string; expires_in: number }>('POST', '/auth/refresh'),
   logout: (reason?: 'idle') => api<{ message: string }>('POST', '/auth/logout', reason ? { reason } : undefined, { skipAuthRedirect: true }),
   changePassword: (input: { current_password: string; password: string; password_confirmation: string }) => api<{ message: string }>('POST', '/auth/change-password', input),
   uploadSignature: (file: File) => {
@@ -278,7 +281,7 @@ export const semiExpendableApi = {
 
 export interface RegisterInput {
   item_id: number
-  stock_id: number
+  stock_id: number | null
   assigned_to: number
   assigned_date?: string
   condition: string
@@ -629,6 +632,7 @@ export interface AcceptLineInput {
   expiration_date?: string | null
   brand_name?: string | null
   location?: string | null
+  warranty_months?: number | null
 }
 
 export const receivingApi = {
@@ -886,4 +890,13 @@ export const qrApi = {
   gatePass: (id: number) => api<{ gate_pass: QrLabel; unit: QrLabel | null }>('GET', `/gate-pass/${id}/qr`),
   scan: (data: string) => api<ScanResult>('POST', '/inventory/scan-qr', { data }),
   publicLookup: (type: string, id: string, c: string) => api<ScanResult & { agency: string }>('GET', `/public/qr/${type}/${id}`, undefined, { params: { c }, skipAuthRedirect: true }),
+}
+
+export const assemblyApi = {
+  get: (id: number) => api<Assembly>('GET', `/properties/${id}/assembly`),
+  addPart: (id: number, input: { description: string; specifications?: string; serial_number?: string; quantity: number; remarks?: string; stock_id?: number }) =>
+    api<Assembly>('POST', `/properties/${id}/assembly-components`, input),
+  removePart: (componentId: number) => api<Assembly>('DELETE', `/properties/assembly-components/${componentId}`),
+  link: (id: number, property_id: number) => api<LinkedAsset[]>('POST', `/properties/${id}/components`, { property_id }),
+  unlink: (childId: number) => api<{ message: string }>('DELETE', `/properties/components/${childId}`),
 }

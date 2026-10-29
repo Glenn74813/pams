@@ -2,6 +2,7 @@ package com.avtech.pams.audit;
 
 import com.avtech.pams.auth.AuthPrincipal;
 import com.avtech.pams.auth.ClientIp;
+import com.avtech.pams.common.Db;
 import com.avtech.pams.common.Times;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -34,9 +35,11 @@ public class AuditService {
     private static final JsonMapper JSON = JsonMapper.builder().build();
 
     private final JdbcTemplate jdbc;
+    private final Db db;
 
-    public AuditService(JdbcTemplate jdbc) {
+    public AuditService(JdbcTemplate jdbc, Db db) {
         this.jdbc = jdbc;
+        this.db = db;
     }
 
     /**
@@ -52,7 +55,7 @@ public class AuditService {
             jdbc.update("""
                             insert into audit_trails (user_id, user_name, user_role, action, auditable_type, auditable_id,
                               description, old_values, new_values, ip_address, user_agent, url, method, created_at, updated_at)
-                            values (?, ?, ?, ?, ?, ?, ?, cast(? as json), cast(? as json), ?, ?, ?, ?, ?, ?)""",
+                            values (?, ?, ?, ?, ?, ?, ?, """ + db.jsonParam() + ", " + db.jsonParam() + ", ?, ?, ?, ?, ?, ?)",
                     p == null ? null : p.user().getId(),
                     p == null ? "System" : p.user().getName(),
                     p == null ? null : p.user().getRole().getName(),

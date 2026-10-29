@@ -1,7 +1,7 @@
 import { useState, type FormEvent } from 'react'
 import { useMutation, useQuery } from '@tanstack/react-query'
 import { ApiError } from '../../api/client'
-import { usersApi, type UserInput } from '../../api/endpoints'
+import { settingsApi, usersApi, type UserInput } from '../../api/endpoints'
 import type { User } from '../../api/types'
 import { useAuth } from '../../auth/AuthContext'
 import { Modal } from '../../components/Modal'
@@ -30,6 +30,7 @@ export function UserFormModal({ user, onClose, onSaved }: Props) {
 
   const roles = useQuery({ queryKey: ['user-role-options'], queryFn: usersApi.roleOptions })
   const departments = useQuery({ queryKey: ['departments'], queryFn: usersApi.departments })
+  const system = useQuery({ queryKey: ['settings-system'], queryFn: settingsApi.system })
 
   const save = useMutation({
     mutationFn: () => {
@@ -100,7 +101,10 @@ export function UserFormModal({ user, onClose, onSaved }: Props) {
             {fieldError('password') ? (
               <span className="field-error">{fieldError('password')}</span>
             ) : (
-              <span className="hint">8+ characters with upper and lower case, a number and a symbol.</span>
+              <span className="hint">
+                {system.data?.password_min_length ?? 8}+ characters with upper and lower case, a number and a symbol; not a common password or the
+                person's email name.
+              </span>
             )}
           </div>
           <div className="field">

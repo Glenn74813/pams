@@ -1,6 +1,6 @@
 # PAMS backend (Spring Boot)
 
-Java 21 · Spring Boot 4 · PostgreSQL · Flyway. Replaces the Laravel API in `../Backend`, one module at a time.
+Java 21 · Spring Boot 4 · PostgreSQL or Microsoft SQL Server · Flyway. Replaced the Laravel API (all modules are ported).
 
 ## Run
 
@@ -13,18 +13,33 @@ Listens on **8095** (`SERVER_PORT` overrides it). Settings come from `backend-ja
 | Variable | Purpose |
 |---|---|
 | `DB_URL`, `DB_USERNAME`, `DB_PASSWORD` | PostgreSQL connection |
+| `SPRING_PROFILES_ACTIVE=sqlserver`, `MSSQL_URL`, `MSSQL_USERNAME`, `MSSQL_PASSWORD` | run on SQL Server instead (2019 or later) |
+| `PAMS_APP_URL` | address on QR labels (Settings → System can override it) |
+| `PAMS_FRONTEND_DIR` | serve the built React app (`frontend-react/dist`) from this process |
+| `PAMS_BACKUP_DIR` | where the daily backup goes (default `storage/backups`) |
 | `PAMS_JWT_SECRET` | base64, at least 256 bits (`openssl rand -base64 48`) |
-| `PAMS_STORAGE_DIR` | public file storage; points at Laravel's while both run |
+| `PAMS_STORAGE_DIR` | uploaded files (signatures, logos, documents); default `storage/public`, gitignored |
 | `PAMS_ADMIN_EMAIL`, `PAMS_ADMIN_PASSWORD` | only used on an empty database, to create the first Super Admin |
 
 ## Database
 
-The schema was built by Laravel. `V1__baseline.sql` is a snapshot of it: on the existing database Flyway records it as
-already applied, on a fresh database it creates everything. From here on, **every schema change is a new Flyway
-migration** in `src/main/resources/db/migration` — don't add Laravel migrations any more.
+Migrations live in one folder per database (`db/migration/{vendor}`):
 
-Both backends can run against the same database during the move: the Java side reads and writes Laravel's bcrypt
-hashes, Manila-time timestamps and table layout unchanged.
+- `postgresql/`: V1 is a snapshot of the schema Laravel built (applied on an existing database, or used to create a
+  fresh one), then V2 onwards. V18 dropped the tables only Laravel used.
+- `sqlserver/`: `V18__baseline.sql`, the same schema generated from PostgreSQL by `tools/pg_to_mssql.py` (types
+  mapped, unique constraints on nullable columns turned into filtered indexes, and ON DELETE CASCADE / SET NULL
+  reproduced by INSTEAD OF DELETE triggers, since SQL Server refuses most of them as multiple cascade paths), with the
+  system roles, one department and the first Super Admin seeded.
+
+**Every schema change from V19 on needs a migration in both folders with the same version number.** Hand-written SQL
+must run on both databases: use the portable forms (CONCAT, CAST, CASE inside SUM, OFFSET … FETCH, LOWER(..) LIKE,
+generated keys) and `common/Db` for the rest (boolean literals, year/month, day differences, row locks, named locks,
+JSON parameters). Text blocks drop trailing spaces, so a splice like `""" + db.t() + " " + """` needs its space.
+
+Timestamps are Manila wall-clock time and passwords are bcrypt `$2y$`, as in the Laravel schema.
+
+Windows Server deployment (SQL Server, HTTPS, Windows service): see `../docs/deployment-windows.md`.
 
 ## Ported so far
 
@@ -46,7 +61,7 @@ hashes, Manila-time timestamps and table layout unchanged.
 | Gate pass | `GET/POST /api/gate-pass`, `GET/PUT {id}`, `POST {id}/return`, `GET property/{propertyId}` |
 | Procurement planning | `GET /api/procurement-planning/options`, `GET/POST ppmps`, `GET/PUT/DELETE ppmps/{id}`, `POST ppmps/{id}/submit`, `review`, `approve`, `return`, `GET apps`, `GET/PUT/DELETE apps/{id}`, `POST apps/generate`, `POST apps/{id}/approve`, `GET budget-summary` |
 | Purchase requests | `GET/POST /api/purchase-requests`, `GET/PUT/DELETE {id}`, `POST {id}/submit`, `cancel`, `approve-step`, `return`, `certify-funds` |
-| RFQ / alternative modes | `GET/POST /api/rfq`, `GET purchase-requests`, `GET/PUT/DELETE {id}`, `GET {id}/abstract`, `POST {id}/issue`, `close`, `cancel`, `award`, `noa`, `ntp`, `POST {id}/quotations`, `PUT/DELETE quotations/{id}` |
+| RFQ / alternative modes | `GET/POST /api/rfq`, `GET purchase-requests`, `GET/PUT/DELETE {id}`, `GET {id}/abstract`, `POST {id}/issue`, `close`, `cancel`, `award`, `noa`, `ntp`, `POST {id}/quotations`, `PUT quotations/{id}/responsive`, `DELETE quotations/{id}` |
 | Competitive bidding | `GET/POST /api/bidding`, `GET purchase-requests`, `GET/PUT/DELETE {id}`, `PUT {id}/criteria`, `POST {id}/pre-proc`, `invitation`, `open-bids`, `bidders`, `declare-failed`, `cancel`, `award`, `noa`, `ntp`, `protests`, `observers`, `PUT/DELETE bidders/{id}`, `PUT bidders/{id}/scores`, `PUT protests/{id}`, `PUT/DELETE observers/{id}` |
 | Purchase orders | `GET /api/procurement/award-sources`, `GET/POST /api/procurement/purchase-orders`, `GET/PUT/DELETE {id}`, `POST {id}/send`, `confirm`, `cancel` |
 | Receiving | `GET/POST /api/receiving/inspection-reports`, `GET/PUT/DELETE {id}`, `POST {id}/accept`, `reject` |
@@ -115,8 +130,8 @@ Receiving: the inspection committee records each delivery on an IAR against PO l
 rejections need a reason, never more than is outstanding). Someone other than the inspector then accepts it, which
 receives the accepted quantities into stock as new lots at the PO price — supplier, IAR, lot no., expiry, location —
 with a stock card entry and the COA classification check; Laravel never put accepted deliveries into stock. A rejected
-delivery reopens the PO quantities. PO status follows deliveries (partially received / received). Not ported: the
-Excel IAR export (the React app prints Appendix 61 PO and Appendix 62 IAR).
+delivery reopens the PO quantities. PO status follows deliveries (partially received / received). The IAR is printed
+(Appendix 62) and exported in the Laravel Excel layout.
 Contracts are drawn up only on an award with its Notice of Award, at the awarded price, linked to the award's PO; one
 live contract per award. A contract takes effect (activated by someone other than its preparer) once signed, dated and
 secured by a performance security of the required amount: 5% of the price in cash, bank draft/guarantee or letter of
@@ -196,4 +211,16 @@ checksum (pams.app-url sets the host). Labels and sticker sheets for items and a
 scan lookup (QR link, item code, tag, serial or gate-pass number) and a public read-only lookup that refuses a
 missing or altered checksum. Laravel's QR links pointed at its own web pages and are not honoured here.
 
-Not ported: Clone-PC assembly parts.
+Assemblies (property/AssemblyController): parts of a locally assembled unit (e.g. a Clone PC) are drawn from lots of
+the assembly item and returned when removed, the unit's acquisition cost is the sum of its parts, and the item becomes
+PPE once a unit reaches the capitalization threshold; whole assets can also be attached to a unit.
+Payments (payment/): payment schedules for contracts and POs (tranches, approval for payment, release with retention,
+LD and withholding deductions), ORS/BURS and Disbursement Voucher forms, petty cash funds with vouchers (Appendix 50)
+and replenishment reports; separation of duties at each step; overdue tranches feed the procurement watch.
+GPPB/COA planning forms (report/PlanningReportController): PPMP and APP in the GPPB formats, APP-CSE, the Agency
+Procurement Report and the COA transmittal.
+Data (dataio/): full export to a ZIP of CSV files with a manifest (secrets left out), and CSV/ZIP import of items,
+suppliers, departments and users with a dry run, duplicate/incomplete/invalid exception reports and an
+all-or-nothing commit; import history is kept.
+Sign-in: tokens are renewed while the user is active, attempts made while an account is locked no longer extend the
+lock, and the security headers (HSTS, no framing, no sniffing) are sent; `pams.security.require-https` redirects HTTP.

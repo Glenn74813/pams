@@ -10,6 +10,7 @@ import { Badge } from '../assets/pickers'
 import { AmendmentsPanel, CalloffsPanel, DeliveryPanel, SecuritiesPanel } from './ContractPanels'
 import { CONTRACT_STATUS } from './labels'
 import { AttachmentsPanel } from '../documents/AttachmentsPanel'
+import { PaymentsPanel } from '../payments/PaymentsPanel'
 
 interface Props {
   contractId: number
@@ -149,6 +150,7 @@ export function ContractDetailModal({ contractId, onClose, onEdit, onChanged }: 
           )}
         </>
       )}
+      {c && can('view_payments', 'manage_payments', 'approve_payments') && <PaymentsPanel type="contract" id={c.id} amount={c.amount} />}
       {c && <AttachmentsPanel type="Contract" id={c.id} label={c.contract_number} docType="CONTRACT" />}
     </Modal>
   )

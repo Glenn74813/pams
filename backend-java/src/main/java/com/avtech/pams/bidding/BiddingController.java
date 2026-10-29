@@ -5,6 +5,7 @@ import com.avtech.pams.auth.CurrentUser;
 import com.avtech.pams.bac.BacResolution;
 import com.avtech.pams.bac.BacResolutionRepository;
 import com.avtech.pams.common.ApiException;
+import com.avtech.pams.common.Db;
 import com.avtech.pams.common.DocumentNumbers;
 import com.avtech.pams.common.PageResponse;
 import com.avtech.pams.common.Times;
@@ -90,10 +91,11 @@ public class BiddingController {
     private final AuditService audit;
     private final CurrentUser current;
     private final JdbcTemplate jdbc;
+    private final Db db;
 
     public BiddingController(BiddingRepository biddings, BacResolutionRepository resolutions, UserRepository users,
                              PrLineUsage usage, AwardSupport awards, DocumentNumbers numbers, NotificationService notifications, AuditService audit,
-                             CurrentUser current, JdbcTemplate jdbc) {
+                             CurrentUser current, JdbcTemplate jdbc, Db db) {
         this.biddings = biddings;
         this.resolutions = resolutions;
         this.users = users;
@@ -104,6 +106,7 @@ public class BiddingController {
         this.audit = audit;
         this.current = current;
         this.jdbc = jdbc;
+        this.db = db;
     }
 
     // ───────────────────────── views ─────────────────────────
@@ -184,7 +187,7 @@ public class BiddingController {
     public Map<String, Object> prOptions() {
         Map<Long, Integer> taken = usage.taken(null, null, null);
         Map<Long, Integer> failed = new HashMap<>();
-        jdbc.query("select purchase_request_id, count(*) from biddings where status = 'failed' and deleted_at is null and purchase_request_id is not null group by 1",
+        jdbc.query("select purchase_request_id, count(*) from biddings where status = 'failed' and deleted_at is null and purchase_request_id is not null group by purchase_request_id",
                 rs -> {
                     failed.put(rs.getLong(1), rs.getInt(2));
                 });
@@ -696,7 +699,7 @@ public class BiddingController {
         String title = text(in.title());
         if (title == null || title.length() > 255) throw ApiException.validation("title", "Give the bidding a title of up to 255 characters.");
         if (in.purchaseRequestId() == null) throw ApiException.validation("purchase_request_id", "Choose the approved purchase request this bidding is for.");
-        List<Map<String, Object>> pr = jdbc.queryForList("select status from purchase_requests where id = ? and deleted_at is null for update", in.purchaseRequestId());
+        List<Map<String, Object>> pr = db.lockRows("purchase_requests", "id = ? and deleted_at is null", in.purchaseRequestId());
         if (pr.isEmpty()) throw ApiException.validation("purchase_request_id", "That purchase request does not exist.");
         if (!"approved".equals(pr.get(0).get("status"))) throw ApiException.validation("purchase_request_id", "Only fully approved purchase requests go to bidding.");
         Map<Long, PrLine> prLines = new HashMap<>();
@@ -933,10 +936,10 @@ public class BiddingController {
         Map<Long, String> suppliers = new HashMap<>();
         Map<Long, Boolean> okSupplier = new HashMap<>();
         if (!supplierIds.isEmpty()) {
-            jdbc.query("select s.id, s.name, " + AwardSupport.ELIGIBLE_SQL + " from suppliers s where s.id in (" + supplierIds.stream().map(x -> "?").collect(Collectors.joining(",")) + ")", rs -> {
+            jdbc.query("select s.id, s.name from suppliers s where s.id in (" + supplierIds.stream().map(x -> "?").collect(Collectors.joining(",")) + ")", rs -> {
                 suppliers.put(rs.getLong(1), rs.getString(2));
-                okSupplier.put(rs.getLong(1), rs.getBoolean(3));
             }, supplierIds.toArray());
+            suppliers.keySet().forEach(sid -> okSupplier.put(sid, awards.eligible(sid)));
         }
         Map<Long, String[]> prs = new HashMap<>();
         List<Long> prIds = list.stream().map(Bidding::getPurchaseRequestId).filter(Objects::nonNull).distinct().toList();

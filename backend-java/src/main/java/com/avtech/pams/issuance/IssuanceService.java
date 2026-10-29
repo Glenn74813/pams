@@ -282,7 +282,8 @@ public class IssuanceService {
         if (in.purpose() == null || in.purpose().isBlank()) throw ApiException.validation("purpose", "State the purpose of the request.");
         String priority = in.priority() == null || in.priority().isBlank() ? "medium" : in.priority();
         if (!PRIORITIES.contains(priority)) throw ApiException.validation("priority", "Priority must be low, medium or high.");
-        Long dept = in.departmentId() == null ? me.getDepartment().getId() : in.departmentId();
+        Long dept = in.departmentId() != null ? in.departmentId() : me.getDepartment() == null ? null : me.getDepartment().getId();
+        if (dept == null) throw ApiException.validation("department_id", "Choose the requesting department (your account has none).");
         if (!departments.existsById(dept)) throw ApiException.validation("department_id", "Choose a valid department.");
         if (in.items() == null || in.items().isEmpty()) throw ApiException.validation("items", "Add at least one item.");
 

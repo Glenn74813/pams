@@ -29,6 +29,7 @@ export const menuGroups: MenuGroup[] = [
       { path: '/procurement', icon: '🧾', label: 'Purchase Orders', module: 'procurement', ported: true },
       { path: '/contracts', icon: '📜', label: 'Contracts', module: 'contracts', ported: true },
       { path: '/receiving', icon: '📥', label: 'Receiving', module: 'receiving', ported: true },
+      { path: '/petty-cash', icon: '💵', label: 'Petty Cash', module: 'payments', ported: true },
     ],
   },
   {
@@ -61,7 +62,7 @@ export const menuGroups: MenuGroup[] = [
     children: [
       { path: '/reports', icon: '📈', label: 'Reports', module: 'reports', ported: true },
       { path: '/procurement-reports', icon: '📑', label: 'Procurement Reports', module: 'reports', ported: true },
-      { path: '/apcpi', icon: '✅', label: 'APCPI Self-Assessment', module: 'reports', ported: true },
+      { path: '/apcpi', icon: '✅', label: 'APCPI Self-Assessment', module: 'apcpi', ported: true },
       { path: '/documents', icon: '🗂️', label: 'Documents', module: 'documents', ported: true },
       { path: '/audit', icon: '🛡️', label: 'Audit Trail', module: 'audit', ported: true },
       { path: '/log-trails', icon: '📋', label: 'Log Trails', module: 'log-trails', ported: true },

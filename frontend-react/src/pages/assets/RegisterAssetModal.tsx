@@ -27,12 +27,14 @@ export function RegisterAssetModal({ onClose, onSaved }: Props) {
   const [error, setError] = useState<string | null>(null)
   const lots = useQuery({ queryKey: ['lots', item?.id], queryFn: () => inventoryApi.lots(item!.id), enabled: !!item })
   const lot = lots.data?.find((l) => String(l.id) === lotId)
+  // An assembled unit (e.g. a Clone PC) is built from parts added afterwards; its own stock is not drawn.
+  const assembly = !!item?.is_assembly
 
   const save = useMutation({
     mutationFn: () =>
       assetsApi.register({
         item_id: item!.id,
-        stock_id: Number(lotId),
+        stock_id: lotId ? Number(lotId) : null,
         assigned_to: Number(holder),
         assigned_date: date,
         condition,
@@ -74,9 +76,9 @@ export function RegisterAssetModal({ onClose, onSaved }: Props) {
         </div>
         <div className="form-grid three">
           <div className="field span-2">
-            <label htmlFor="ra-lot">From stock lot *</label>
-            <select id="ra-lot" value={lotId} onChange={(e) => setLotId(e.target.value)} required disabled={!item}>
-              <option value="">{item ? (lots.data?.length ? 'Choose a lot' : 'No stock on hand') : 'Choose an item first'}</option>
+            <label htmlFor="ra-lot">{assembly ? 'Brand details from lot (optional)' : 'From stock lot *'}</label>
+            <select id="ra-lot" value={lotId} onChange={(e) => setLotId(e.target.value)} required={!assembly} disabled={!item}>
+              <option value="">{assembly ? 'None — parts are added after registering' : item ? (lots.data?.length ? 'Choose a lot' : 'No stock on hand') : 'Choose an item first'}</option>
               {lots.data?.map((l) => (
                 <option key={l.id} value={l.id}>
                   {(l.brand_name ?? 'No brand') + ` — ${l.quantity} left @ ${formatPeso(l.unit_cost)} — received ${formatDate(l.received_date)}`}
@@ -121,7 +123,7 @@ export function RegisterAssetModal({ onClose, onSaved }: Props) {
           <button
             type="button"
             className="btn btn-outline btn-sm"
-            disabled={!!lot && units.length >= lot.quantity}
+            disabled={!assembly && !!lot && units.length >= lot.quantity}
             onClick={() => setUnits((u) => [...u, { key: Date.now(), serial: '', tag: '' }])}
           >
             + Add unit
@@ -139,7 +141,12 @@ export function RegisterAssetModal({ onClose, onSaved }: Props) {
             )}
           </div>
         ))}
-        {item && <p className="hint" style={{ marginTop: '0.5rem' }}>One {kind} number will cover all units in this registration.</p>}
+        {item && (
+          <p className="hint" style={{ marginTop: '0.5rem' }}>
+            One {kind} number will cover all units in this registration.
+            {assembly && ' Assembled units start at ₱0.00: open each unit and add its parts, which are drawn from stock and set its cost.'}
+          </p>
+        )}
         <div className="modal-footer">
           <button type="button" className="btn btn-secondary" onClick={onClose}>
             Cancel

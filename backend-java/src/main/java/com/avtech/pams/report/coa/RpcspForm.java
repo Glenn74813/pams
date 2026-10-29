@@ -34,9 +34,9 @@ public class RpcspForm {
                 select i.id, i.code, i.name, i.unit_of_measure, i.weighted_average_cost, i.current_stock, c.name as category_name
                 from items i
                 left join categories c on c.id = i.category_id
-                where i.is_semi_expandable = true
+                where i.is_semi_expandable = ?
                 order by i.name, i.id
-                """);
+                """, true);
 
         Xlsx x = new Xlsx("RPCSP");
         x.defaultFont(FONT, 10);

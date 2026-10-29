@@ -87,7 +87,7 @@ export function PrFormModal({ pr, options, onClose, onSaved }: Props) {
           <div className="field">
             <label htmlFor="pr-dept">Requesting office *</label>
             {staff ? (
-              <select id="pr-dept" value={departmentId} onChange={(e) => setDepartmentId(e.target.value)} required>
+              <select id="pr-dept" value={departmentId} onChange={(e) => setDepartmentId(e.target.value)} required disabled={editing} title={editing ? "The requesting office can't be changed after the PR is created" : undefined}>
                 {departments.data?.data.map((d) => (
                   <option key={d.id} value={d.id}>
                     {d.name}

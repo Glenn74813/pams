@@ -6,6 +6,7 @@ import com.avtech.pams.common.ApiException;
 import com.avtech.pams.common.Times;
 import com.avtech.pams.setting.SettingService;
 import org.springframework.http.HttpStatus;
+import com.avtech.pams.common.Db;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -40,11 +41,12 @@ public class InventoryService {
     private final CurrentUser current;
     private final JdbcTemplate jdbc;
     private final StockLedger ledger;
+    private final Db db;
 
     public InventoryService(ItemRepository items, CategoryRepository categories, StockRepository stocks,
                             StockTransferRepository transfers, InventoryLogRepository logs, SettingService settings,
                             AuditService audit, CurrentUser current, JdbcTemplate jdbc,
-                            StockLedger ledger) {
+                            StockLedger ledger, Db db) {
         this.items = items;
         this.categories = categories;
         this.stocks = stocks;
@@ -55,6 +57,7 @@ public class InventoryService {
         this.current = current;
         this.jdbc = jdbc;
         this.ledger = ledger;
+        this.db = db;
     }
 
     // ───────────────────────── requests ─────────────────────────
@@ -381,7 +384,7 @@ public class InventoryService {
 
     /** ITEM-00001, ITEM-00002, … — serialised with an advisory lock so two creates can't take the same number. */
     private String nextItemCode() {
-        jdbc.queryForList("select pg_advisory_xact_lock(hashtext('pams.item_code'))");
+        db.namedLock("pams.item_code");
         int max = 0;
         for (String c : items.codesWithPrefix("ITEM")) {
             String digits = c.substring(c.indexOf('-') + 1);
@@ -392,7 +395,7 @@ public class InventoryService {
 
     /** STR-2026-0001 … per year, serialised the same way. */
     private String nextTransferNumber() {
-        jdbc.queryForList("select pg_advisory_xact_lock(hashtext('pams.transfer_number'))");
+        db.namedLock("pams.transfer_number");
         String prefix = "STR-" + LocalDate.now(Times.ZONE).getYear() + "-";
         return prefix + String.format("%04d", transfers.countWithPrefix(prefix) + 1);
     }

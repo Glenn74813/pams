@@ -2,8 +2,10 @@ package com.avtech.pams.report;
 
 import com.avtech.pams.auth.CurrentUser;
 import com.avtech.pams.common.ApiException;
+import com.avtech.pams.common.Db;
 import com.avtech.pams.common.Times;
 import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.jdbc.support.GeneratedKeyHolder;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -42,9 +44,11 @@ public class ReportController {
     private final JdbcTemplate jdbc;
     private final CurrentUser current;
     private final ObjectMapper json;
+    private final Db db;
 
-    public ReportController(JdbcTemplate jdbc, CurrentUser current, ObjectMapper json) {
+    public ReportController(JdbcTemplate jdbc, CurrentUser current, ObjectMapper json, Db db) {
         this.jdbc = jdbc;
+        this.db = db;
         this.current = current;
         this.json = json;
     }
@@ -73,14 +77,28 @@ public class ReportController {
 
     /** Also used by the month-end job. */
     public Map<String, Object> store(int year, int month, Map<String, Object> data, Long by) {
-        String last = jdbc.query("select report_number from rsmi_reports where year = ? and month = ? order by id desc limit 1",
+        String last = jdbc.query("select report_number from rsmi_reports where year = ? and month = ? order by id desc offset 0 rows fetch next 1 rows only",
                 rs -> rs.next() ? rs.getString(1) : null, year, month);
         int seq = last == null ? 1 : Integer.parseInt(last.substring(last.length() - 3)) + 1;
         String number = String.format("RSMI-%04d-%02d-%03d", year, month, seq);
         Timestamp now = Timestamp.valueOf(Times.now());
-        Long id = jdbc.queryForObject("""
-                insert into rsmi_reports (report_number, year, month, data, generated_at, generated_by, created_at, updated_at)
-                values (?, ?, ?, cast(? as json), ?, ?, ?, ?) returning id""", Long.class, number, year, month, json.writeValueAsString(data), now, by, now, now);
+        String payload = json.writeValueAsString(data);
+        GeneratedKeyHolder key = new GeneratedKeyHolder();
+        jdbc.update(c -> {
+            var ps = c.prepareStatement("""
+                    insert into rsmi_reports (report_number, year, month, data, generated_at, generated_by, created_at, updated_at)
+                    values (?, ?, ?, """ + db.jsonParam() + ", ?, ?, ?, ?)", new String[]{"id"});
+            ps.setString(1, number);
+            ps.setInt(2, year);
+            ps.setInt(3, month);
+            ps.setString(4, payload);
+            ps.setTimestamp(5, now);
+            ps.setObject(6, by, java.sql.Types.BIGINT);
+            ps.setTimestamp(7, now);
+            ps.setTimestamp(8, now);
+            return ps;
+        }, key);
+        Long id = key.getKeyAs(Number.class).longValue();
         Map<String, Object> out = new LinkedHashMap<>();
         out.put("id", id);
         out.put("report_number", number);
@@ -102,8 +120,8 @@ public class ReportController {
         d.put("rejected_requests", n("select count(*) from requests where request_date between ? and ? and status = 'rejected'", start, end));
         Map<String, Object> byDept = new LinkedHashMap<>();
         jdbc.query("""
-                select coalesce(d.name, ''), count(*), count(*) filter (where r.status = 'fulfilled'),
-                       count(*) filter (where r.status in ('pending', 'partially_fulfilled'))
+                select coalesce(d.name, ''), count(*), sum(case when r.status = 'fulfilled' then 1 else 0 end),
+                       sum(case when r.status in ('pending', 'partially_fulfilled') then 1 else 0 end)
                 from requests r left join departments d on d.id = r.department_id where r.request_date between ? and ? group by d.name order by d.name""",
                 rs -> { byDept.put(rs.getString(1), Map.of("total", rs.getLong(2), "fulfilled", rs.getLong(3), "pending", rs.getLong(4))); }, start, end);
         d.put("requests_by_department", byDept);
@@ -131,7 +149,7 @@ public class ReportController {
     public List<Map<String, Object>> rsmiHistory() {
         return jdbc.query("""
                 select r.id, r.report_number, r.year, r.month, r.generated_at, u.name from rsmi_reports r left join users u on u.id = r.generated_by
-                order by r.year desc, r.month desc, r.id desc limit 36""", (rs, i) -> {
+                order by r.year desc, r.month desc, r.id desc offset 0 rows fetch next 36 rows only""", (rs, i) -> {
             Map<String, Object> m = new LinkedHashMap<>();
             m.put("id", rs.getLong(1));
             m.put("report_number", rs.getString(2));
@@ -148,7 +166,7 @@ public class ReportController {
     @GetMapping("/inventory")
     public Map<String, Object> inventory(@RequestParam(name = "category_id", required = false) Long categoryId,
                                          @RequestParam(required = false) String status) {
-        StringBuilder w = new StringBuilder(" where true");
+        StringBuilder w = new StringBuilder(" where 1 = 1");
         List<Object> args = new ArrayList<>();
         if (categoryId != null) {
             w.append(" and i.category_id = ?");
@@ -198,7 +216,7 @@ public class ReportController {
     public Map<String, Object> requestLogs(@RequestParam(name = "start_date", required = false) LocalDate start,
                                            @RequestParam(name = "end_date", required = false) LocalDate end,
                                            @RequestParam(name = "department_id", required = false) Long departmentId) {
-        StringBuilder w = new StringBuilder(" where true");
+        StringBuilder w = new StringBuilder(" where 1 = 1");
         List<Object> args = new ArrayList<>();
         if (start != null) {
             w.append(" and l.requested_at >= ?");
@@ -215,7 +233,7 @@ public class ReportController {
         List<Map<String, Object>> logs = jdbc.query("""
                 select l.id, l.quantity, l.requested_at, d.id did, d.name dname, i.id iid, i.code, i.name iname, u.id uid, u.name uname
                 from request_logs l left join departments d on d.id = l.department_id left join items i on i.id = l.item_id
-                left join users u on u.id = l.requested_by""" + w + " order by l.requested_at desc limit 5000", (rs, n) -> {
+                left join users u on u.id = l.requested_by""" + w + " order by l.requested_at desc offset 0 rows fetch next 5000 rows only", (rs, n) -> {
             Map<String, Object> m = new LinkedHashMap<>();
             m.put("id", rs.getLong("id"));
             m.put("quantity", rs.getInt("quantity"));
@@ -253,8 +271,8 @@ public class ReportController {
 
     @GetMapping("/rpci/preview")
     public Map<String, Object> previewRpci(@RequestParam(name = "inventory_type", required = false) String type) {
-        String where = "consumable".equals(type) ? "not i.is_expandable and not i.is_semi_expandable"
-                : "semi_expandable".equals(type) ? "i.is_semi_expandable" : "not i.is_expandable";
+        String where = "consumable".equals(type) ? "i.is_expandable = " + db.f() + " and i.is_semi_expandable = " + db.f()
+                : "semi_expandable".equals(type) ? "i.is_semi_expandable = " + db.t() : "i.is_expandable = " + db.f();
         List<Map<String, Object>> rows = jdbc.query("""
                 select c.name, i.name, i.code, i.unit_of_measure, coalesce(i.weighted_average_cost, 0), i.current_stock
                 from items i left join categories c on c.id = i.category_id""" + " where " + where + " order by i.name", (rs, n) -> {
@@ -274,7 +292,7 @@ public class ReportController {
     public Map<String, Object> previewRpcsp() {
         List<Map<String, Object>> rows = jdbc.query("""
                 select c.name, i.name, i.code, i.unit_of_measure, coalesce(i.weighted_average_cost, 0), i.current_stock
-                from items i left join categories c on c.id = i.category_id where i.is_semi_expandable order by i.name""", (rs, n) -> {
+                from items i left join categories c on c.id = i.category_id where i.is_semi_expandable = """ + db.t() + " order by i.name", (rs, n) -> {
             Map<String, Object> m = new LinkedHashMap<>();
             m.put("article", rs.getString(1));
             m.put("description", rs.getString(2));
@@ -289,7 +307,7 @@ public class ReportController {
 
     @GetMapping("/rpcppe/preview")
     public Map<String, Object> previewRpcppe(@RequestParam(name = "ppe_type", required = false) String type) {
-        String flag = "semi_expandable".equals(type) ? "i.is_semi_expandable" : "i.is_expandable";
+        String flag = ("semi_expandable".equals(type) ? "i.is_semi_expandable" : "i.is_expandable") + " = " + db.t();
         List<Map<String, Object>> rows = jdbc.query("""
                 select c.name, i.name, p.tag_number, coalesce(p.acquisition_cost, 0), p.condition, u.name
                 from properties p join items i on i.id = p.item_id left join categories c on c.id = i.category_id left join users u on u.id = p.assigned_to""" + " where " + flag + " order by p.tag_number", (rs, n) -> {
@@ -369,7 +387,7 @@ public class ReportController {
                        coalesce(sum(case when l.action in ('stock_in', 'delivery_accepted') then l.quantity else 0 end), 0)
                      - coalesce(sum(case when l.action in ('stock_out', 'item_issued') then l.quantity else 0 end), 0)
                 from items i left join inventory_logs l on l.item_id = i.id
-                where not i.is_expandable group by i.id order by i.name""", rs -> {
+                where i.is_expandable = """ + db.f() + " group by i.id, i.code, i.name, i.current_stock, i.weighted_average_cost order by i.name", rs -> {
             long card = rs.getLong(5);
             int onHand = rs.getInt(3);
             long variance = onHand - card;

@@ -129,7 +129,12 @@ export function LoginPage() {
                     autoFocus
                     required
                   />
-                  <small className="hint">Enter the 6-digit code from your authenticator app.</small>
+                  <small className="hint">
+                    Enter the 6-digit code from your authenticator app.{' '}
+                    <button type="button" className="link-btn" onClick={() => { setTwoFactor(false); setOtp('') }}>
+                      Use a different account
+                    </button>
+                  </small>
                 </div>
               )}
 

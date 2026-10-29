@@ -1,6 +1,7 @@
 package com.avtech.pams.analytics;
 
 import com.avtech.pams.auth.CurrentUser;
+import com.avtech.pams.common.Db;
 import com.avtech.pams.common.Times;
 import com.avtech.pams.monitoring.ProcurementWatch;
 import com.avtech.pams.procurement.PurchaseRequest;
@@ -33,9 +34,11 @@ public class AnalyticsController {
     private final JdbcTemplate jdbc;
     private final CurrentUser current;
     private final ProcurementWatch watch;
+    private final Db db;
 
-    public AnalyticsController(JdbcTemplate jdbc, CurrentUser current, ProcurementWatch watch) {
+    public AnalyticsController(JdbcTemplate jdbc, CurrentUser current, ProcurementWatch watch, Db db) {
         this.jdbc = jdbc;
+        this.db = db;
         this.current = current;
         this.watch = watch;
     }
@@ -102,7 +105,7 @@ public class AnalyticsController {
         m.put("total_items", count("select count(*) from items"));
         m.put("low_stock", count("select count(*) from items where min_stock > 0 and current_stock > 0 and current_stock <= min_stock"));
         m.put("out_of_stock", count("select count(*) from items where current_stock <= 0"));
-        m.put("total_value", money("select coalesce(sum(greatest(current_stock, 0) * coalesce(weighted_average_cost, 0)), 0) from items"));
+        m.put("total_value", money("select coalesce(sum(case when current_stock > 0 then current_stock else 0 end * coalesce(weighted_average_cost, 0)), 0) from items"));
         m.put("pending_requests", count("select count(*) from requests where status = 'pending'"));
         m.put("requests_today", count("select count(*) from requests where request_date = ?", Date.valueOf(today)));
         m.put("expiring_lots", count("select count(*) from stocks where quantity > 0 and expiration_date between ? and ?", Date.valueOf(today), Date.valueOf(today.plusDays(30))));
@@ -110,14 +113,15 @@ public class AnalyticsController {
         m.put("top_items", jdbc.query("""
                 select i.name, i.code, sum(abs(l.quantity)) qty, sum(abs(l.quantity) * coalesce(i.weighted_average_cost, 0)) amt
                 from inventory_logs l join items i on i.id = l.item_id
-                where l.action = 'item_issued' and l.created_at >= ? group by i.id, i.name, i.code order by qty desc limit 8""",
+                where l.action = 'item_issued' and l.created_at >= ? group by i.id, i.name, i.code order by qty desc, i.id offset 0 rows fetch next 8 rows only""",
                 (rs, n) -> new Ranked(rs.getString(1), rs.getString(2), rs.getLong(3), rs.getBigDecimal(4).setScale(2, RoundingMode.HALF_UP)),
                 java.sql.Timestamp.valueOf(today.minusDays(30).atStartOfDay())));
         m.put("by_department", jdbc.query("""
-                select d.name, null, count(*), coalesce(sum((select sum(coalesce(ri.approved_quantity, ri.quantity) * coalesce(i.weighted_average_cost, 0))
-                                                   from request_items ri join items i on i.id = ri.item_id where ri.request_id = r.id)), 0)
+                select d.name, null, count(*), coalesce(sum(v.amount), 0)
                 from requests r join departments d on d.id = r.department_id
-                where r.request_date >= ? group by d.name order by 3 desc limit 8""",
+                left join (select ri.request_id, sum(coalesce(ri.approved_quantity, ri.quantity) * coalesce(i.weighted_average_cost, 0)) amount
+                           from request_items ri join items i on i.id = ri.item_id group by ri.request_id) v on v.request_id = r.id
+                where r.request_date >= ? group by d.name order by 3 desc, d.name offset 0 rows fetch next 8 rows only""",
                 (rs, n) -> new Ranked(rs.getString(1), null, rs.getLong(3), rs.getBigDecimal(4).setScale(2, RoundingMode.HALF_UP)),
                 Date.valueOf(today.minusDays(90))));
         return m;
@@ -145,7 +149,10 @@ public class AnalyticsController {
         active.put("contracts", count("select count(*) from contracts where deleted_at is null and status = 'active'"));
         m.put("active", active);
         BigDecimal est = money("select coalesce(sum(ai.estimated_budget), 0) from app_items ai join apps a on a.id = ai.app_id where a.deleted_at is null and a.fiscal_year = ?", year);
-        BigDecimal used = money("select coalesce(sum(ai.utilized_amount), 0) from app_items ai join apps a on a.id = ai.app_id where a.deleted_at is null and a.fiscal_year = ?", year);
+        BigDecimal used = money("""
+                select coalesce(sum(pri.estimated_total), 0) from purchase_request_items pri
+                join purchase_requests pr on pr.id = pri.purchase_request_id join app_items ai on ai.id = pri.app_item_id join apps a on a.id = ai.app_id
+                where a.deleted_at is null and a.fiscal_year = ? and pr.deleted_at is null and pr.status = 'approved'""", year);
         m.put("app_utilization", Map.of("estimated", est, "utilized", used, "remaining", est.subtract(used),
                 "rate", est.signum() == 0 ? BigDecimal.ZERO : used.multiply(BigDecimal.valueOf(100)).divide(est, 1, RoundingMode.HALF_UP)));
         Map<String, Long> prs = new LinkedHashMap<>();
@@ -153,9 +160,9 @@ public class AnalyticsController {
                 rs -> { prs.put(rs.getString(1), rs.getLong(2)); }, year);
         m.put("pr_by_status", prs);
         m.put("awards", Map.of(
-                "biddings", count("select count(*) from biddings where deleted_at is null and status = 'awarded' and extract(year from coalesce(awarded_at, updated_at)) = ?", year),
-                "rfqs", count("select count(*) from rfqs where deleted_at is null and status = 'awarded' and extract(year from coalesce(awarded_at, updated_at)) = ?", year),
-                "po_value", money("select coalesce(sum(total_amount), 0) from purchase_orders where deleted_at is null and status <> 'cancelled' and extract(year from order_date) = ?", year)));
+                "biddings", count("select count(*) from biddings where deleted_at is null and status = 'awarded' and " + db.year("coalesce(awarded_at, updated_at)") + " = ?", year),
+                "rfqs", count("select count(*) from rfqs where deleted_at is null and status = 'awarded' and " + db.year("coalesce(awarded_at, updated_at)") + " = ?", year),
+                "po_value", money("select coalesce(sum(total_amount), 0) from purchase_orders where deleted_at is null and status <> 'cancelled' and " + db.year("order_date") + " = ?", year)));
         List<ProcurementWatch.Entry> w = watch.scan();
         m.put("watch", Map.of("overdue", w.stream().filter(e -> ProcurementWatch.OVERDUE.equals(e.severity())).count(),
                 "due_soon", w.stream().filter(e -> ProcurementWatch.DUE_SOON.equals(e.severity())).count(),
@@ -166,7 +173,7 @@ public class AnalyticsController {
     private Map<String, Object> suppliers(int year) {
         LocalDate today = LocalDate.now(Times.ZONE);
         Map<String, Object> m = new LinkedHashMap<>();
-        m.put("active", count("select count(*) from suppliers where is_active"));
+        m.put("active", count("select count(*) from suppliers where is_active = " + db.t()));
         m.put("total", count("select count(*) from suppliers"));
         m.put("expiring_compliance", count("""
                 select count(distinct supplier_id) from supplier_compliance_documents d where d.expiry_date between ? and ?
@@ -175,12 +182,13 @@ public class AnalyticsController {
                 Date.valueOf(today), Date.valueOf(today.plusDays(30))));
         m.put("top_awarded", jdbc.query("""
                 select s.name, s.vendor_code, count(*), sum(po.total_amount) from purchase_orders po join suppliers s on s.id = po.supplier_id
-                where po.deleted_at is null and po.status <> 'cancelled' and extract(year from po.order_date) = ?
-                group by s.id, s.name, s.vendor_code order by 4 desc limit 5""",
+                where po.deleted_at is null and po.status <> 'cancelled' and""" + " " + db.year("po.order_date") + " " + """
+                 = ?
+                group by s.id, s.name, s.vendor_code order by 4 desc, s.id offset 0 rows fetch next 5 rows only""",
                 (rs, n) -> new Ranked(rs.getString(1), rs.getString(2), rs.getLong(3), rs.getBigDecimal(4)), year));
         m.put("top_rated", jdbc.query("""
                 select s.name, s.vendor_code, count(*), round(avg(e.overall_rating), 2) from supplier_evaluations e join suppliers s on s.id = e.supplier_id
-                group by s.id, s.name, s.vendor_code order by 4 desc, 3 desc limit 5""",
+                group by s.id, s.name, s.vendor_code order by 4 desc, 3 desc, s.id offset 0 rows fetch next 5 rows only""",
                 (rs, n) -> new Ranked(rs.getString(1), rs.getString(2), rs.getLong(3), rs.getBigDecimal(4))));
         return m;
     }

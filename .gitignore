@@ -1,7 +1,3 @@
-# The legacy Laravel and Vue apps are separate repositories.
-/Backend/
-/frontend/
-
 # Local Claude Code state; the launch configs are shared.
 /.claude/*
 !/.claude/launch.json

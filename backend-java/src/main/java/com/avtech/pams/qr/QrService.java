@@ -7,6 +7,7 @@ import com.google.zxing.common.BitMatrix;
 import com.google.zxing.qrcode.QRCodeWriter;
 import com.google.zxing.qrcode.decoder.ErrorCorrectionLevel;
 import org.springframework.beans.factory.annotation.Value;
+import com.avtech.pams.setting.SettingService;
 import org.springframework.stereotype.Service;
 
 import javax.crypto.Mac;
@@ -34,11 +35,19 @@ public class QrService {
     public static final int DEFAULT_SIZE = 300;
 
     private final byte[] secret;
-    private final String appUrl;
+    private final String defaultAppUrl;
+    private final SettingService settings;
 
-    public QrService(@Value("${pams.jwt.secret}") String jwtSecret, @Value("${pams.app-url}") String appUrl) {
+    public QrService(@Value("${pams.jwt.secret}") String jwtSecret, @Value("${pams.app-url}") String appUrl, SettingService settings) {
         this.secret = ("qr:" + jwtSecret).getBytes(StandardCharsets.UTF_8);
-        this.appUrl = appUrl.replaceAll("/+$", "");
+        this.defaultAppUrl = appUrl.replaceAll("/+$", "");
+        this.settings = settings;
+    }
+
+    /** Settings → System "App address" when set, else pams.app-url (PAMS_APP_URL). */
+    public String appUrl() {
+        String set = settings.get(SettingService.APP_URL, "");
+        return set == null || set.isBlank() ? defaultAppUrl : set.replaceAll("/+$", "");
     }
 
     /** First 12 hex digits of HMAC-SHA256 over "type:id:code". */
@@ -60,7 +69,7 @@ public class QrService {
 
     /** The link a code carries: {app}/scan/{type}/{id}?c={checksum}. */
     public String url(String type, long id, String code) {
-        return appUrl + "/scan/" + type + "/" + id + "?c=" + checksum(type, id, code);
+        return appUrl() + "/scan/" + type + "/" + id + "?c=" + checksum(type, id, code);
     }
 
     public byte[] png(String content, int size) {

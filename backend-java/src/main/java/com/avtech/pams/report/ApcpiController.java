@@ -3,10 +3,13 @@ package com.avtech.pams.report;
 import com.avtech.pams.audit.AuditService;
 import com.avtech.pams.auth.CurrentUser;
 import com.avtech.pams.common.ApiException;
+import com.avtech.pams.common.Db;
 import com.avtech.pams.common.Times;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.jdbc.support.GeneratedKeyHolder;
+import org.springframework.jdbc.support.KeyHolder;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.bind.annotation.DeleteMapping;
@@ -70,11 +73,13 @@ public class ApcpiController {
     private final JdbcTemplate jdbc;
     private final CurrentUser current;
     private final AuditService audit;
+    private final Db db;
 
-    public ApcpiController(JdbcTemplate jdbc, CurrentUser current, AuditService audit) {
+    public ApcpiController(JdbcTemplate jdbc, CurrentUser current, AuditService audit, Db db) {
         this.jdbc = jdbc;
         this.current = current;
         this.audit = audit;
+        this.db = db;
     }
 
     public record Score(int score, String remarks, String meansOfVerification) {
@@ -128,9 +133,19 @@ public class ApcpiController {
         Long exists = jdbc.queryForObject("select count(*) from apcpi_assessments where fiscal_year = ?", Long.class, in.fiscalYear());
         if (exists != null && exists > 0) throw ApiException.validation("fiscal_year", "An APCPI assessment already exists for FY " + in.fiscalYear() + ".");
         Timestamp now = Timestamp.valueOf(Times.now());
-        Long id = jdbc.queryForObject("""
-                insert into apcpi_assessments (fiscal_year, status, conducted_by, remarks, created_at, updated_at)
-                values (?, 'draft', ?, ?, ?, ?) returning id""", Long.class, in.fiscalYear(), current.user().getId(), blank(in.remarks()), now, now);
+        KeyHolder kh = new GeneratedKeyHolder();
+        jdbc.update(con -> {
+            var ps = con.prepareStatement("""
+                    insert into apcpi_assessments (fiscal_year, status, conducted_by, remarks, created_at, updated_at)
+                    values (?, 'draft', ?, ?, ?, ?)""", new String[]{"id"});
+            ps.setInt(1, in.fiscalYear());
+            ps.setObject(2, current.user().getId());
+            ps.setString(3, blank(in.remarks()));
+            ps.setTimestamp(4, now);
+            ps.setTimestamp(5, now);
+            return ps;
+        }, kh);
+        Long id = kh.getKey().longValue();
         for (Pillar p : CATALOGUE) {
             for (String[] ind : p.indicators()) {
                 jdbc.update("insert into apcpi_scores (apcpi_assessment_id, indicator_key, score, created_at, updated_at) values (?, ?, 0, ?, ?)",
@@ -161,12 +176,16 @@ public class ApcpiController {
         for (ScoreInput s : in.scores()) {
             if (s.indicatorKey() == null || !keys.contains(s.indicatorKey())) continue;
             if (s.score() == null || s.score() < 0 || s.score() > MAX_SCORE) throw ApiException.validation("scores", "Scores run from 0 to " + MAX_SCORE + ".");
-            jdbc.update("""
-                    insert into apcpi_scores (apcpi_assessment_id, indicator_key, score, remarks, means_of_verification, created_at, updated_at)
-                    values (?, ?, ?, ?, ?, ?, ?)
-                    on conflict (apcpi_assessment_id, indicator_key) do update
-                      set score = excluded.score, remarks = excluded.remarks, means_of_verification = excluded.means_of_verification, updated_at = excluded.updated_at""",
-                    id, s.indicatorKey(), s.score(), blank(s.remarks()), blank(s.meansOfVerification()), now, now);
+            int updated = jdbc.update("""
+                    update apcpi_scores set score = ?, remarks = ?, means_of_verification = ?, updated_at = ?
+                    where apcpi_assessment_id = ? and indicator_key = ?""",
+                    s.score(), blank(s.remarks()), blank(s.meansOfVerification()), now, id, s.indicatorKey());
+            if (updated == 0) {
+                jdbc.update("""
+                        insert into apcpi_scores (apcpi_assessment_id, indicator_key, score, remarks, means_of_verification, created_at, updated_at)
+                        values (?, ?, ?, ?, ?, ?, ?)""",
+                        id, s.indicatorKey(), s.score(), blank(s.remarks()), blank(s.meansOfVerification()), now, now);
+            }
             Score old = before.get(s.indicatorKey());
             if (old == null || old.score() != s.score()) changed.put(s.indicatorKey(), s.score());
         }
@@ -232,7 +251,7 @@ public class ApcpiController {
     }
 
     private Map<String, Object> lock(Long id) {
-        List<Map<String, Object>> rows = jdbc.queryForList("select * from apcpi_assessments where id = ? for update", id);
+        List<Map<String, Object>> rows = db.lockRows("apcpi_assessments", "id = ?", id);
         if (rows.isEmpty()) throw ApiException.notFound("Assessment");
         return rows.get(0);
     }
@@ -275,36 +294,36 @@ public class ApcpiController {
     private Map<String, Evidence> evidence(int year) {
         Map<String, Evidence> e = new LinkedHashMap<>();
         // p2_i1 — BAC composition: a chair, vice chair and at least three members in office.
-        long members = n("select count(*) from bac_members where is_active");
+        long members = n("select count(*) from bac_members where is_active = " + db.t());
         e.put("p2_i1", new Evidence(members >= 5 ? 3 : members >= 3 ? 2 : members > 0 ? 1 : 0, members + " active BAC member(s) on record"));
         // p2_i4 — APP for the year approved.
-        String app = jdbc.query("select status from apps where deleted_at is null and fiscal_year = ? order by id limit 1", rs -> rs.next() ? rs.getString(1) : null, year);
+        String app = jdbc.query("select status from apps where deleted_at is null and fiscal_year = ? order by id offset 0 rows fetch next 1 rows only", rs -> rs.next() ? rs.getString(1) : null, year);
         e.put("p2_i4", new Evidence(app == null ? 0 : "approved".equals(app) ? 3 : 1, app == null ? "No APP for FY " + year : "FY " + year + " APP is " + app));
         // p3_i1 — awarded biddings whose ITB → NOA period stayed within 90 days.
-        long awarded = n("select count(*) from biddings where deleted_at is null and status = 'awarded' and noa_date is not null and itb_posted_at is not null and extract(year from noa_date) = ?", year);
-        long onTime = n("select count(*) from biddings where deleted_at is null and status = 'awarded' and noa_date is not null and itb_posted_at is not null and extract(year from noa_date) = ? and noa_date - itb_posted_at <= 90", year);
+        long awarded = n("select count(*) from biddings where deleted_at is null and status = 'awarded' and noa_date is not null and itb_posted_at is not null and " + db.year("noa_date") + " = ?", year);
+        long onTime = n("select count(*) from biddings where deleted_at is null and status = 'awarded' and noa_date is not null and itb_posted_at is not null and " + db.year("noa_date") + " = ? and " + db.daysBetween("itb_posted_at", "noa_date") + " <= 90", year);
         e.put("p3_i1", awarded == 0 ? new Evidence(null, "No biddings awarded in FY " + year)
                 : new Evidence(rate(onTime, awarded), onTime + " of " + awarded + " bidding(s) awarded within 90 days of the ITB"));
         // p3_i2 — competition: average bids per bidding and quotations per RFQ.
-        BigDecimal bids = avg("select avg(c) from (select count(*) c from bidding_bidders x join biddings b on b.id = x.bidding_id where b.deleted_at is null and extract(year from b.created_at) = ? group by b.id) t", year);
-        BigDecimal quotes = avg("select avg(c) from (select count(*) c from rfq_quotations q join rfqs r on r.id = q.rfq_id where r.deleted_at is null and extract(year from r.created_at) = ? group by r.id) t", year);
+        BigDecimal bids = avg("select avg(cast(c as decimal(18,6))) from (select count(*) c from bidding_bidders x join biddings b on b.id = x.bidding_id where b.deleted_at is null and " + db.year("b.created_at") + " = ? group by b.id) t", year);
+        BigDecimal quotes = avg("select avg(cast(c as decimal(18,6))) from (select count(*) c from rfq_quotations q join rfqs r on r.id = q.rfq_id where r.deleted_at is null and " + db.year("r.created_at") + " = ? group by r.id) t", year);
         double comp = Math.max(bids == null ? 0 : bids.doubleValue(), quotes == null ? 0 : quotes.doubleValue());
         e.put("p3_i2", bids == null && quotes == null ? new Evidence(null, "No biddings or RFQs in FY " + year)
                 : new Evidence(comp >= 3 ? 3 : comp >= 2 ? 2 : comp >= 1 ? 1 : 0, "Average " + (bids == null ? "—" : bids) + " bid(s) per bidding, "
                 + (quotes == null ? "—" : quotes) + " quotation(s) per RFQ"));
         // p3_i3 — contracts completed or running without liquidated damages.
-        long contracts = n("select count(*) from contracts where deleted_at is null and status in ('active', 'completed') and extract(year from coalesce(signed_date, start_date, created_at::date)) = ?", year);
-        long late = n("select count(*) from contracts where deleted_at is null and status in ('active', 'completed') and coalesce(ld_amount, 0) > 0 and extract(year from coalesce(signed_date, start_date, created_at::date)) = ?", year);
+        long contracts = n("select count(*) from contracts where deleted_at is null and status in ('active', 'completed') and " + db.year("coalesce(signed_date, start_date, cast(created_at as date))") + " = ?", year);
+        long late = n("select count(*) from contracts where deleted_at is null and status in ('active', 'completed') and coalesce(ld_amount, 0) > 0 and " + db.year("coalesce(signed_date, start_date, cast(created_at as date))") + " = ?", year);
         e.put("p3_i3", contracts == 0 ? new Evidence(null, "No contracts in FY " + year)
                 : new Evidence(rate(contracts - late, contracts), (contracts - late) + " of " + contracts + " contract(s) without liquidated damages"));
         // p4_i2 — observers invited to awarded biddings actually attended.
-        long withObs = n("select count(distinct b.id) from biddings b join bid_observers o on o.bidding_id = b.id and o.attended where b.deleted_at is null and extract(year from b.created_at) = ?", year);
-        long allBid = n("select count(*) from biddings where deleted_at is null and status not in ('draft', 'cancelled') and extract(year from created_at) = ?", year);
+        long withObs = n("select count(distinct b.id) from biddings b join bid_observers o on o.bidding_id = b.id and o.attended = " + db.t() + " where b.deleted_at is null and " + db.year("b.created_at") + " = ?", year);
+        long allBid = n("select count(*) from biddings where deleted_at is null and status not in ('draft', 'cancelled') and " + db.year("created_at") + " = ?", year);
         e.put("p4_i2", allBid == 0 ? new Evidence(null, "No biddings in FY " + year)
                 : new Evidence(rate(withObs, allBid), withObs + " of " + allBid + " bidding(s) had an observer present"));
         // p4_i3 — protests recorded and resolved.
-        long protests = n("select count(*) from bid_protests p join biddings b on b.id = p.bidding_id where extract(year from p.created_at) = ?", year);
-        long resolved = n("select count(*) from bid_protests p join biddings b on b.id = p.bidding_id where extract(year from p.created_at) = ? and p.status not in ('filed', 'under_review')", year);
+        long protests = n("select count(*) from bid_protests p join biddings b on b.id = p.bidding_id where " + db.year("p.created_at") + " = ?", year);
+        long resolved = n("select count(*) from bid_protests p join biddings b on b.id = p.bidding_id where " + db.year("p.created_at") + " = ? and p.status not in ('filed', 'under_review')", year);
         e.put("p4_i3", protests == 0 ? new Evidence(null, "No requests for reconsideration or protests filed in FY " + year)
                 : new Evidence(rate(resolved, protests), resolved + " of " + protests + " protest(s) resolved"));
         return e;

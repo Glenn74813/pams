@@ -1,7 +1,6 @@
 # PAMS frontend (React)
 
-React 19 · TypeScript · Vite · React Router · TanStack Query. Replaces the Vue app in `../frontend`, one module at a
-time.
+React 19 · TypeScript · Vite · React Router · TanStack Query. Replaced the Vue app; every module has moved.
 
 ## Run
 
@@ -11,13 +10,17 @@ npm run dev
 ```
 
 Opens on **5190** and proxies `/api` to the Spring Boot backend on 8095 (`PAMS_API_URL` overrides it).
-`VITE_LEGACY_APP_URL` (default `http://localhost:5180`) is where links to not-yet-moved modules point.
+For a release, `npm run build` writes `dist/`; the Spring Boot service serves it when `PAMS_FRONTEND_DIR` points
+there (see `../docs/deployment-windows.md`).
 
-## Moving a module over
+## Adding a page
 
-1. Port its endpoints in `backend-java`.
-2. Add the page under `src/pages`, its calls to `src/api/endpoints.ts` and types to `src/api/types.ts`.
-3. Register the page in `ported` in `src/App.tsx` and set `ported: true` on its entry in `src/layout/menu.ts`.
+1. Add its endpoints in `backend-java`.
+2. Add the page under `src/pages`, its calls to `src/api/endpoints.ts` (or a module file such as `src/api/payments.ts`)
+   and types to `src/api/types.ts`.
+3. Register the page in `ported` in `src/App.tsx` and add its entry in `src/layout/menu.ts` with the module key the
+   backend's `Permissions.MODULES` grants.
+4. Add or update its article in `src/pages/help/articles/`.
 
 Every route is guarded by the user's `accessible_modules`, so typing a URL does not get round the menu.
 
@@ -42,3 +45,6 @@ QR labels and sticker sheets, and a scanner (USB scanner or phone camera) in the
 public page a phone opens from a label.
 
 Everything in the old menu has moved.
+Also Petty Cash, payment schedules on contract and PO windows, GPPB/COA planning forms on Procurement Reports, Data
+import/export under Settings, assembled-unit parts on asset windows, and the in-app help centre (`/help`, user menu →
+Help & user manual) with searchable articles for every module.

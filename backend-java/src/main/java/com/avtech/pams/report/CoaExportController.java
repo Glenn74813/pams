@@ -148,7 +148,7 @@ public class CoaExportController {
     @PreAuthorize("@perm.any('view_reports', 'generate_reports', 'view_properties')")
     public ResponseEntity<byte[]> propertyCard(@PathVariable Long propertyId, @RequestParam(name = "entity_name", required = false) String entity,
                                                @RequestParam(name = "fund_cluster", required = false) String fund) {
-        String tag = one("select coalesce(tag_number, id::text) from properties where id = ?", "Property", propertyId);
+        String tag = one("select coalesce(tag_number, cast(id as varchar(20))) from properties where id = ?", "Property", propertyId);
         return file(propertyCard.generate(propertyId, entity(entity), fund(fund)), "PropertyCard_" + tag + ".xlsx", "Property Card of " + tag,
                 "App\\Models\\Property", propertyId);
     }
@@ -190,7 +190,7 @@ public class CoaExportController {
                                          @RequestParam(name = "police_date", required = false) LocalDate policeDate) {
         if (!List.of("lost", "stolen", "damaged", "destroyed").contains(status)) throw ApiException.validation("status", "Choose lost, stolen, damaged or destroyed.");
         if (circumstances.isBlank() || circumstances.length() > 2000) throw ApiException.validation("circumstances", "Describe the circumstances (up to 2,000 characters).");
-        one("select id::text from properties where id = ?", "Property", propertyId);
+        one("select cast(id as varchar(20)) from properties where id = ?", "Property", propertyId);
         return file(rlsddp.generate(propertyId, status, circumstances.trim(), entity(entity), fund(fund), blank(department), blank(number),
                         date == null ? null : date.toString(), blank(parNumber), parDate == null ? null : parDate.toString(), police, blank(policeStation),
                         policeDate == null ? null : policeDate.toString()),
@@ -255,7 +255,7 @@ public class CoaExportController {
     @PreAuthorize("@perm.any('view_properties', 'transfer_properties', 'view_reports')")
     public ResponseEntity<byte[]> ptr(@PathVariable long transferId, @RequestParam(name = "entity_name", required = false) String entity,
                                       @RequestParam(name = "fund_cluster", required = false) String fund) {
-        List<String> ref = jdbc.queryForList("select coalesce(reference_number, id::text) from property_transfers where id = ?", String.class, transferId);
+        List<String> ref = jdbc.queryForList("select coalesce(reference_number, cast(id as varchar(20))) from property_transfers where id = ?", String.class, transferId);
         if (ref.isEmpty()) throw ApiException.notFound("Transfer");
         return file(ptr.generate(transferId, entity(entity), fund(fund)), "PTR_" + ref.get(0) + ".xlsx", "PTR " + ref.get(0), "App\\Models\\PropertyTransfer", transferId);
     }
@@ -281,7 +281,7 @@ public class CoaExportController {
     }
 
     private String number(Long requestId, String column) {
-        List<String> no = jdbc.queryForList("select coalesce(" + column + ", request_number, id::text) from requests where id = ?", String.class, requestId);
+        List<String> no = jdbc.queryForList("select coalesce(" + column + ", request_number, cast(id as varchar(20))) from requests where id = ?", String.class, requestId);
         if (no.isEmpty()) throw ApiException.notFound("Request");
         return no.get(0);
     }
