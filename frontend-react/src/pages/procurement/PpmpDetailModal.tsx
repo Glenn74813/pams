@@ -7,6 +7,7 @@ import { Modal } from '../../components/Modal'
 import { formatDate, formatPeso, formatQty } from '../../lib/format'
 import { Badge } from '../assets/pickers'
 import { PPMP_STATUS, QUARTER_LABEL } from './labels'
+import { AttachmentsPanel } from '../documents/AttachmentsPanel'
 
 interface Props {
   ppmpId: number
@@ -179,6 +180,7 @@ export function PpmpDetailModal({ ppmpId, onClose, onEdit, onChanged }: Props) {
           )}
         </>
       )}
+      {p && <AttachmentsPanel type="Ppmp" id={p.id} label={p.ppmp_number} docType="PPMP" />}
     </Modal>
   )
 }

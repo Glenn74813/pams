@@ -8,6 +8,7 @@ import { formatDate, formatPeso, formatQty } from '../../lib/format'
 import { Badge } from '../assets/pickers'
 import { PR_STATUS, PRIORITY } from './labels'
 import { PrSlip } from './PrSlip'
+import { AttachmentsPanel } from '../documents/AttachmentsPanel'
 
 interface Props {
   prId: number
@@ -39,6 +40,7 @@ export function PrDetailModal({ prId, onClose, onEdit, onChanged }: Props) {
         </>
       )}
       {p && !printing && <Details key={p.status + p.current_step + p.caf_number} p={p} onPrint={() => setPrinting(true)} onEdit={onEdit} onChanged={onChanged} />}
+      {p && !printing && <AttachmentsPanel type="PurchaseRequest" id={p.id} label={p.pr_number} docType="PR" />}
     </Modal>
   )
 }

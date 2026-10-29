@@ -11,6 +11,8 @@ import { AbstractOfBids } from './AbstractOfBids'
 import { BiddersPanel } from './BiddersPanel'
 import { BIDDING_STATUS, FLOW } from './labels'
 import { ObserversPanel, ProtestsPanel, TimelinePanel } from './RecordsPanels'
+import { AttachmentsPanel } from '../documents/AttachmentsPanel'
+import { ExcelButton } from '../../components/ExcelButton'
 
 interface Props {
   biddingId: number
@@ -42,6 +44,7 @@ export function BiddingDetailModal({ biddingId, onClose, onEdit, onChanged }: Pr
         </>
       )}
       {b && !printing && <Details b={b} onPrint={() => setPrinting(true)} onEdit={onEdit} onChanged={onChanged} />}
+      {b && !printing && <AttachmentsPanel type="Bidding" id={b.id} label={b.bidding_number} docType="OTHER" />}
     </Modal>
   )
 }
@@ -204,6 +207,9 @@ function Details({ b, onPrint, onEdit, onChanged }: { b: Bidding; onPrint: () =>
             <button className="btn btn-outline" onClick={onPrint}>
               🖨 Abstract of Bids
             </button>
+          )}
+          {!['draft', 'pre_procurement', 'invitation'].includes(b.status) && (
+            <ExcelButton path={`/bidding/${b.id}/abstract/export`} name={`AbstractOfBids_${b.bidding_number}.xlsx`} label="Abstract (Excel)" />
           )}
           {b.can_delete && (
             <button className="btn btn-danger" onClick={() => setMode('delete')}>

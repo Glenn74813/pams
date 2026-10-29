@@ -3,6 +3,8 @@ import { NavLink, Outlet, useLocation } from 'react-router'
 import { auditApi } from '../api/endpoints'
 import { useAuth } from '../auth/AuthContext'
 import { dashboardItem, menuGroups } from './menu'
+import { NotificationBell } from './NotificationBell'
+import { ScanButton } from './ScanButton'
 import { ThemeSelect } from './ThemeSelect'
 import './AppLayout.css'
 
@@ -68,6 +70,8 @@ export function AppLayout() {
           <div className="navbar-welcome">Hello! Welcome {user.name}!</div>
         </div>
         <div className="navbar-right">
+          <ScanButton />
+          <NotificationBell />
           <ThemeSelect />
         </div>
       </header>

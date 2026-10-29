@@ -9,6 +9,7 @@ import { formatDate, formatPeso } from '../../lib/format'
 import { Badge } from '../assets/pickers'
 import { AmendmentsPanel, CalloffsPanel, DeliveryPanel, SecuritiesPanel } from './ContractPanels'
 import { CONTRACT_STATUS } from './labels'
+import { AttachmentsPanel } from '../documents/AttachmentsPanel'
 
 interface Props {
   contractId: number
@@ -148,6 +149,7 @@ export function ContractDetailModal({ contractId, onClose, onEdit, onChanged }: 
           )}
         </>
       )}
+      {c && <AttachmentsPanel type="Contract" id={c.id} label={c.contract_number} docType="CONTRACT" />}
     </Modal>
   )
 }

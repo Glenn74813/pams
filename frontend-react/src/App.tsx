@@ -25,6 +25,12 @@ import { PhysicalCountPage } from './pages/physical/PhysicalCountPage'
 import { SettingsPage } from './pages/settings/SettingsPage'
 import { AuditPage } from './pages/audit/AuditPage'
 import { LogTrailsPage } from './pages/log-trails/LogTrailsPage'
+import { MonitoringPage } from './pages/monitoring/MonitoringPage'
+import { DocumentsPage } from './pages/documents/DocumentsPage'
+import { ReportsPage } from './pages/reports/ReportsPage'
+import { ProcurementReportsPage } from './pages/reports/ProcurementReportsPage'
+import { ApcpiPage } from './pages/apcpi/ApcpiPage'
+import { PublicScanPage } from './pages/scan/PublicScanPage'
 import { BacPage } from './pages/bac/BacPage'
 import { PurchaseRequestsPage } from './pages/procurement/PurchaseRequestsPage'
 import { LoginPage } from './pages/LoginPage'
@@ -58,6 +64,11 @@ const ported: Record<string, React.ReactNode> = {
   '/settings': <SettingsPage />,
   '/audit': <AuditPage />,
   '/log-trails': <LogTrailsPage />,
+  '/monitoring': <MonitoringPage />,
+  '/documents': <DocumentsPage />,
+  '/reports': <ReportsPage />,
+  '/procurement-reports': <ProcurementReportsPage />,
+  '/apcpi': <ApcpiPage />,
 }
 
 export function App() {
@@ -67,6 +78,7 @@ export function App() {
         <AuthProvider>
           <Routes>
             <Route path="/login" element={<LoginPage />} />
+            <Route path="/scan/:type/:id" element={<PublicScanPage />} />
             <Route
               element={
                 <RequireAuth>

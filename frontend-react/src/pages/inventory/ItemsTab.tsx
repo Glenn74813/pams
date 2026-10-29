@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { ApiError } from '../../api/client'
-import { inventoryApi, type ItemFilters } from '../../api/endpoints'
+import { inventoryApi, qrApi, type ItemFilters } from '../../api/endpoints'
 import type { Classification, Item } from '../../api/types'
 import { useAuth } from '../../auth/AuthContext'
 import { ConfirmDialog } from '../../components/Modal'
@@ -14,13 +14,14 @@ import { ClassificationBadge, StockLevelBadge } from './badges'
 import { ItemDetailModal } from './ItemDetailModal'
 import { ItemFormModal } from './ItemFormModal'
 import { CLASSIFICATIONS } from './model'
+import { QrLabelSheet } from '../../components/QrLabelSheet'
 
 export function ItemsTab() {
   const { can } = useAuth()
   const toast = useToast()
   const queryClient = useQueryClient()
   const [page, setPage] = useState(1)
-  const [search, setSearch] = useState('')
+  const [search, setSearch] = useState(() => new URLSearchParams(window.location.search).get('search') ?? '')
   const [categoryId, setCategoryId] = useState('')
   const [classification, setClassification] = useState('')
   const [level, setLevel] = useState('')
@@ -28,6 +29,7 @@ export function ItemsTab() {
   const [editing, setEditing] = useState<Item | 'new' | null>(null)
   const [stocking, setStocking] = useState<Item | null>(null)
   const [deleting, setDeleting] = useState<Item | null>(null)
+  const [labels, setLabels] = useState<number[] | null>(null)
   const q = useDebounced(search.trim())
 
   const filterKey = `${q}|${categoryId}|${classification}|${level}`
@@ -124,7 +126,11 @@ export function ItemsTab() {
           <option value="low">At or below reorder point</option>
           <option value="out">Out of stock</option>
         </select>
+        <button className="btn btn-outline" disabled={!items.data?.data.length} onClick={() => setLabels(items.data!.data.map((i) => i.id))}>
+          ▦ QR labels for this page
+        </button>
       </div>
+      {labels && <QrLabelSheet title={`Item QR labels (${labels.length})`} load={() => qrApi.items(labels)} onClose={() => setLabels(null)} />}
 
       {items.isError && <div className="alert alert-error">{(items.error as Error).message}</div>}
 

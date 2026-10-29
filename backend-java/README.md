@@ -162,7 +162,38 @@ CSV (Excel-readable, formula injection neutralised, the export itself audited) a
 account; the admin areas check view_settings / edit_settings / manage_* permissions. Not ported: Excel (.xlsx)
 export of the audit trail, and a QR code for 2FA setup (the setup key and an otpauth link are shown instead).
 
-Not ported yet: QR codes, Clone-PC assembly parts, the RSMI report and the Excel versions of the stock
-card, RIS, ICS and PAR (the React app prints RIS/ICS/PAR from the browser).
+COA forms (report/coa): the 15 Laravel PhpSpreadsheet exports are ported line for line onto `Xlsx`, a small POI
+wrapper that keeps PhpSpreadsheet's semantics (A1 references, range styles accumulated per cell, range borders by
+edge, one-cell merges ignored), so the files keep the prescribed layout: RSMI (App. 64), Stock Card (58), RPCI (66),
+RPCSP (68), RPCPPE (73), Property Card (69), RIS (63), ICS (59), PAR (71), IAR (62), PTR (76), WMR (65), IIRUP (74),
+RLSDDP (75) and the Abstract of Bids, with configured signatories' signatures stamped as before. They are served at
+the Laravel URLs and file names (CoaExportController); entity name and fund cluster default to the agency profile,
+and every download is audited. WMR/IIRUP/RLSDDP accept GET or POST with query/form parameters.
+Reports (/api/reports): inventory report, request logs, RSMI summaries (stored in rsmi_reports as
+RSMI-YYYY-MM-NNN), previews of the physical-count, property-card and disposal forms, reconciliation and aging.
+Procurement reports (/api/reports/procurement): APP, PMR, PMR in the GPPB format, BAC and Award, with the same Excel
+export layout as Laravel; the GPPB PMR now fills the contract-signing date (contract) and acceptance date (latest
+accepted IAR), which Laravel left blank.
+APCPI (/api/apcpi): one assessment per fiscal year, 16 indicators rated 0-3, pillar averages and maturity band as
+before; each score change is audited, finalizing needs every 0 to be explained in its remarks, and indicators the
+system can measure (BAC composition, APP approval, award time, competition, LDs, observers, protests) show a suggested
+rating with its basis.
+Documents (/api/documents): repository with version history; files go to storage/public/documents/{id}, up to 20 MB
+(PDF, Word, Excel, PNG, JPG). Each version stores a SHA-256 checksum (V14); an identical re-upload is refused,
+downloads report whether the file still matches (X-Checksum-Verified) and are audited. Documents can be attached to a
+PR, PPMP, APP, PO, IAR, contract, bidding, RFQ, BAC resolution, disposal, supplier or asset. Delete is soft.
+Dashboard (/api/analytics/dashboard): what is waiting on the caller plus inventory, asset, procurement and supplier
+figures, each only for roles that cover the area. Monitoring (/api/monitoring): stock levels, a re-order report with a
+suggested quantity (top up to max, or twice the minimum) from 90-day usage, fast/slow/non-moving items, request
+trends, and a procurement watch (bidding stages against the RA 12009 maximum periods, quotation deadlines, PO
+deliveries, contract deliveries accruing LDs, contract/security/supplier-document expiry, APP lines due without a PR).
+Scheduled jobs (monitoring/AlertJobs, Asia/Manila; each can also be run from Monitoring): reorder, expiry, procurement
+deadline, contract and supplier-document alerts (daily, with cooldowns), the quarterly APP reminder, monthly
+depreciation, weekly clean-up of read notifications, and a daily pg_dump backup to storage/backups kept 7 days.
+Notifications (/api/notifications): the bell — list, unread count, mark read.
+QR codes (qr): ZXing codes with high error correction that link to the app's /scan/{type}/{id} page with an HMAC
+checksum (pams.app-url sets the host). Labels and sticker sheets for items and assets, gate-pass codes, an in-app
+scan lookup (QR link, item code, tag, serial or gate-pass number) and a public read-only lookup that refuses a
+missing or altered checksum. Laravel's QR links pointed at its own web pages and are not honoured here.
 
-Everything else is still served by `../Backend`.
+Not ported: Clone-PC assembly parts.

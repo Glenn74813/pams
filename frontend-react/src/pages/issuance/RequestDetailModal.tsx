@@ -7,6 +7,7 @@ import { Modal } from '../../components/Modal'
 import { formatDate, formatQty } from '../../lib/format'
 import { RequestStatusBadge } from './badges'
 import { PrintSlip, type SlipKind } from './PrintSlip'
+import { ExcelButton } from '../../components/ExcelButton'
 
 interface Props {
   requestId: number
@@ -30,9 +31,12 @@ export function RequestDetailModal({ requestId, onClose, onChanged }: Props) {
             <button className="btn btn-secondary btn-sm" onClick={() => setSlip(null)}>
               ‹ Back
             </button>
-            <button className="btn btn-primary btn-sm" onClick={() => window.print()}>
-              🖨 Print
-            </button>
+            <span>
+              <ExcelButton path={`/requests/${r.id}/export-${slip}`} name={`${slip.toUpperCase()}_${r.request_number}.xlsx`} label={`${slip.toUpperCase()} (Excel)`} />{' '}
+              <button className="btn btn-primary btn-sm" onClick={() => window.print()}>
+                🖨 Print
+              </button>
+            </span>
           </div>
           <PrintSlip request={r} kind={slip} config={config.data} />
         </>

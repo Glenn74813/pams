@@ -1,7 +1,3 @@
-.st-pending { background: #fef3c7; color: #92400e; }
-.st-partial { background: #e0f2fe; color: #075985; }
-.st-ok { background: #dcfce7; color: #166534; }
-.st-bad { background: #fee2e2; color: #991b1b; }
 .badge.pri { margin-left: 0.4rem; font-size: 0.68rem; }
 
 .clip { max-width: 260px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }

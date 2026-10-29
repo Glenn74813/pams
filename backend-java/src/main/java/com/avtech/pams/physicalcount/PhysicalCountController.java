@@ -632,11 +632,12 @@ public class PhysicalCountController {
             }, c.getId());
             Map<Long, Integer> moved = new HashMap<>();
             if (c.getCutoffLogId() != null) {
-                // Net stock-card movement after the cut-off, leaving out this count's own postings.
+                // Net stock-card movement after the cut-off, leaving out this count's own postings. Stored times are
+                // rounded to the second, so the verification time gets a second of slack.
                 jdbc.query("""
                         select l.item_id, sum(l.new_quantity - l.previous_quantity) from inventory_logs l
                         where l.id > ? and l.item_id in (select item_id from physical_inventory_count_items where physical_inventory_count_id = ?)
-                          and (?::timestamp is null or l.created_at <= ?)
+                          and (?::timestamp is null or l.created_at <= ?::timestamp + interval '1 second')
                           and not (l.reference_type = ? and l.reference_id in
                                    (select stock_adjustment_id from physical_inventory_count_items where physical_inventory_count_id = ? and stock_adjustment_id is not null))
                         group by l.item_id

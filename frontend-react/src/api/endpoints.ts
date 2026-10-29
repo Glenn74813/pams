@@ -1,4 +1,4 @@
-import { api } from './client'
+import { api, download } from './client'
 import type {
   AppPlan,
   AwardSource,
@@ -42,6 +42,20 @@ import type {
   InventoryLogEntry,
   LoginAttemptEntry,
   ActiveUser,
+  AppNotification,
+  DashboardData,
+  StockMonitor,
+  RequestTrend,
+  WatchEntry,
+  RepoDocument,
+  InventorySummary,
+  RequestLogEntry,
+  RequestLogSummary,
+  RsmiSummary,
+  ApcpiAssessment,
+  ApcpiListRow,
+  QrLabel,
+  ScanResult,
   LoginResponse,
   Paged,
   PermissionCatalogue,
@@ -760,4 +774,116 @@ export const logsApi = {
   logins: (f: { page: number; email?: string; successful?: string; start_date?: string; end_date?: string }) =>
     api<Paged<LoginAttemptEntry>>('GET', '/logs/login-attempts', undefined, { params: f }),
   active: () => api<{ window_minutes: number; users: ActiveUser[] }>('GET', '/logs/active-users'),
+}
+
+export const notificationsApi = {
+  list: (page = 1, unread = false) => api<Paged<AppNotification>>('GET', '/notifications', undefined, { params: { page, per_page: 15, unread } }),
+  unreadCount: () => api<{ count: number }>('GET', '/notifications/unread-count'),
+  read: (id: number) => api<{ message: string }>('PUT', `/notifications/${id}/read`),
+  readAll: () => api<{ message: string }>('PUT', '/notifications/read-all'),
+}
+
+export const analyticsApi = {
+  dashboard: (fiscal_year?: number) => api<DashboardData>('GET', '/analytics/dashboard', undefined, { params: { fiscal_year } }),
+}
+
+export const monitoringApi = {
+  stock: (category_id?: number) => api<StockMonitor>('GET', '/monitoring/stock', undefined, { params: { category_id } }),
+  trends: (months: number) => api<RequestTrend[]>('GET', '/monitoring/trends', undefined, { params: { months } }),
+  procurement: () => api<{ overdue: number; due_soon: number; by_kind: Record<string, number>; rows: WatchEntry[] }>('GET', '/monitoring/procurement'),
+  alertJobs: () => api<{ jobs: string[]; schedule: Record<string, string> }>('GET', '/monitoring/alerts'),
+  runAlerts: (job: string) => api<{ results: Record<string, string> }>('POST', '/monitoring/alerts/run', { job }),
+}
+
+export interface DocumentFilter {
+  page: number
+  type?: string
+  status?: string
+  search?: string
+  documentable_type?: string
+  documentable_id?: number
+  per_page?: number
+}
+
+export interface DocumentInput {
+  title: string
+  type: string
+  document_number?: string
+  category?: string
+  description?: string
+  documentable_type?: string
+  documentable_id?: number
+  remarks?: string
+}
+
+export const documentsApi = {
+  list: (f: DocumentFilter) => api<Paged<RepoDocument>>('GET', '/documents', undefined, { params: { ...f } }),
+  types: () => api<{ types: string[]; owners: string[] }>('GET', '/documents/types'),
+  get: (id: number) => api<RepoDocument>('GET', `/documents/${id}`),
+  create: (input: DocumentInput, file: File) => {
+    const fd = new FormData()
+    for (const [k, v] of Object.entries(input)) if (v !== undefined && v !== '') fd.append(k, String(v))
+    fd.append('file', file)
+    return api<RepoDocument>('POST', '/documents', fd)
+  },
+  addVersion: (id: number, file: File, remarks: string) => {
+    const fd = new FormData()
+    fd.append('file', file)
+    if (remarks) fd.append('remarks', remarks)
+    return api<RepoDocument>('POST', `/documents/${id}/versions`, fd)
+  },
+  archive: (id: number) => api<RepoDocument>('POST', `/documents/${id}/archive`),
+  remove: (id: number) => api<{ message: string }>('DELETE', `/documents/${id}`),
+  download: (id: number, versionId?: number) =>
+    download(versionId ? `/documents/${id}/versions/${versionId}/download` : `/documents/${id}/download`, {}, 'document'),
+}
+
+type Params = Record<string, string | number | undefined>
+export type PreviewRow = Record<string, string | number | boolean | null>
+
+export const reportsApi = {
+  inventory: (f: { category_id?: number; status?: string }) => api<{ items: (Item & { total_value: number })[]; summary: InventorySummary }>('GET', '/reports/inventory', undefined, { params: f }),
+  requestLogs: (f: { start_date?: string; end_date?: string; department_id?: number }) =>
+    api<{ logs: RequestLogEntry[]; summary: RequestLogSummary }>('GET', '/reports/request-logs', undefined, { params: f }),
+  generateRsmi: (year: number, month: number) => api<RsmiSummary>('POST', '/reports/rsmi/generate', { year, month }),
+  rsmiHistory: () => api<{ id: number; report_number: string; year: number; month: number; generated_at: string; generated_by: string }[]>('GET', '/reports/rsmi/history'),
+  preview: (path: string, params: Params = {}) => api<{ title: string; rows: PreviewRow[] }>('GET', `/reports/${path}/preview`, undefined, { params }),
+  propertyCard: (id: number) => api<{ property: Record<string, string | number | null>; rows: PreviewRow[] }>('GET', `/reports/property-card/${id}/preview`),
+  reconciliation: () => api<{ title: string; count: number; rows: PreviewRow[] }>('GET', '/reports/reconciliation/preview'),
+  aging: (days: number) =>
+    api<{ title: string; threshold_days: number; buckets: Record<string, number>; slow_moving_count: number; value_at_risk: number; count: number; rows: PreviewRow[] }>(
+      'GET', '/reports/inventory-aging/preview', undefined, { params: { days } }),
+  /** Downloads a COA form in the prescribed Excel format. */
+  exportFile: (path: string, params: Params = {}, name = 'report.xlsx') => download(path, params, name),
+}
+
+export const reportOptionsApi = {
+  options: () => api<{ categories: { id: number; name: string }[]; departments: { id: number; name: string }[] }>('GET', '/reports/options'),
+}
+
+export const procurementReportsApi = {
+  get: (type: string, fiscal_year: number) =>
+    api<Record<string, unknown>>('GET', `/reports/procurement/${type === 'pmr_gppb' ? 'pmr-gppb' : type}`, undefined, { params: { fiscal_year } }),
+  export: (type: string, fiscal_year: number) => download('/reports/procurement/export', { type, fiscal_year }, `${type.toUpperCase()}_report_${fiscal_year}.xlsx`),
+}
+
+export const apcpiApi = {
+  list: () => api<{ data: ApcpiListRow[] }>('GET', '/apcpi'),
+  get: (id: number) => api<ApcpiAssessment>('GET', `/apcpi/${id}`),
+  create: (fiscal_year: number, remarks?: string) => api<ApcpiAssessment>('POST', '/apcpi', { fiscal_year, remarks }),
+  saveScores: (id: number, scores: { indicator_key: string; score: number; remarks: string | null; means_of_verification: string | null }[], remarks: string | null) =>
+    api<ApcpiAssessment>('PUT', `/apcpi/${id}/scores`, { scores, remarks }),
+  finalize: (id: number) => api<ApcpiAssessment>('POST', `/apcpi/${id}/finalize`),
+  reopen: (id: number) => api<ApcpiAssessment>('POST', `/apcpi/${id}/reopen`),
+  remove: (id: number) => api<{ message: string }>('DELETE', `/apcpi/${id}`),
+}
+
+export const qrApi = {
+  item: (id: number) => api<QrLabel>('GET', `/inventory/items/${id}/qr-base64`),
+  items: (item_ids: number[]) => api<{ agency: string; labels: QrLabel[] }>('POST', '/inventory/bulk-qr', { item_ids }),
+  property: (id: number) => api<QrLabel>('GET', `/properties/${id}/qr-base64`),
+  properties: (property_ids: number[]) => api<{ agency: string; labels: QrLabel[] }>('POST', '/properties/qr-labels', { property_ids }),
+  gatePass: (id: number) => api<{ gate_pass: QrLabel; unit: QrLabel | null }>('GET', `/gate-pass/${id}/qr`),
+  scan: (data: string) => api<ScanResult>('POST', '/inventory/scan-qr', { data }),
+  publicLookup: (type: string, id: string, c: string) => api<ScanResult & { agency: string }>('GET', `/public/qr/${type}/${id}`, undefined, { params: { c }, skipAuthRedirect: true }),
 }

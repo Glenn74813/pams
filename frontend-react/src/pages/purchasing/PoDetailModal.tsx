@@ -8,6 +8,7 @@ import { formatDate, formatPeso, formatQty } from '../../lib/format'
 import { Badge } from '../assets/pickers'
 import { ACCEPTANCE, PO_STATUS } from './labels'
 import { PoSlip } from './PoSlip'
+import { AttachmentsPanel } from '../documents/AttachmentsPanel'
 
 interface Props {
   poId: number
@@ -201,6 +202,7 @@ export function PoDetailModal({ poId, onClose, onEdit, onReceive, onChanged }: P
           )}
         </>
       )}
+      {po && !printing && <AttachmentsPanel type="PurchaseOrder" id={po.id} label={po.po_number} docType="PO" />}
     </Modal>
   )
 }

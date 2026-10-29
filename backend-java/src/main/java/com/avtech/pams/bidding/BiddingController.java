@@ -892,7 +892,7 @@ public class BiddingController {
     }
 
     /** Maximum procurement timelines for goods (RA 12009 IRR), measured in calendar days. */
-    private static List<Interval> timeline(Bidding b) {
+    public static List<Interval> timeline(Bidding b) {
         LocalDate opening = b.getBidOpeningDate() == null ? null : b.getBidOpeningDate().toLocalDate();
         Object[][] spec = {
                 {"itb_to_opening", "Posting of ITB → bid opening", b.getItbPostedAt(), opening, 50},

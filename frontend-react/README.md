@@ -34,4 +34,11 @@ ratings and delivery performance), Physical Count (supplies count sheet against 
 count with found / missing / not in masterlist, independent verification, printable RPCI / RPCPPE / RPCSP by person or
 department), Settings (own password / 2FA / signature, agency profile, document logos, signatories, idle sign-out
 and password length), Audit Trail (filters, before/after detail, CSV export, print) and Log Trails (online now, stock
-movements, sign-ins). The app signs people out after the configured idle time and records every print. Also BAC Management (meetings and attendance, resolutions, composition).
+movements, sign-ins). The app signs people out after the configured idle time and records every print. Also BAC Management (meetings and attendance, resolutions, composition). Also Dashboard (waiting on you, inventory, assets, procurement, suppliers),
+Monitoring (stock levels, re-order report, movement classes, request trends, procurement watch, scheduled alerts),
+Reports (the COA forms with on-screen previews and their Excel downloads in the prescribed format), Procurement
+Reports, APCPI, Documents (repository, versions, attachments panel on record windows), the notification bell,
+QR labels and sticker sheets, and a scanner (USB scanner or phone camera) in the top bar. `/scan/:type/:id` is the
+public page a phone opens from a label.
+
+Everything in the old menu has moved.

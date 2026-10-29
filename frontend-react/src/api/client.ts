@@ -117,7 +117,9 @@ export async function download(path: string, params: Record<string, string | num
     if (res.status === 401) onUnauthorized()
     throw new ApiError(res.status, body)
   }
-  const name = /filename="([^"]+)"/.exec(res.headers.get('Content-Disposition') ?? '')?.[1] ?? fallbackName
+  const disposition = res.headers.get('Content-Disposition') ?? ''
+  const encoded = /filename\*=UTF-8''([^;]+)/i.exec(disposition)?.[1]
+  const name = (encoded && decodeURIComponent(encoded)) ?? /filename="([^"]+)"/.exec(disposition)?.[1] ?? fallbackName
   const href = URL.createObjectURL(await res.blob())
   const a = document.createElement('a')
   a.href = href

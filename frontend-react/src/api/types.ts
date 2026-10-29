@@ -1289,3 +1289,238 @@ export interface ActiveUser {
   signed_in_at: string | null
   ip_address: string | null
 }
+
+export interface AppNotification {
+  id: number
+  type: string
+  title: string
+  message: string
+  related_type: string | null
+  related_id: number | null
+  is_read: boolean
+  created_at: string | null
+}
+
+export interface Ranked {
+  name: string
+  code: string | null
+  count: number
+  amount: number
+}
+
+export interface WatchEntry {
+  kind: string
+  severity: 'overdue' | 'due_soon'
+  reference: string
+  title: string | null
+  detail: string
+  date: string | null
+  days: number | null
+  related_type: string | null
+  related_id: number | null
+}
+
+export interface DashboardData {
+  fiscal_year: number
+  me: { open_requests: number; open_purchase_requests: number; assets: number; assets_value: number }
+  todo: { key: string; label: string; count: number; path: string }[]
+  inventory?: {
+    total_items: number
+    low_stock: number
+    out_of_stock: number
+    total_value: number
+    pending_requests: number
+    requests_today: number
+    expiring_lots: number
+    expired_lots: number
+    top_items: Ranked[]
+    by_department: Ranked[]
+  }
+  assets?: { total: number; assigned: number; available: number; under_repair: number; acquisition_cost: number; book_value: number; disposal_pending: number }
+  procurement?: {
+    active: Record<string, number>
+    app_utilization: { estimated: number; utilized: number; remaining: number; rate: number }
+    pr_by_status: Record<string, number>
+    awards: { biddings: number; rfqs: number; po_value: number }
+    watch: { overdue: number; due_soon: number; top: WatchEntry[] }
+  }
+  suppliers?: { active: number; total: number; expiring_compliance: number; top_awarded: Ranked[]; top_rated: Ranked[] }
+}
+
+export type MonitorLevel = 'out' | 'low' | 'normal' | 'over' | 'untracked'
+export type Movement = 'fast' | 'slow' | 'non_moving' | 'idle'
+
+export interface StockRow {
+  id: number
+  code: string
+  name: string
+  category: { id: number; name: string } | null
+  unit_of_measure: string
+  current_stock: number
+  min_stock: number
+  max_stock: number
+  level: MonitorLevel
+  deficit: number
+  monthly_usage: number
+  months_of_cover: number | null
+  suggested_order: number
+  unit_cost: number
+  suggested_value: number
+  issued_quantity: number
+  movement: Movement
+}
+
+export interface StockMonitor {
+  usage_days: number
+  summary: {
+    total_items: number
+    out_of_stock: number
+    low_stock: number
+    pending_requests: number
+    inventory_value: number
+    reorder_value: number
+    expired_lots: number
+    expiring_lots: number
+  }
+  levels: Record<MonitorLevel, number>
+  movement: Record<Movement, number>
+  items: StockRow[]
+  reorder: StockRow[]
+  categories: { id: number; name: string }[]
+}
+
+export interface RequestTrend {
+  year: number
+  month: number
+  label: string
+  total_requests: number
+  fulfilled: number
+  rejected: number
+  open: number
+  units_issued: number
+}
+
+export interface DocumentVersion {
+  id: number
+  version_number: number
+  original_filename: string
+  mime_type: string | null
+  file_size: number
+  file_size_human: string
+  checksum: string | null
+  remarks: string | null
+  uploader: { id: number; name: string } | null
+  created_at: string | null
+}
+
+export interface RepoDocument {
+  id: number
+  title: string
+  document_number: string | null
+  type: string
+  category: string | null
+  description: string | null
+  documentable_type: string | null
+  documentable_id: number | null
+  status: 'active' | 'archived'
+  current_version: number
+  uploader: { id: number; name: string } | null
+  latest_version: DocumentVersion | null
+  versions: DocumentVersion[] | null
+  created_at: string | null
+  updated_at: string | null
+}
+
+export interface InventorySummary {
+  total_items: number
+  total_value: number
+  low_stock_items: number
+  out_of_stock_items: number
+  by_category: Record<string, { count: number; value: number }>
+}
+
+export interface RequestLogEntry {
+  id: number
+  quantity: number
+  requested_at: string | null
+  department: { id: number; name: string } | null
+  item: { id: number; code: string; name: string } | null
+  requester: { id: number; name: string } | null
+}
+
+export interface RequestLogSummary {
+  total_requests: number
+  total_quantity: number
+  by_department: Record<string, { count: number; quantity: number }>
+  by_item: Record<string, { count: number; quantity: number }>
+  time_period: { start: string | null; end: string | null }
+}
+
+export interface RsmiSummary {
+  id: number
+  report_number: string
+  year: number
+  month: number
+  generated_at: string
+  total_requests: number
+  fulfilled_requests: number
+  pending_requests: number
+  rejected_requests: number
+  requests_by_department: Record<string, { total: number; fulfilled: number; pending: number }>
+  items_requested: Record<string, { total_quantity: number; total_approved: number; request_count: number }>
+  monthly_trend: Record<string, { month: number; total: number; fulfilled: number }>
+}
+
+export interface ApcpiPillar {
+  key: string
+  title: string
+  indicators: [string, string][]
+}
+
+export interface ApcpiScore {
+  score: number
+  remarks: string | null
+  means_of_verification: string | null
+}
+
+export interface ApcpiSummary {
+  pillars: Record<string, { title: string; average: number; maturity: string }>
+  overall: number
+  maturity: string
+}
+
+export interface ApcpiAssessment {
+  id: number
+  fiscal_year: number
+  status: 'draft' | 'finalized'
+  remarks: string | null
+  conducted_by: string | null
+  finalized_at: string | null
+  catalogue: ApcpiPillar[]
+  scores: Record<string, ApcpiScore>
+  summary: ApcpiSummary
+  evidence: Record<string, { suggested: number | null; basis: string }>
+}
+
+export interface ApcpiListRow {
+  id: number
+  fiscal_year: number
+  status: 'draft' | 'finalized'
+  conducted_by: string | null
+  overall: number
+  maturity: string
+  finalized_at: string | null
+}
+
+export interface QrLabel {
+  type: 'item' | 'property' | 'gate-pass'
+  id: number
+  code: string
+  title: string
+  subtitle: string | null
+  accountability: string | null
+  url: string
+  data_uri: string
+}
+
+export type ScanResult = Record<string, string | number | null> & { type: 'item' | 'property' | 'gate-pass'; id: number; code: string; title: string; path: string }

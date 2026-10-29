@@ -1,0 +1,25 @@
+.dash-head { display: flex; justify-content: space-between; align-items: center; gap: 1rem; flex-wrap: wrap; margin-bottom: 1rem; }
+.dash-head .field { flex-direction: row; align-items: center; gap: 0.5rem; }
+.dash-section-title { font-size: 1.05rem; margin: 1.5rem 0 0.75rem; display: flex; align-items: center; gap: 0.5rem; }
+.dash-section-title a { font-size: 0.85rem; font-weight: 500; margin-left: auto; color: var(--primary-accent); }
+.todo-list { list-style: none; display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 0.75rem; margin-bottom: 0.5rem; }
+.todo-list a {
+  display: flex; align-items: center; justify-content: space-between; gap: 1rem; padding: 0.8rem 1rem;
+  background: var(--card-bg); border: 1px solid var(--border-color); border-left: 4px solid var(--primary-accent);
+  border-radius: 8px; text-decoration: none; color: inherit; box-shadow: var(--shadow);
+}
+.todo-list a:hover { background: var(--table-hover); }
+.todo-count { font-size: 1.3rem; font-weight: 700; color: var(--primary-accent); font-variant-numeric: tabular-nums; }
+.kpi a { color: inherit; text-decoration: none; display: flex; flex-direction: column; gap: 0.2rem; }
+.bar-list { list-style: none; display: flex; flex-direction: column; gap: 0.6rem; }
+.bar-label { display: flex; justify-content: space-between; gap: 1rem; font-size: 0.88rem; margin-bottom: 0.2rem; }
+.bar-label strong { font-variant-numeric: tabular-nums; white-space: nowrap; }
+.bar-track { height: 8px; border-radius: 4px; background: var(--bg-tertiary); overflow: hidden; }
+.bar-fill { height: 100%; border-radius: 4px; background: var(--primary-accent); min-width: 2px; }
+.progress { height: 12px; border-radius: 6px; background: var(--bg-tertiary); overflow: hidden; }
+.progress > div { height: 100%; background: var(--success); }
+.progress-meta { display: flex; justify-content: space-between; font-size: 0.85rem; color: var(--text-light); margin-top: 0.35rem; }
+.stat-list { list-style: none; display: flex; flex-direction: column; gap: 0.35rem; font-size: 0.9rem; }
+.stat-list li { display: flex; justify-content: space-between; gap: 1rem; border-bottom: 1px dashed var(--table-border); padding-bottom: 0.3rem; }
+.watch-list { list-style: none; display: flex; flex-direction: column; gap: 0.5rem; }
+.watch-list li { display: flex; flex-direction: column; gap: 0.1rem; font-size: 0.88rem; }

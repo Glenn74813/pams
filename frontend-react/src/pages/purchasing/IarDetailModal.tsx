@@ -9,6 +9,8 @@ import { formatDate, formatDateTime, formatPeso, formatQty } from '../../lib/for
 import { Badge } from '../assets/pickers'
 import { IarSlip } from './IarSlip'
 import { ACCEPTANCE, IAR_STATUS } from './labels'
+import { AttachmentsPanel } from '../documents/AttachmentsPanel'
+import { ExcelButton } from '../../components/ExcelButton'
 
 interface Props {
   iarId: number
@@ -138,6 +140,7 @@ export function IarDetailModal({ iarId, onClose, onEdit, onChanged }: Props) {
               <button className="btn btn-outline" onClick={() => setPrinting(true)}>
                 🖨 IAR
               </button>
+              <ExcelButton path={`/receiving/inspection-reports/${r.id}/export`} name={`IAR_${r.iar_number}.xlsx`} label="IAR (Excel)" />
               {r.can_delete && (
                 <button className="btn btn-danger" onClick={() => setMode('delete')}>
                   Delete
@@ -163,6 +166,7 @@ export function IarDetailModal({ iarId, onClose, onEdit, onChanged }: Props) {
           )}
         </>
       )}
+      {r && !printing && <AttachmentsPanel type="InspectionAcceptanceReport" id={r.id} label={r.iar_number} docType="IAR" />}
     </Modal>
   )
 }

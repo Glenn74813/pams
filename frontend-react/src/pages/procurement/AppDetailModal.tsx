@@ -7,6 +7,7 @@ import { ConfirmDialog, Modal } from "../../components/Modal";
 import { formatDate, formatPeso, formatQty } from "../../lib/format";
 import { Badge } from "../assets/pickers";
 import { APP_STATUS, LINE_STATUS, QUARTER_LABEL } from "./labels";
+import { AttachmentsPanel } from '../documents/AttachmentsPanel'
 
 interface Props {
   appId: number;
@@ -264,6 +265,7 @@ export function AppDetailModal({ appId, options, onClose, onChanged }: Props) {
           )}
         </>
       )}
+      {a && <AttachmentsPanel type="App" id={a.id} label={a.app_number} docType="APP" />}
     </Modal>
   );
 }

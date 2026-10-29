@@ -627,7 +627,7 @@ public class ContractController {
     }
 
     /** What the linked PO has had accepted into stock, by value. */
-    private Delivery delivery(Contract c) {
+    public Delivery delivery(Contract c) {
         if (c.getPurchaseOrderId() == null) return null;
         BigDecimal[] totals = {BigDecimal.ZERO, BigDecimal.ZERO};
         LocalDate[] last = {null};
@@ -667,7 +667,8 @@ public class ContractController {
      * Liquidated damages: 1/10 of 1% of the value not delivered by the deadline, per day from the
      * deadline to the last delivery (or the as-of date), capped at 10% of the contract price.
      */
-    private LdEstimate ld(Contract c, LocalDate asOfInput) {
+    /** Exposed for the overdue-delivery watch; null when the contract has no deadline. */
+    public LdEstimate ld(Contract c, LocalDate asOfInput) {
         LocalDate deadline = deadline(c);
         if (deadline == null) return null;
         Delivery d = delivery(c);

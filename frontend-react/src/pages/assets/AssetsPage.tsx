@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { ApiError } from '../../api/client'
-import { assetsApi } from '../../api/endpoints'
+import { assetsApi, qrApi } from '../../api/endpoints'
 import type { Asset } from '../../api/types'
 import { useAuth } from '../../auth/AuthContext'
 import { ConfirmDialog } from '../../components/Modal'
@@ -16,6 +16,7 @@ import { RegisterAssetModal } from './RegisterAssetModal'
 import '../inventory/inventory.css'
 import '../issuance/issuance.css'
 import './assets.css'
+import { QrLabelSheet } from '../../components/QrLabelSheet'
 
 type Tab = 'register' | 'movements' | 'depreciation'
 
@@ -53,11 +54,12 @@ function Register() {
   const toast = useToast()
   const queryClient = useQueryClient()
   const [page, setPage] = useState(1)
-  const [search, setSearch] = useState('')
+  const [search, setSearch] = useState(() => new URLSearchParams(window.location.search).get('search') ?? '')
   const [status, setStatus] = useState('')
   const [viewing, setViewing] = useState<number | null>(null)
   const [registering, setRegistering] = useState(false)
   const [deleting, setDeleting] = useState<Asset | null>(null)
+  const [stickers, setStickers] = useState<number[] | null>(null)
   const q = useDebounced(search.trim())
   const key = `${q}|${status}`
   const [shown, setShown] = useState(key)
@@ -102,7 +104,11 @@ function Register() {
             </option>
           ))}
         </select>
+        <button className="btn btn-outline" disabled={!list.data?.data.length} onClick={() => setStickers(list.data!.data.map((a) => a.id))}>
+          ▦ QR stickers for this page
+        </button>
       </div>
+      {stickers && <QrLabelSheet title={`Asset QR stickers (${stickers.length})`} load={() => qrApi.properties(stickers)} onClose={() => setStickers(null)} />}
       {list.isError && <div className="alert alert-error">{(list.error as Error).message}</div>}
       <div className="table-wrap">
         <table className="table">

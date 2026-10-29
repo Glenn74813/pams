@@ -6,6 +6,7 @@ import type { Supplier } from '../../api/types'
 import { useAuth } from '../../auth/AuthContext'
 import { ConfirmDialog, Modal } from '../../components/Modal'
 import { formatDate, formatPeso, today } from '../../lib/format'
+import { AttachmentsPanel } from '../documents/AttachmentsPanel'
 
 const DOC_TYPES = ['PhilGEPS Registration', 'DTI Registration', 'SEC Registration', "Mayor's Permit", 'BIR Registration', 'Tax Clearance', 'Omnibus Sworn Statement', 'Other']
 const DOC_CLASS: Record<string, string> = { valid: 'st-ok', expiring: 'st-pending', expired: 'st-bad' }
@@ -86,6 +87,7 @@ export function SupplierDetailModal({ supplierId, onClose, onEdit, onChanged }: 
           )}
         </>
       )}
+      {s && <AttachmentsPanel type="Supplier" id={s.id} label={s.name} docType="OTHER" />}
     </Modal>
   )
 }

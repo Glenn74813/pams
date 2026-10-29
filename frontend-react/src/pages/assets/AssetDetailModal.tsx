@@ -8,6 +8,10 @@ import { formatDate, formatPeso, today } from '../../lib/format'
 import { AssetSlip, type AssetSlipKind } from './AssetSlip'
 import { CONDITIONS, GATE_STATUS, MOVE_LABEL, STATUS_LABEL, cap } from './labels'
 import { Badge, PersonSelect } from './pickers'
+import { AttachmentsPanel } from '../documents/AttachmentsPanel'
+import { ExcelButton } from '../../components/ExcelButton'
+import { QrLabelSheet } from '../../components/QrLabelSheet'
+import { qrApi } from '../../api/endpoints'
 
 type Tab = 'details' | 'history' | 'depreciation' | 'gate'
 type Action = 'transfer' | 'return' | 'issue' | 'edit' | null
@@ -20,6 +24,7 @@ interface Props {
 
 export function AssetDetailModal({ assetId, onClose, onChanged }: Props) {
   const [tab, setTab] = useState<Tab>('details')
+  const [qrOpen, setQrOpen] = useState(false)
   const [action, setAction] = useState<Action>(null)
   const [slip, setSlip] = useState<{ kind: AssetSlipKind; move?: AssetMove } | null>(null)
   const [error, setError] = useState<string | null>(null)
@@ -93,6 +98,9 @@ export function AssetDetailModal({ assetId, onClose, onChanged }: Props) {
                 Retire
               </button>
             )}
+            <button className="btn btn-outline btn-sm" onClick={() => setQrOpen(true)}>
+              ▦ QR sticker
+            </button>
             {a.can_edit && a.status === 'retired' && (
               <button className="btn btn-outline btn-sm" onClick={() => status.mutate('reinstate')}>
                 Reinstate
@@ -108,6 +116,7 @@ export function AssetDetailModal({ assetId, onClose, onChanged }: Props) {
                 🖨 {a.item?.classification === 'ppe' ? 'PAR' : 'ICS'}
               </button>
             )}
+            <ExcelButton path={`/reports/property-card/${a.id}/export`} name={`PropertyCard_${a.tag_number}.xlsx`} label="Property Card" />
           </div>
 
           {action && action !== 'edit' && (
@@ -209,7 +218,8 @@ export function AssetDetailModal({ assetId, onClose, onChanged }: Props) {
                       <td>
                         <button className="btn btn-outline btn-sm" onClick={() => setSlip({ kind: 'move', move: m })}>
                           🖨
-                        </button>
+                        </button>{' '}
+                        <ExcelButton path={`/properties/transfers/${m.id}/export`} name={`PTR_${m.reference_number ?? m.id}.xlsx`} label="PTR" />
                       </td>
                     </tr>
                   ))}
@@ -314,6 +324,8 @@ export function AssetDetailModal({ assetId, onClose, onChanged }: Props) {
           )}
         </>
       )}
+      {a && <AttachmentsPanel type="Property" id={a.id} label={a.tag_number} docType="OTHER" />}
+      {qrOpen && a && <QrLabelSheet title={`QR sticker — ${a.tag_number}`} load={() => qrApi.properties([a.id])} onClose={() => setQrOpen(false)} />}
     </Modal>
   )
 }

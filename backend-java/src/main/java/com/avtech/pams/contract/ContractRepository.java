@@ -46,4 +46,7 @@ public interface ContractRepository extends JpaRepository<Contract, Long> {
             """)
     Page<Contract> search(@Param("status") String status, @Param("type") String type, @Param("supplier") Long supplier,
                           @Param("today") LocalDate today, @Param("expiringBy") LocalDate expiringBy, @Param("search") String search, Pageable pageable);
+
+    @Query("select c from Contract c where c.deletedAt is null and c.status = 'active' order by c.id")
+    java.util.List<Contract> findActive();
 }

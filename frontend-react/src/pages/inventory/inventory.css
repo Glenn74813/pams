@@ -58,12 +58,6 @@
 .category-card li span:first-child { flex: 1; }
 
 /* Warehouse */
-.kpi-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 1rem; margin-bottom: 1.5rem; }
-.kpi { background: var(--card-bg); border: 1px solid var(--border-color); border-radius: 10px; padding: 1rem 1.2rem; display: flex; flex-direction: column; gap: 0.2rem; box-shadow: var(--shadow); }
-.kpi-value { font-size: 1.7rem; font-weight: 700; font-variant-numeric: tabular-nums; }
-.kpi-label { color: var(--text-light); font-size: 0.85rem; }
-.kpi-warn { border-left: 4px solid var(--warning); }
-.kpi-bad { border-left: 4px solid var(--danger); }
 
 .receive-picker, .picker-field { position: relative; }
 .receive-picker { display: flex; flex-direction: column; gap: 0.35rem; max-width: 520px; margin-bottom: 1.25rem; }

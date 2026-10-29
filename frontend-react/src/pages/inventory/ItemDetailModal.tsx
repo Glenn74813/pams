@@ -4,6 +4,7 @@ import { inventoryApi } from '../../api/endpoints'
 import { Modal } from '../../components/Modal'
 import { formatDate, formatPeso, formatQty } from '../../lib/format'
 import { ClassificationBadge, StockLevelBadge } from './badges'
+import { ExcelButton } from '../../components/ExcelButton'
 
 const WARRANTY: Record<string, string> = { active: 'Active', expiring: 'Expiring', expired: 'Expired', none: '—' }
 
@@ -110,9 +111,12 @@ export function ItemDetailModal({ itemId, onClose }: { itemId: number; onClose: 
                     {it.code} — {it.name} · Unit: {it.unit_of_measure} · Reorder point: {formatQty(it.min_stock)}
                   </p>
                 </div>
-                <button className="btn btn-outline btn-sm no-print" onClick={() => window.print()}>
-                  🖨 Print
-                </button>
+                <span className="no-print">
+                  <ExcelButton path={`/reports/stock-card/${it.id}/export`} name={`StockCard_${it.code}.xlsx`} label="Stock Card (Excel)" />{' '}
+                  <button className="btn btn-outline btn-sm" onClick={() => window.print()}>
+                    🖨 Print
+                  </button>
+                </span>
               </div>
               {card.isPending && <div className="page-loading">Loading…</div>}
               {card.data && (

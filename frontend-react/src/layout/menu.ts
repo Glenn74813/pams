@@ -44,7 +44,7 @@ export const menuGroups: MenuGroup[] = [
       { path: '/physical', icon: '🔍', label: 'Physical Count', module: 'physical', ported: true },
       { path: '/stock-adjustments', icon: '⚖️', label: 'Stock Adjustments', module: 'stock-adjustments', ported: true },
       { path: '/semi-expendable', icon: '🧾', label: 'Semi-Expendable', module: 'semi-expendable', ported: true },
-      { path: '/monitoring', icon: '📊', label: 'Monitoring', module: 'monitoring', ported: false },
+      { path: '/monitoring', icon: '📊', label: 'Monitoring', module: 'monitoring', ported: true },
       { path: '/gate-pass', icon: '🚪', label: 'Gate Pass', module: 'gate-pass', ported: true },
       { path: '/disposal', icon: '♻️', label: 'Disposal', module: 'disposal', ported: true },
     ],
@@ -59,10 +59,10 @@ export const menuGroups: MenuGroup[] = [
   {
     key: 'reports', label: 'Reports & Compliance', icon: '📈',
     children: [
-      { path: '/reports', icon: '📈', label: 'Reports', module: 'reports', ported: false },
-      { path: '/procurement-reports', icon: '📑', label: 'Procurement Reports', module: 'reports', ported: false },
-      { path: '/apcpi', icon: '✅', label: 'APCPI Self-Assessment', module: 'reports', ported: false },
-      { path: '/documents', icon: '🗂️', label: 'Documents', module: 'documents', ported: false },
+      { path: '/reports', icon: '📈', label: 'Reports', module: 'reports', ported: true },
+      { path: '/procurement-reports', icon: '📑', label: 'Procurement Reports', module: 'reports', ported: true },
+      { path: '/apcpi', icon: '✅', label: 'APCPI Self-Assessment', module: 'reports', ported: true },
+      { path: '/documents', icon: '🗂️', label: 'Documents', module: 'documents', ported: true },
       { path: '/audit', icon: '🛡️', label: 'Audit Trail', module: 'audit', ported: true },
       { path: '/log-trails', icon: '📋', label: 'Log Trails', module: 'log-trails', ported: true },
     ],

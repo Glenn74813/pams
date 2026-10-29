@@ -38,4 +38,8 @@ public interface BiddingRepository extends JpaRepository<Bidding, Long> {
             order by b.createdAt desc, b.id desc
             """)
     Page<Bidding> search(@Param("status") String status, @Param("pr") Long pr, @Param("search") String search, Pageable pageable);
+
+    /** Biddings still under way (posted, not yet awarded, failed or cancelled). */
+    @Query("select b from Bidding b where b.deletedAt is null and b.status in ('pre_procurement', 'invitation', 'bid_opening', 'evaluation', 'awarded') and b.ntpDate is null order by b.id")
+    java.util.List<Bidding> findInProgress();
 }

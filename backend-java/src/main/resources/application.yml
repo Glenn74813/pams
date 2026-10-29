@@ -25,8 +25,8 @@ spring:
     property-naming-strategy: SNAKE_CASE
   servlet:
     multipart:
-      max-file-size: 10MB
-      max-request-size: 12MB
+      max-file-size: 25MB
+      max-request-size: 30MB
 
 server:
   port: ${SERVER_PORT:8095}
@@ -36,6 +36,8 @@ server:
 
 pams:
   timezone: Asia/Manila
+  # Where the React app is served; QR codes on labels point here.
+  app-url: ${PAMS_APP_URL:http://localhost:5190}
   storage:
     public-dir: ${PAMS_STORAGE_DIR:storage/public}
   jwt:

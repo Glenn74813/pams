@@ -1,7 +1,7 @@
 import { useState, type FormEvent } from 'react'
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { ApiError } from '../../api/client'
-import { gatePassApi, inventoryApi } from '../../api/endpoints'
+import { gatePassApi, inventoryApi, qrApi } from '../../api/endpoints'
 import type { Asset, GatePass } from '../../api/types'
 import { useAuth } from '../../auth/AuthContext'
 import { Modal } from '../../components/Modal'
@@ -15,6 +15,7 @@ import { AssetPicker, Badge } from './pickers'
 import '../inventory/inventory.css'
 import '../issuance/issuance.css'
 import './assets.css'
+import { QrSticker } from '../../components/QrLabelSheet'
 
 export function GatePassPage() {
   const { can } = useAuth()
@@ -22,7 +23,7 @@ export function GatePassPage() {
   const queryClient = useQueryClient()
   const [page, setPage] = useState(1)
   const [status, setStatus] = useState('released')
-  const [search, setSearch] = useState('')
+  const [search, setSearch] = useState(() => new URLSearchParams(window.location.search).get('search') ?? '')
   const [creating, setCreating] = useState(false)
   const [returning, setReturning] = useState<GatePass | null>(null)
   const [printing, setPrinting] = useState<GatePass | null>(null)
@@ -118,6 +119,7 @@ export function GatePassPage() {
             </button>
           </div>
           <AssetSlip kind="gate" gate={printing} config={config.data} />
+          <GatePassQr id={printing.id} />
         </Modal>
       )}
     </div>
@@ -260,5 +262,20 @@ function ReturnForm({ pass, onClose, onSaved }: { pass: GatePass; onClose: () =>
         </div>
       </form>
     </Modal>
+  )
+}
+
+/** Two codes: the unit (opens this exact asset) and the pass (verifies this release/return at the gate). */
+function GatePassQr({ id }: { id: number }) {
+  const q = useQuery({ queryKey: ['gate-pass-qr', id], queryFn: () => qrApi.gatePass(id) })
+  if (!q.data) return null
+  return (
+    <div className="no-print" style={{ marginTop: "1rem" }}>
+      <div className="qr-sheet">
+        <QrSticker label={q.data.gate_pass} />
+        {q.data.unit && <QrSticker label={q.data.unit} />}
+      </div>
+      <p className="small muted">Scan the pass at the gate to check this release; scan the unit to open the asset.</p>
+    </div>
   )
 }

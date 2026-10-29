@@ -8,6 +8,7 @@ import { formatDate, formatDateTime, formatPeso, formatQty, today } from '../../
 import { Badge } from '../assets/pickers'
 import { AbstractSlip } from './AbstractSlip'
 import { RFQ_STATUS } from './labels'
+import { AttachmentsPanel } from '../documents/AttachmentsPanel'
 
 interface Props {
   rfqId: number
@@ -26,6 +27,7 @@ export function RfqDetailModal({ rfqId, onClose, onEdit, onChanged }: Props) {
       {q.isError && <div className="alert alert-error">{(q.error as Error).message}</div>}
       {r && printing && <Abstract rfqId={r.id} onBack={() => setPrinting(false)} />}
       {r && !printing && <Details key={r.status + r.quotations_count} r={r} onPrint={() => setPrinting(true)} onEdit={onEdit} onChanged={onChanged} />}
+      {r && !printing && <AttachmentsPanel type="Rfq" id={r.id} label={r.rfq_number} docType="RFQ" />}
     </Modal>
   )
 }
