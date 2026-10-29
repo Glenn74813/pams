@@ -37,7 +37,6 @@ hashes, Manila-time timestamps and table layout unchanged.
 | Items | `GET/POST /api/inventory/items`, `GET/PUT/DELETE /api/inventory/items/{id}`, `items/options`, `items/available`, `items/{id}/lots`, `config`, `locations` |
 | Stock | `POST /api/inventory/items/{id}/stock`, `GET stock-entries`, `POST transfer-stock`, `GET stock-transfers`, `GET expiring` |
 | Stock card | `GET /api/reports/stock-card/{itemId}/preview` |
-| Suppliers | `GET /api/suppliers/options` (names only; the module itself is still in Laravel) |
 | Requests / issuance | `GET/POST /api/requests`, `GET/PUT/DELETE /api/requests/{id}`, `PUT {id}/approve-items`, `PUT {id}/approve`, `PUT {id}/reject` |
 | Stock adjustments | `GET/POST /api/stock-adjustments`, `GET/DELETE {id}`, `POST {id}/approve`, `POST {id}/reject` |
 | Semi-expendable | `GET /api/semi-expendable`, `POST /api/semi-expendable/{id}/return` |
@@ -53,6 +52,7 @@ hashes, Manila-time timestamps and table layout unchanged.
 | Receiving | `GET/POST /api/receiving/inspection-reports`, `GET/PUT/DELETE {id}`, `POST {id}/accept`, `reject` |
 | Contracts | `GET/POST /api/contracts`, `GET awarded-sources`, `GET/PUT/DELETE {id}`, `POST {id}/activate`, `complete`, `terminate`, `securities`, `amendments`, `extensions`, `calloffs`, `PUT {id}/liquidated-damages`, `PUT/DELETE securities/{id}`, `POST amendments/{id}/approve`, `DELETE amendments/{id}`, `PUT extensions/{id}/approve`, `deny`, `DELETE extensions/{id}`, `PUT calloffs/{id}` |
 | Suppliers | `GET /api/suppliers/options`, `GET/POST /api/suppliers`, `GET/PUT/DELETE {id}`, `POST {id}/eligibility`, `compliance`, `blacklist`, `evaluations`, `PUT/DELETE compliance/{id}`, `PUT blacklist/{id}/lift`, `DELETE evaluations/{id}` |
+| Physical count | `GET/POST /api/physical-inventory/counts`, `GET options`, `GET/PUT/DELETE {id}`, `POST {id}/start`, `record`, `scan`, `complete`, `return`, `verify`, `POST/DELETE {id}/properties/{lineId}` |
 | BAC | `GET/POST /api/bac/members`, `PUT/DELETE members/{id}`, `GET/POST meetings`, `GET/PUT/DELETE meetings/{id}`, `POST meetings/{id}/attendance`, `GET/POST resolutions`, `GET/PUT/DELETE resolutions/{id}`, `POST resolutions/{id}/submit`, `return`, `approve`, `archive` |
 
 Same paths and snake_case JSON as Laravel. Security and integrity changes made on the way: tokens are re-checked
@@ -135,6 +135,19 @@ include sanctions. Ratings are 1-5 by people who rate deliveries, one per evalua
 by the evaluator; performance also comes from the record: awards, POs, contracts, on-time deliveries (IAR delivery
 date vs PO date), units rejected and liquidated damages. Suppliers with history cannot be deleted. Not ported:
 scanned copies of compliance documents (needs the Documents module).
+Physical count: a count is of stock-room supplies (RPCI, optionally one category and its subcategories), PPE (RPCPPE)
+or semi-expendable property (RPCSP), optionally one department's holders. Starting it freezes the book: one line per
+item at its on-hand quantity and average cost, or one line per tag on the asset masterlist with holder, department,
+book value and condition. Laravel instead read the book whenever a line was typed in, then on verification set
+on-hand to the counted figure (clamped at zero) through self-approved adjustments that never moved the stock lots.
+Here the variance against the cut-off is posted, so receipts and issues made during the count stand, and each line
+shows its movement since the cut-off. Verification creates approved stock adjustments that move real lots (overages
+on items with no cost history need a unit cost); a shortage larger than what is on hand now is refused rather than
+clamped. The verifier cannot be the person who set up, closed or took part in the count (super admin exempt); a
+verifier can send it back for recount with a reason. Asset counts go tag by tag: found (with the condition seen,
+written to the asset on verification), missing (any tag left unchecked when the count closes), found but not in the
+masterlist (description required), or on record under another department. Missing assets stay on record for
+follow-up. Count numbers are PIC-YYYY-MM-NNNN.
 
 Not ported yet: QR codes, Clone-PC assembly parts, the RSMI report and the Excel versions of the stock
 card, RIS, ICS and PAR (the React app prints RIS/ICS/PAR from the browser).

@@ -19,6 +19,8 @@ public interface PropertyRepository extends JpaRepository<Property, Long> {
 
     boolean existsByTagNumberIgnoreCase(String tag);
 
+    Optional<Property> findFirstByTagNumberIgnoreCase(String tag);
+
     boolean existsBySerialNumberIgnoreCase(String serial);
 
     boolean existsBySerialNumberIgnoreCaseAndIdNot(String serial, Long id);

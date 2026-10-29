@@ -1105,3 +1105,101 @@ export interface Supplier {
   can_delete: boolean
   created_at: string
 }
+
+// ── Physical count ──
+
+export type CountType = 'supplies' | 'ppe' | 'semi_expendable'
+export type CountStatus = 'draft' | 'in_progress' | 'completed' | 'verified'
+export type TagFinding = 'pending' | 'found' | 'condition_changed' | 'missing' | 'not_in_masterlist' | 'out_of_scope'
+
+export interface PhysicalCount {
+  id: number
+  count_number: string
+  count_type: CountType
+  count_date: string
+  status: CountStatus
+  purpose: string | null
+  remarks: string | null
+  department: NamedRef | null
+  category: NamedRef | null
+  initiated_by: NamedRef
+  started_at: string | null
+  completed_by: NamedRef | null
+  completed_at: string | null
+  verified_by: NamedRef | null
+  verified_at: string | null
+  total_items_counted: number
+  total_items_found: number
+  total_discrepancies: number
+  created_at: string
+  can_edit: boolean
+  can_start: boolean
+  can_count: boolean
+  can_complete: boolean
+  can_return: boolean
+  can_verify: boolean
+  can_delete: boolean
+  verify_blocked: string | null
+}
+
+export interface CountLine {
+  id: number
+  item: { id: number; code: string; name: string; unit_of_measure: string; category: string | null; on_hand: number }
+  system_quantity: number
+  counted_quantity: number | null
+  variance: number | null
+  unit_cost: number
+  variance_value: number | null
+  location: string | null
+  remarks: string | null
+  counted_by: NamedRef | null
+  counted_at: string | null
+  moved_since_cutoff: number
+  adjustment_number: string | null
+}
+
+export interface CountTag {
+  id: number
+  property_id: number | null
+  tag_number: string
+  description: string | null
+  holder: NamedRef | null
+  department: NamedRef | null
+  book_value: number | null
+  condition_on_record: string | null
+  in_masterlist: boolean
+  in_scope: boolean
+  result: 'pending' | 'found' | 'missing'
+  finding: TagFinding
+  observed_condition: string | null
+  location: string | null
+  remarks: string | null
+  checked_by: NamedRef | null
+  checked_at: string | null
+  removable: boolean
+}
+
+export interface CountSummary {
+  lines: number
+  counted: number
+  matched: number
+  short_count: number
+  short_value: number
+  over_count: number
+  over_value: number
+  expected: number
+  found: number
+  missing: number
+  missing_value: number
+  not_in_masterlist: number
+  out_of_scope: number
+  condition_changed: number
+  unserviceable: number
+}
+
+export interface CountDetail {
+  count: PhysicalCount
+  summary: CountSummary
+  lines: CountLine[]
+  properties: CountTag[]
+}

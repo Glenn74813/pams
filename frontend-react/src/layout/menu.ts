@@ -41,7 +41,7 @@ export const menuGroups: MenuGroup[] = [
       { path: '/items', icon: '📦', label: 'Items', module: 'items', ported: true },
       { path: '/warehouse', icon: '🏬', label: 'Warehouse', module: 'warehouse', ported: true },
       { path: '/requests', icon: '📋', label: 'Issuance', module: 'requests', ported: true },
-      { path: '/physical', icon: '🔍', label: 'Physical Count', module: 'physical', ported: false },
+      { path: '/physical', icon: '🔍', label: 'Physical Count', module: 'physical', ported: true },
       { path: '/stock-adjustments', icon: '⚖️', label: 'Stock Adjustments', module: 'stock-adjustments', ported: true },
       { path: '/semi-expendable', icon: '🧾', label: 'Semi-Expendable', module: 'semi-expendable', ported: true },
       { path: '/monitoring', icon: '📊', label: 'Monitoring', module: 'monitoring', ported: false },

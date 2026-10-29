@@ -31,6 +31,9 @@ import type {
   SupplyRequest,
   StockTransfer,
   Supplier,
+  CountDetail,
+  PhysicalCount,
+  CountType,
   LoginResponse,
   Paged,
   PermissionCatalogue,
@@ -646,4 +649,48 @@ export const contractApi = {
   assessLd: (id: number, input: { as_of_date?: string | null; remarks?: string | null }) => api<Contract>('PUT', `${CT}/${id}/liquidated-damages`, input),
   addCalloff: (id: number, input: { title: string; amount: number; calloff_date?: string }) => api<Contract>('POST', `${CT}/${id}/calloffs`, input),
   setCalloff: (calloffId: number, status: string) => api<Contract>('PUT', `${CT}/calloffs/${calloffId}`, { status }),
+}
+
+export interface CountInput {
+  count_type: CountType
+  count_date: string
+  department_id?: number | null
+  category_id?: number | null
+  purpose?: string
+  remarks?: string
+}
+
+export interface CountLineInput {
+  id: number
+  counted_quantity: number | null
+  unit_cost?: number | null
+  location?: string
+  remarks?: string
+}
+
+export interface ScanInput {
+  tag_number: string
+  observed_condition?: string
+  location?: string
+  remarks?: string
+  description?: string
+}
+
+const PC = '/physical-inventory/counts'
+export const physicalCountApi = {
+  list: (f: { page: number; status?: string; count_type?: string; search?: string }) => api<Paged<PhysicalCount>>('GET', PC, undefined, { params: f }),
+  options: () => api<{ departments: { id: number; name: string }[]; categories: { id: number; name: string }[] }>('GET', `${PC}/options`),
+  get: (id: number) => api<CountDetail>('GET', `${PC}/${id}`),
+  create: (input: CountInput) => api<CountDetail>('POST', PC, input),
+  update: (id: number, input: CountInput) => api<CountDetail>('PUT', `${PC}/${id}`, input),
+  remove: (id: number) => api<{ message: string }>('DELETE', `${PC}/${id}`),
+  start: (id: number) => api<CountDetail>('POST', `${PC}/${id}/start`),
+  record: (id: number, lines: CountLineInput[]) => api<CountDetail>('POST', `${PC}/${id}/record`, { lines }),
+  scan: (id: number, input: ScanInput) => api<CountDetail>('POST', `${PC}/${id}/scan`, input),
+  mark: (id: number, lineId: number, input: { result: string; observed_condition?: string | null; location?: string | null; remarks?: string | null }) =>
+    api<CountDetail>('POST', `${PC}/${id}/properties/${lineId}`, input),
+  unscan: (id: number, lineId: number) => api<CountDetail>('DELETE', `${PC}/${id}/properties/${lineId}`),
+  complete: (id: number) => api<CountDetail>('POST', `${PC}/${id}/complete`),
+  sendBack: (id: number, remarks: string) => api<CountDetail>('POST', `${PC}/${id}/return`, { remarks }),
+  verify: (id: number) => api<CountDetail>('POST', `${PC}/${id}/verify`),
 }
