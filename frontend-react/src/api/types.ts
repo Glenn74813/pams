@@ -877,3 +877,112 @@ export interface BiddingPrOption {
   failed_biddings: number
   lines: RfqPrOption['lines']
 }
+
+// ── Purchase orders & receiving ──
+
+export type PoStatus = 'draft' | 'sent' | 'confirmed' | 'partially_received' | 'received' | 'cancelled'
+
+export interface PoLine {
+  id: number
+  description: string
+  specifications: string | null
+  unit: string | null
+  quantity: number
+  unit_cost: number
+  total_cost: number
+  delivered: number
+  accepted: number
+  outstanding: number
+  rfq_item_id: number | null
+  bidding_item_id: number | null
+}
+
+export interface PurchaseOrder {
+  id: number
+  po_number: string
+  status: PoStatus
+  supplier: NamedRef
+  purchase_request: NamedRef | null
+  department: NamedRef | null
+  source: { type: 'rfq' | 'bidding'; id: number; number: string; noa_number: string | null } | null
+  order_date: string
+  delivery_date: string | null
+  late: boolean
+  delivery_address: string | null
+  total_amount: number
+  remarks: string | null
+  preparer: NamedRef | null
+  approver: NamedRef | null
+  fund_source: string | null
+  caf_number: string | null
+  items_count: number
+  items: PoLine[] | null
+  inspections: { id: number; iar_number: string; status: string; acceptance_status: string; delivery_date: string }[] | null
+  can_edit: boolean
+  can_send: boolean
+  can_confirm: boolean
+  can_cancel: boolean
+  can_delete: boolean
+  can_receive: boolean
+  created_at: string
+}
+
+export interface AwardSource {
+  type: 'rfq' | 'bidding'
+  id: number
+  number: string
+  title: string
+  supplier: NamedRef
+  purchase_request: NamedRef | null
+  noa_number: string
+  amount: number
+  delivery_lead_days: number | null
+  delivery_term: string | null
+  prices_fixed: boolean
+  lines: { source_item_id: number; description: string; specifications: string | null; unit: string | null; quantity: number; unit_cost: number }[]
+}
+
+export interface IarLine {
+  id: number
+  purchase_order_item_id: number | null
+  description: string
+  specifications: string | null
+  unit: string | null
+  quantity_ordered: number
+  quantity_received: number
+  quantity_accepted: number
+  quantity_rejected: number
+  status: string
+  remarks: string | null
+  unit_cost: number | null
+  item: { id: number; code: string; name: string; unit_of_measure: string } | null
+  stock_id: number | null
+}
+
+export interface InspectionReport {
+  id: number
+  iar_number: string
+  purchase_order: NamedRef | null
+  supplier: NamedRef | null
+  purchase_request: NamedRef | null
+  department: NamedRef | null
+  delivery_date: string
+  inspection_date: string
+  inspector: NamedRef
+  status: 'passed' | 'partial' | 'failed'
+  total_items_ordered: number
+  total_items_received: number
+  total_items_accepted: number
+  total_items_rejected: number
+  observations: string | null
+  remarks: string | null
+  acceptance_status: 'pending' | 'accepted' | 'partially_accepted' | 'rejected'
+  accepter: NamedRef | null
+  accepted_at: string | null
+  items: IarLine[] | null
+  can_edit: boolean
+  can_accept: boolean
+  can_reject: boolean
+  can_delete: boolean
+  created_at: string
+}

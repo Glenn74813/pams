@@ -88,6 +88,14 @@ public class Stock extends Timestamped {
         return itemId;
     }
 
+    public Long getIarId() {
+        return iarId;
+    }
+
+    public void setIarId(Long iarId) {
+        this.iarId = iarId;
+    }
+
     public void setItemId(Long itemId) {
         this.itemId = itemId;
     }

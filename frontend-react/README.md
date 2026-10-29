@@ -27,4 +27,5 @@ RIS / ICS / PAR), Stock Adjustments, Semi-Expendable Property, Assets & Property
 depreciation, printable PAR / ICS / PTR / return slips), My Assets, Disposal, Gate Pass, Procurement Planning
 (PPMP, APP, budget monitoring) and Purchase Requests (approval routing, CAF, printable Appendix 60 PR form), RFQ / alternative modes (quotations,
 printable abstract, award, NOA/NTP), Competitive Bidding (ITB, bid opening, staged evaluation, MEARB,
-post-qualification, protests, observers, timeline, Abstract of Bids) and BAC Management (meetings and attendance, resolutions, composition).
+post-qualification, protests, observers, timeline, Abstract of Bids), Purchase Orders (from awards, printable
+Appendix 61), Receiving (inspection, acceptance into stock, printable Appendix 62 IAR) and BAC Management (meetings and attendance, resolutions, composition).

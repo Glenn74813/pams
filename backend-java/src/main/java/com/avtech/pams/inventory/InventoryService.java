@@ -299,6 +299,11 @@ public class InventoryService {
      * COA Circular 2022-004: a unit cost at or above the capitalization threshold is PPE, below it
      * Semi-Expendable. (Assemblies are judged by their assembled total, so they skip this.)
      */
+    /** The COA classification check for stock of this item received at this unit cost (assemblies are exempt). */
+    public void checkUnitCost(Item item, BigDecimal unitCost) {
+        if (!item.isAssembly()) checkClassification(item.classification(), unitCost);
+    }
+
     private void checkClassification(Classification cls, BigDecimal unitCost) {
         if (unitCost == null || unitCost.signum() <= 0) return;
         BigDecimal threshold = settings.capitalizationThreshold();

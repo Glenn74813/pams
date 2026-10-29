@@ -1,6 +1,7 @@
 import { api } from './client'
 import type {
   AppPlan,
+  AwardSource,
   BacCompliance,
   BacMeeting,
   BacMember,
@@ -19,6 +20,7 @@ import type {
   Department,
   ExpiringStock,
   InventoryConfig,
+  InspectionReport,
   Item,
   SemiExpendableIssue,
   StockAdjustment,
@@ -30,6 +32,7 @@ import type {
   Paged,
   PermissionCatalogue,
   Ppmp,
+  PurchaseOrder,
   ProcurementOptions,
   PurchaseRequest,
   Rfq,
@@ -517,4 +520,54 @@ export const biddingApi = {
   updateObserver: (observerId: number, input: { name: string; organization?: string | null; observer_type: string; invited?: boolean; invited_date?: string | null; attended?: boolean }) =>
     api<Bidding>('PUT', `${BD}/observers/${observerId}`, input),
   removeObserver: (observerId: number) => api<Bidding>('DELETE', `${BD}/observers/${observerId}`),
+}
+
+export interface PoInput {
+  source_type?: 'rfq' | 'bidding'
+  source_id?: number
+  delivery_date?: string | null
+  delivery_address?: string | null
+  remarks?: string | null
+  prices?: { source_item_id: number; unit_cost: number }[]
+}
+
+export const poApi = {
+  sources: () => api<{ data: AwardSource[] }>('GET', '/procurement/award-sources'),
+  list: (f: { page: number; status?: string; search?: string }) => api<Paged<PurchaseOrder>>('GET', '/procurement/purchase-orders', undefined, { params: f }),
+  get: (id: number) => api<PurchaseOrder>('GET', `/procurement/purchase-orders/${id}`),
+  create: (input: PoInput) => api<PurchaseOrder>('POST', '/procurement/purchase-orders', input),
+  update: (id: number, input: PoInput) => api<PurchaseOrder>('PUT', `/procurement/purchase-orders/${id}`, input),
+  send: (id: number) => api<PurchaseOrder>('POST', `/procurement/purchase-orders/${id}/send`),
+  confirm: (id: number) => api<PurchaseOrder>('POST', `/procurement/purchase-orders/${id}/confirm`),
+  cancel: (id: number, reason?: string) => api<PurchaseOrder>('POST', `/procurement/purchase-orders/${id}/cancel`, { reason }),
+  remove: (id: number) => api<{ message: string }>('DELETE', `/procurement/purchase-orders/${id}`),
+}
+
+export interface IarInput {
+  purchase_order_id: number
+  delivery_date: string
+  inspection_date?: string
+  observations?: string | null
+  remarks?: string | null
+  items: { purchase_order_item_id: number; quantity_received: number; quantity_accepted: number; quantity_rejected: number; remarks?: string | null }[]
+}
+
+export interface AcceptLineInput {
+  iar_item_id: number
+  item_id: number
+  lot_number?: string | null
+  expiration_date?: string | null
+  brand_name?: string | null
+  location?: string | null
+}
+
+export const receivingApi = {
+  list: (f: { page: number; acceptance_status?: string; purchase_order_id?: number; search?: string }) =>
+    api<Paged<InspectionReport>>('GET', '/receiving/inspection-reports', undefined, { params: f }),
+  get: (id: number) => api<InspectionReport>('GET', `/receiving/inspection-reports/${id}`),
+  create: (input: IarInput) => api<InspectionReport>('POST', '/receiving/inspection-reports', input),
+  update: (id: number, input: IarInput) => api<InspectionReport>('PUT', `/receiving/inspection-reports/${id}`, input),
+  remove: (id: number) => api<{ message: string }>('DELETE', `/receiving/inspection-reports/${id}`),
+  accept: (id: number, lines: AcceptLineInput[]) => api<InspectionReport>('POST', `/receiving/inspection-reports/${id}/accept`, { lines }),
+  reject: (id: number, remarks: string) => api<InspectionReport>('POST', `/receiving/inspection-reports/${id}/reject`, { remarks }),
 }

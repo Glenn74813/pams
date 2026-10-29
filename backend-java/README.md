@@ -49,6 +49,8 @@ hashes, Manila-time timestamps and table layout unchanged.
 | Purchase requests | `GET/POST /api/purchase-requests`, `GET/PUT/DELETE {id}`, `POST {id}/submit`, `cancel`, `approve-step`, `return`, `certify-funds` |
 | RFQ / alternative modes | `GET/POST /api/rfq`, `GET purchase-requests`, `GET/PUT/DELETE {id}`, `GET {id}/abstract`, `POST {id}/issue`, `close`, `cancel`, `award`, `noa`, `ntp`, `POST {id}/quotations`, `PUT/DELETE quotations/{id}` |
 | Competitive bidding | `GET/POST /api/bidding`, `GET purchase-requests`, `GET/PUT/DELETE {id}`, `PUT {id}/criteria`, `POST {id}/pre-proc`, `invitation`, `open-bids`, `bidders`, `declare-failed`, `cancel`, `award`, `noa`, `ntp`, `protests`, `observers`, `PUT/DELETE bidders/{id}`, `PUT bidders/{id}/scores`, `PUT protests/{id}`, `PUT/DELETE observers/{id}` |
+| Purchase orders | `GET /api/procurement/award-sources`, `GET/POST /api/procurement/purchase-orders`, `GET/PUT/DELETE {id}`, `POST {id}/send`, `confirm`, `cancel` |
+| Receiving | `GET/POST /api/receiving/inspection-reports`, `GET/PUT/DELETE {id}`, `POST {id}/accept`, `reject` |
 | BAC | `GET/POST /api/bac/members`, `PUT/DELETE members/{id}`, `GET/POST meetings`, `GET/PUT/DELETE meetings/{id}`, `POST meetings/{id}/attendance`, `GET/POST resolutions`, `GET/PUT/DELETE resolutions/{id}`, `POST resolutions/{id}/submit`, `return`, `approve`, `archive` |
 
 Same paths and snake_case JSON as Laravel. Security and integrity changes made on the way: tokens are re-checked
@@ -99,8 +101,19 @@ ranked only bidders that had already passed post-qualification. The award goes t
 approved BAC award resolution, with no protest pending; NOA/NTP numbers are generated and share the RFQ series. A
 second failed bidding for a PR flags Negotiated Procurement. The MaxPETD timeline is shown per bidding. The separate
 BAC evaluations log (bac_evaluations) is not ported: each bidder's stage results are the evaluation record.
+Purchase orders are issued only on an award with its Notice of Award (Laravel allowed free-form POs and gave bidding
+POs no lines): RFQ POs take the winning quotation's lines and prices; bidding POs take the bidding lines priced from
+the bid form, totalling the awarded bid (never above; below only by centavo rounding). One live PO per award; creating
+needs edit_procurement (End Users hold create_procurement for PRs). The preparer cannot approve/send the PO; edits are
+for drafts only. V11 adds PO line units, award-line links and created_by.
+Receiving: the inspection committee records each delivery on an IAR against PO lines (accepted + rejected = received,
+rejections need a reason, never more than is outstanding). Someone other than the inspector then accepts it, which
+receives the accepted quantities into stock as new lots at the PO price — supplier, IAR, lot no., expiry, location —
+with a stock card entry and the COA classification check; Laravel never put accepted deliveries into stock. A rejected
+delivery reopens the PO quantities. PO status follows deliveries (partially received / received). Not ported: the
+Excel IAR export (the React app prints Appendix 61 PO and Appendix 62 IAR), contracts and the supplier module.
 
-Not ported yet: QR codes, Clone-PC assembly parts, receiving stock straight from an IAR line, the RSMI report and the Excel versions of the stock
+Not ported yet: QR codes, Clone-PC assembly parts, the RSMI report and the Excel versions of the stock
 card, RIS, ICS and PAR (the React app prints RIS/ICS/PAR from the browser).
 
 Everything else is still served by `../Backend`.
