@@ -986,3 +986,69 @@ export interface InspectionReport {
   can_delete: boolean
   created_at: string
 }
+
+// ── Contracts ──
+
+export interface Contract {
+  id: number
+  contract_number: string
+  title: string
+  contract_type: string
+  status: 'draft' | 'active' | 'completed' | 'terminated'
+  supplier: NamedRef
+  purchase_request: NamedRef | null
+  source: NamedRef | null
+  source_type: 'rfq' | 'bidding' | null
+  purchase_order: NamedRef | null
+  amount: number
+  original_amount: number
+  variation_percent: number
+  start_date: string | null
+  end_date: string | null
+  signed_date: string | null
+  delivery_lead_days: number | null
+  days_to_expiry: number | null
+  expiring: boolean
+  expired: boolean
+  description: string | null
+  terms: string | null
+  remarks: string | null
+  preparer: NamedRef | null
+  delivery_deadline: string | null
+  approved_extension_days: number
+  delivery: { order_value: number; delivered_value: number; undelivered_value: number; complete: boolean; last_delivery: string | null } | null
+  ld_estimate: { deadline: string; as_of: string; days_delayed: number; basis: number; rate: number; amount: number; capped: boolean; may_terminate: boolean } | null
+  ld_amount: number
+  ld_days_delayed: number | null
+  ld_as_of_date: string | null
+  ld_remarks: string | null
+  fund_source: string | null
+  caf_number: string | null
+  calloffs_total: number
+  amendments: { id: number; amendment_number: number; title: string; description: string | null; amount_change: number; new_end_date: string | null; status: string; preparer: NamedRef | null; approver: NamedRef | null; approved_at: string | null; remarks: string | null; can_approve: boolean }[] | null
+  securities: { id: number; security_type: string; form: string | null; reference_number: string | null; amount: number; percentage: number | null; posted_date: string | null; validity_date: string | null; status: string; remarks: string | null; required: number | null; sufficient: boolean }[] | null
+  extensions: { id: number; requested_days: number; approved_days: number | null; reason: string; status: string; requested_date: string; approver: NamedRef | null; approved_at: string | null; remarks: string | null }[] | null
+  calloffs: { id: number; calloff_number: string; title: string; supplier: NamedRef; amount: number; calloff_date: string | null; status: string; remarks: string | null }[] | null
+  performance_secured: boolean
+  can_edit: boolean
+  can_activate: boolean
+  can_complete: boolean
+  can_terminate: boolean
+  can_delete: boolean
+  created_at: string
+}
+
+export interface ContractSource {
+  type: 'rfq' | 'bidding'
+  id: number
+  number: string
+  title: string
+  supplier: NamedRef
+  purchase_request: NamedRef | null
+  amount: number
+  noa_number: string
+  ntp_date: string | null
+  delivery_lead_days: number | null
+  delivery_term: string | null
+  purchase_order: NamedRef | null
+}

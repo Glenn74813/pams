@@ -27,7 +27,7 @@ export const menuGroups: MenuGroup[] = [
       { path: '/bidding', icon: '🏛️', label: 'Competitive Bidding', module: 'bidding', ported: true },
       { path: '/bac', icon: '⚖️', label: 'BAC Management', module: 'bac', ported: true },
       { path: '/procurement', icon: '🧾', label: 'Purchase Orders', module: 'procurement', ported: true },
-      { path: '/contracts', icon: '📜', label: 'Contracts', module: 'contracts', ported: false },
+      { path: '/contracts', icon: '📜', label: 'Contracts', module: 'contracts', ported: true },
       { path: '/receiving', icon: '📥', label: 'Receiving', module: 'receiving', ported: true },
     ],
   },

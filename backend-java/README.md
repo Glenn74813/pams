@@ -51,6 +51,7 @@ hashes, Manila-time timestamps and table layout unchanged.
 | Competitive bidding | `GET/POST /api/bidding`, `GET purchase-requests`, `GET/PUT/DELETE {id}`, `PUT {id}/criteria`, `POST {id}/pre-proc`, `invitation`, `open-bids`, `bidders`, `declare-failed`, `cancel`, `award`, `noa`, `ntp`, `protests`, `observers`, `PUT/DELETE bidders/{id}`, `PUT bidders/{id}/scores`, `PUT protests/{id}`, `PUT/DELETE observers/{id}` |
 | Purchase orders | `GET /api/procurement/award-sources`, `GET/POST /api/procurement/purchase-orders`, `GET/PUT/DELETE {id}`, `POST {id}/send`, `confirm`, `cancel` |
 | Receiving | `GET/POST /api/receiving/inspection-reports`, `GET/PUT/DELETE {id}`, `POST {id}/accept`, `reject` |
+| Contracts | `GET/POST /api/contracts`, `GET awarded-sources`, `GET/PUT/DELETE {id}`, `POST {id}/activate`, `complete`, `terminate`, `securities`, `amendments`, `extensions`, `calloffs`, `PUT {id}/liquidated-damages`, `PUT/DELETE securities/{id}`, `POST amendments/{id}/approve`, `DELETE amendments/{id}`, `PUT extensions/{id}/approve`, `deny`, `DELETE extensions/{id}`, `PUT calloffs/{id}` |
 | BAC | `GET/POST /api/bac/members`, `PUT/DELETE members/{id}`, `GET/POST meetings`, `GET/PUT/DELETE meetings/{id}`, `POST meetings/{id}/attendance`, `GET/POST resolutions`, `GET/PUT/DELETE resolutions/{id}`, `POST resolutions/{id}/submit`, `return`, `approve`, `archive` |
 
 Same paths and snake_case JSON as Laravel. Security and integrity changes made on the way: tokens are re-checked
@@ -111,7 +112,18 @@ rejections need a reason, never more than is outstanding). Someone other than th
 receives the accepted quantities into stock as new lots at the PO price — supplier, IAR, lot no., expiry, location —
 with a stock card entry and the COA classification check; Laravel never put accepted deliveries into stock. A rejected
 delivery reopens the PO quantities. PO status follows deliveries (partially received / received). Not ported: the
-Excel IAR export (the React app prints Appendix 61 PO and Appendix 62 IAR), contracts and the supplier module.
+Excel IAR export (the React app prints Appendix 61 PO and Appendix 62 IAR) and the supplier module.
+Contracts are drawn up only on an award with its Notice of Award, at the awarded price, linked to the award's PO; one
+live contract per award. A contract takes effect (activated by someone other than its preparer) once signed, dated and
+secured by a performance security of the required amount: 5% of the price in cash, bank draft/guarantee or letter of
+credit (10% for infrastructure), 30% as a surety bond, valid to the end date. Only description and remarks change while in
+force; amendments move price and end date, approved by someone other than their drafter, within 10% of the original price
+in total. Extension requests must come before the deadline and are granted up to the days asked. Liquidated damages are
+worked out from the PO deliveries: 1/10 of 1% per day of the value not delivered by the deadline (PO delivery date, or
+NTP + delivery days, or end date, plus extensions), capped at 10% of the price, which flags termination. A contract
+completes only when the PO is fully delivered; performance securities are returned only after completion; forfeiture
+and termination need a ground. Framework-agreement call-offs stay within the agreement amount. Not ported: extension
+request letters (file upload) and e-signatures.
 
 Not ported yet: QR codes, Clone-PC assembly parts, the RSMI report and the Excel versions of the stock
 card, RIS, ICS and PAR (the React app prints RIS/ICS/PAR from the browser).

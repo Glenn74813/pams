@@ -16,6 +16,8 @@ import type {
   GatePass,
   AuthUser,
   Category,
+  Contract,
+  ContractSource,
   Classification,
   Department,
   ExpiringStock,
@@ -570,4 +572,45 @@ export const receivingApi = {
   remove: (id: number) => api<{ message: string }>('DELETE', `/receiving/inspection-reports/${id}`),
   accept: (id: number, lines: AcceptLineInput[]) => api<InspectionReport>('POST', `/receiving/inspection-reports/${id}/accept`, { lines }),
   reject: (id: number, remarks: string) => api<InspectionReport>('POST', `/receiving/inspection-reports/${id}/reject`, { remarks }),
+}
+
+export interface ContractInput {
+  source_type?: 'rfq' | 'bidding'
+  source_id?: number
+  title?: string
+  contract_type?: string
+  start_date?: string | null
+  end_date?: string | null
+  signed_date?: string | null
+  delivery_lead_days?: number | null
+  description?: string | null
+  terms?: string | null
+  remarks?: string | null
+}
+
+const CT = '/contracts'
+
+export const contractApi = {
+  list: (f: { page: number; status?: string; contract_type?: string; expiring_days?: number; search?: string }) => api<Paged<Contract>>('GET', CT, undefined, { params: f }),
+  get: (id: number) => api<Contract>('GET', `${CT}/${id}`),
+  sources: () => api<{ data: ContractSource[] }>('GET', `${CT}/awarded-sources`),
+  create: (input: ContractInput) => api<Contract>('POST', CT, input),
+  update: (id: number, input: ContractInput) => api<Contract>('PUT', `${CT}/${id}`, input),
+  remove: (id: number) => api<{ message: string }>('DELETE', `${CT}/${id}`),
+  activate: (id: number) => api<Contract>('POST', `${CT}/${id}/activate`),
+  complete: (id: number) => api<Contract>('POST', `${CT}/${id}/complete`),
+  terminate: (id: number, remarks: string) => api<Contract>('POST', `${CT}/${id}/terminate`, { remarks }),
+  addSecurity: (id: number, input: { security_type: string; form?: string | null; reference_number?: string | null; amount: number; posted_date?: string; validity_date?: string | null; remarks?: string | null }) =>
+    api<Contract>('POST', `${CT}/${id}/securities`, input),
+  setSecurity: (securityId: number, status: 'returned' | 'forfeited', remarks?: string) => api<Contract>('PUT', `${CT}/securities/${securityId}`, { status, remarks }),
+  removeSecurity: (securityId: number) => api<Contract>('DELETE', `${CT}/securities/${securityId}`),
+  addAmendment: (id: number, input: { title: string; description?: string | null; amount_change?: number; new_end_date?: string | null }) => api<Contract>('POST', `${CT}/${id}/amendments`, input),
+  approveAmendment: (amendmentId: number) => api<Contract>('POST', `${CT}/amendments/${amendmentId}/approve`),
+  removeAmendment: (amendmentId: number) => api<Contract>('DELETE', `${CT}/amendments/${amendmentId}`),
+  addExtension: (id: number, input: { requested_days: number; reason: string; requested_date?: string }) => api<Contract>('POST', `${CT}/${id}/extensions`, input),
+  approveExtension: (extensionId: number, approvedDays: number, remarks?: string) => api<Contract>('PUT', `${CT}/extensions/${extensionId}/approve`, { approved_days: approvedDays, remarks }),
+  denyExtension: (extensionId: number, remarks: string) => api<Contract>('PUT', `${CT}/extensions/${extensionId}/deny`, { remarks }),
+  assessLd: (id: number, input: { as_of_date?: string | null; remarks?: string | null }) => api<Contract>('PUT', `${CT}/${id}/liquidated-damages`, input),
+  addCalloff: (id: number, input: { title: string; amount: number; calloff_date?: string }) => api<Contract>('POST', `${CT}/${id}/calloffs`, input),
+  setCalloff: (calloffId: number, status: string) => api<Contract>('PUT', `${CT}/calloffs/${calloffId}`, { status }),
 }
