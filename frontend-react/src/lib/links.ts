@@ -3,6 +3,7 @@ const PAGES: Record<string, string> = {
   PurchaseRequest: '/purchase-requests',
   Request: '/requests',
   Item: '/items',
+  ScheduledJob: '/monitoring',
   Stock: '/warehouse',
   Contract: '/contracts',
   ContractSecurity: '/contracts',

@@ -24,9 +24,9 @@ PAMS can also run on PostgreSQL. Where it matters, this manual says so.
 **Every working day**
 
 1. Open PAMS and sign in. This confirms the service, the database and the certificate together.
-2. Confirm last night's backup: a new `backup_*` file in the backups folder with a sensible size.
+2. Check the notification bell for **Scheduled job failed**, then confirm last night's backup: a new `backup_*` file in the backups folder with a sensible size.
 
-   > A failed scheduled backup is **only written to the log**. Nobody is notified, so this check is what catches it. Search the log for `Alert job` and `backup:`.
+   > PAMS notifies everyone with `manage_system_settings` (and Super Admins) when a job fails, once a day per job. It **cannot** tell you when the server was off at 02:00 or the database was down, so still look for the file.
 3. Read the dashboard's "Waiting on you".
 
 **Every week**
@@ -63,7 +63,7 @@ A monitoring tool can poll `GET https://<address>/api/auth/sso/config`. It needs
 
 ## 4. Scheduled jobs
 
-Times are Philippine time. Monitoring → **Scheduled alerts** (needs `manage_system_settings`) lists them and can run any of them on demand; the result shows on screen at that moment and is not kept. Scheduled runs write their result to the log.
+Times are Philippine time. Monitoring → **Scheduled alerts** (needs `manage_system_settings`) lists them and can run any of them on demand; the result shows on screen at that moment and is not kept. Scheduled runs write their result to the log. When any job fails, a **Scheduled job failed** notification goes to those same people, with the reason; clicking it opens Monitoring. Notifications appear inside PAMS only, not by email, so someone must sign in to see them.
 
 | Job | When | What it does |
 |---|---|---|

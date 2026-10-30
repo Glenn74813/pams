@@ -58,6 +58,10 @@ public class AlertJobs {
     private static final List<String> PROCUREMENT_PEOPLE = List.of("manage_bidding", "process_award", "create_rfq");
     private static final List<String> CONTRACT_PEOPLE = List.of("create_contracts", "edit_contracts");
     private static final String ITEM = "App\\Models\\Item";
+    private static final String FAILED = "Failed:";
+    private static final String JOB_FAILED = "job_failed";
+    /** Opens Monitoring from the notification (see frontend lib/links.ts). */
+    private static final String JOB_RELATED = "ScheduledJob";
 
     private final JdbcTemplate jdbc;
     private final NotificationService notifications;
@@ -91,8 +95,30 @@ public class AlertJobs {
         this.storageDir = storageDir;
     }
 
-    /** Runs a job by name and returns what it did; a failing job is logged, never thrown. */
+    /** Runs a job by name and returns what it did; a failing job is logged and reported to administrators, never thrown. */
     public String run(String job) {
+        String result = execute(job);
+        if (result.startsWith(FAILED)) {
+            log.error("Scheduled job {} failed: {}", job, result);
+            reportFailure(job, result);
+        }
+        return result;
+    }
+
+    /** Tells whoever can run the jobs, once a day per job, so a failed backup does not go unnoticed. */
+    private void reportFailure(String job, String result) {
+        try {
+            if (recentlyAlerted(JOB_FAILED, JOB_RELATED, null, 1, job)) return;
+            String detail = result.substring(FAILED.length()).trim();
+            notifications.notifyPermission(List.of("manage_system_settings"), null, JOB_FAILED, "Scheduled job failed — " + job,
+                    (detail.length() > 400 ? detail.substring(0, 400) + "…" : detail) + " Fix the cause, then run it again from Monitoring → Scheduled alerts.", JOB_RELATED, null);
+        } catch (RuntimeException e) {
+            // Most likely the database itself is down; the log entry above is all that can be done.
+            log.error("Could not report the failure of job {}: {}", job, e.getMessage());
+        }
+    }
+
+    private String execute(String job) {
         try {
             return switch (job) {
                 case "low_stock" -> lowStock();
@@ -313,7 +339,7 @@ public class AlertJobs {
             }
             return "Backup written to " + file + " (" + Files.size(file) / 1024 + " KB)" + (removed > 0 ? "; removed " + removed + " older than 7 days." : ".");
         } catch (IOException e) {
-            return "Failed: " + e.getMessage();
+            return "Failed: could not write the backup in " + dir + " (" + e.getClass().getSimpleName() + ": " + e.getMessage() + ").";
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
             return "Failed: interrupted.";
