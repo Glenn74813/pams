@@ -39,6 +39,12 @@ JSON parameters). Text blocks drop trailing spaces, so a splice like `""" + db.t
 
 Timestamps are Manila wall-clock time and passwords are bcrypt `$2y$`, as in the Laravel schema.
 
+Demo data: `python3 tools/seed_demo.py` (backend running, PostgreSQL) fills an empty database through the API with at
+least five records per module at different stages: staff in each role, eligible suppliers, items and stock, PPMPs and
+the APP, purchase requests, RFQs, biddings, BAC records, POs, inspections, contracts, payment schedules, PS-DBM
+requests, issuance, adjustments, assets, gate passes, counts, disposals, petty cash and documents. Demo staff sign in
+as `firstname.lastname@agency.gov.ph` with the password set in the script. The test suites' wipe removes it again.
+
 Windows Server deployment (SQL Server, HTTPS, Windows service): see `../docs/deployment-windows.md`.
 
 ## Ported so far
