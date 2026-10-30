@@ -42,8 +42,9 @@ Timestamps are Manila wall-clock time and passwords are bcrypt `$2y$`, as in the
 Demo data: `python3 tools/seed_demo.py` (backend running, PostgreSQL) fills an empty database through the API with at
 least five records per module at different stages: staff in each role, eligible suppliers, items and stock, PPMPs and
 the APP, purchase requests, RFQs, biddings, BAC records, POs, inspections, contracts, payment schedules, PS-DBM
-requests, issuance, adjustments, assets, gate passes, counts, disposals, petty cash and documents. Demo staff sign in
-as `firstname.lastname@agency.gov.ph` with the password set in the script. The test suites' wipe removes it again.
+requests, issuance, adjustments, assets with locations, maintenance, gate passes, counts, disposals, petty cash, documents,
+clearances and signing requests. Demo staff sign in as `firstname.lastname@agency.gov.ph` with the password set in the
+script. The test suites' wipe removes it again.
 
 Windows Server deployment (SQL Server, HTTPS, Windows service): see `../docs/deployment-windows.md`.
 
@@ -104,6 +105,27 @@ Service - DBM" supplier, numbered as the APR and linked by `purchase_orders.ps_o
 and takes into stock; that order cannot be edited or cancelled from Purchase Orders. A line PS cannot supply takes
 the Certificate of Non-Availability of Stock: it leaves the request and, for 15 days, may go on a Shopping or SVP RFQ.
 PS-DBM lines cannot otherwise go to an RFQ or bidding. The Agency Procurement Report counts the requests.
+
+NPC IMS Terms of Reference (V23):
+- Locations (`/api/locations`, Settings → Locations) and `properties.location_id`; moves are kept in
+  `property_location_moves` (`POST /api/properties/{id}/location`, `GET .../locations`). Photos of assets and items:
+  `GET/POST/DELETE /api/properties/{id}/photo` and `/api/items/{id}/photo` (PNG/JPEG/WebP by magic bytes, 5 MB).
+  `location_id` and `photo_path` are mapped read-only on the entities, so saving an asset or item never clears them.
+- Maintenance (`/api/maintenance`): preventive/corrective/inspection/calibration, overdue and due-in-30-days
+  filters, repeating schedules re-booked from the date done; corrective jobs feed the PPE Ledger Card repair history.
+- Clearance (`/api/clearances`): the certificate (`CPT-YYYY-NNNN`, Excel) is issued only when the person holds no
+  asset that is not disposed; a lost one blocks it until relieved through disposal.
+- Signing (`/api/signing`): detached signatures over the stored file's exact bytes (RSA/ECDSA with SHA-256/384/512),
+  certificate chain validated with the JDK's PKIX validator against `trusted_certificates`; the certificate's email,
+  when present, must be the signer's. Files live in `signing/` beside the public storage dir. A signing platform
+  uses `/api/signing/platform/**` with `pams.signing.platform-key` (X-Signing-Key).
+- SSO (`/api/auth/sso/*`): OpenID Connect code flow with PKCE, ID token checked with the provider's JWKS (jjwt),
+  issuer, audience, expiry and nonce; accounts matched by `users.sso_subject`, else by email (then linked). The
+  callback hands the browser a one-time code that `POST /api/auth/sso/exchange` swaps for the usual token.
+- Reports (`report/TorReportController`): PPE Ledger Card (App. 70), Supplies Ledger Card (App. 57), semi-expendable
+  cards, RegSPI, RSPI, ITR, IRP, CNAS, COS letter of undertaking; list reports (lapsing schedule, PIF, IAR/RIS/PO
+  registers, master lists) render through `TabularReport` to xlsx, CSV (UTF-8 BOM) or PDF (OpenPDF, icu4j excluded).
+- Dashboard: stock value and assets by category, received/issued per month over 12 months, overdue maintenance.
 
 Issuance assigns RIS numbers (plus ICS for semi-expendable and PAR for PPE) when stock goes out; both "approve all" and
 per-line approval issue first-expired-first-out and write the stock card. Requesters can't approve their own requests and

@@ -4,6 +4,7 @@ import { AgingReport, InventoryReport, ReconciliationReport, RisReport, RpciRepo
 import { IirupReport, PropertyCardReport, PtrReport, RlsddpReport, RpcppeReport, RpcspReport, WmrReport } from './PropertyReports'
 import '../inventory/inventory.css'
 import '../issuance/issuance.css'
+import { TorReports } from './TorReports'
 import './reports.css'
 
 interface Tab {
@@ -45,6 +46,17 @@ const GROUPS: { label: string; tabs: Tab[] }[] = [
     tabs: [
       { id: 'iar', name: 'Inspection & Acceptance', code: 'IAR', hint: 'Inspection and Acceptance Report (Appendix 62) per delivery.', view: () => <IarReport /> },
       { id: 'request-logs', name: 'Request Logs', hint: 'Every item requested, by department and period.', view: () => <RequestLogsReport /> },
+    ],
+  },
+  {
+    label: 'Ledgers, Registers & Master Lists',
+    tabs: [
+      {
+        id: 'ledgers-registers',
+        name: 'Ledgers, Registers & Master Lists',
+        hint: 'Ledger cards, semi-expendable registers, ITR, IRP, CNAS, lapsing schedule, monitoring registers and master lists — Excel, CSV or PDF, for any dates.',
+        view: () => <TorReports />,
+      },
     ],
   },
 ]

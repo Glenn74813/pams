@@ -6,6 +6,7 @@ import { useAuth } from '../auth/AuthContext'
 import { formatPeso } from '../lib/format'
 import { WATCH_KINDS, pageFor } from '../lib/links'
 import { BarList } from './dashboard/BarList'
+import { DonutChart, TrendChart } from './dashboard/Charts'
 import { PR_STATUS, fiscalYears, thisYear } from './procurement/labels'
 import './dashboard/dashboard.css'
 
@@ -93,6 +94,15 @@ export function DashboardPage() {
                   <h2>Requests by department — last 90 days</h2>
                   <BarList rows={d.inventory.by_department} value="count" unit="requests" empty="No requests in the last 90 days." />
                 </section>
+                <section className="dash-card">
+                  <h2>Stock value by category</h2>
+                  <DonutChart rows={d.inventory.by_category} value="amount" empty="No stock on hand." />
+                </section>
+                <section className="dash-card dash-card-wide">
+                  <h2>Stock received and issued — last 12 months</h2>
+                  <TrendChart months={d.inventory.trend} />
+                  <p className="muted small">Valued at each item's current average unit cost.</p>
+                </section>
               </div>
             </>
           )}
@@ -108,6 +118,13 @@ export function DashboardPage() {
                 <Kpi label="Acquisition cost" value={formatPeso(d.assets.acquisition_cost)} />
                 <Kpi label="Book value" value={formatPeso(d.assets.book_value)} />
                 <Kpi label="Disposals in progress" value={d.assets.disposal_pending} to={canOpen('disposal') ? '/disposal' : undefined} />
+                <Kpi label="Maintenance overdue" value={d.assets.maintenance_overdue} tone={warnIf(d.assets.maintenance_overdue, 'bad')} to={canOpen('maintenance') ? '/maintenance' : undefined} />
+              </div>
+              <div className="dash-grid">
+                <section className="dash-card">
+                  <h2>Assets by category — acquisition cost</h2>
+                  <DonutChart rows={d.assets.by_category} value="amount" empty="No assets on record." />
+                </section>
               </div>
             </>
           )}

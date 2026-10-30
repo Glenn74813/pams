@@ -5,6 +5,10 @@ import { Modal } from '../../components/Modal'
 import { formatDate, formatPeso, formatQty } from '../../lib/format'
 import { ClassificationBadge, StockLevelBadge } from './badges'
 import { ExcelButton } from '../../components/ExcelButton'
+import { photosApi } from '../../api/tor'
+import { useAuth } from '../../auth/AuthContext'
+import { PhotoPanel } from '../assets/AssetExtras'
+import '../assets/assets.css'
 
 const WARRANTY: Record<string, string> = { active: 'Active', expiring: 'Expiring', expired: 'Expired', none: '—' }
 
@@ -13,6 +17,7 @@ export function ItemDetailModal({ itemId, onClose }: { itemId: number; onClose: 
   const item = useQuery({ queryKey: ['item', itemId], queryFn: () => inventoryApi.item(itemId) })
   const card = useQuery({ queryKey: ['stock-card', itemId], queryFn: () => inventoryApi.stockCard(itemId), enabled: tab === 'card' })
   const it = item.data
+  const { can } = useAuth()
 
   return (
     <Modal title={it ? `${it.code} — ${it.name}` : 'Item'} onClose={onClose} width={980}>
@@ -31,6 +36,15 @@ export function ItemDetailModal({ itemId, onClose }: { itemId: number; onClose: 
 
           {tab === 'details' && (
             <>
+              <div className="asset-details">
+              <PhotoPanel
+                path={photosApi.item(it.id)}
+                hasPhoto={it.has_photo}
+                canEdit={can('edit_inventory')}
+                label={it.name}
+                onUpload={async (f) => { await photosApi.uploadItem(it.id, f); await item.refetch() }}
+                onRemove={async () => { await photosApi.removeItem(it.id); await item.refetch() }}
+              />
               <dl className="detail-grid">
                 <dt>Category</dt>
                 <dd>{it.category?.name ?? '—'}</dd>
@@ -58,6 +72,7 @@ export function ItemDetailModal({ itemId, onClose }: { itemId: number; onClose: 
                   </>
                 )}
               </dl>
+              </div>
 
               <h4 style={{ margin: '1.25rem 0 0.6rem' }}>Stock lots</h4>
               <div className="table-wrap">

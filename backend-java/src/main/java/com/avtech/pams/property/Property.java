@@ -107,6 +107,16 @@ public class Property extends Timestamped {
     @Column(name = "qr_code_path")
     private String qrCodePath;
 
+    /** Set through the location and photo endpoints only, never by saving the asset. */
+    @Column(name = "location_id", insertable = false, updatable = false)
+    private Long locationId;
+
+    @Column(name = "photo_path", insertable = false, updatable = false)
+    private String photoPath;
+
+    public Long getLocationId() { return locationId; }
+    public boolean hasPhoto() { return photoPath != null && !photoPath.isBlank(); }
+
     public boolean isGone() {
         return DISPOSED.equals(status);
     }

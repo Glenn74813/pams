@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
-import { setUnauthorizedHandler, tokenStore } from '../api/client'
+import { api, setUnauthorizedHandler, tokenStore } from '../api/client'
 import { authApi, settingsApi } from '../api/endpoints'
 import type { AuthUser } from '../api/types'
 import { AuthContext, IDLE_FLAG, type AuthState, type LoginOutcome } from './AuthContext'
@@ -60,6 +60,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     store('local', ISSUED_KEY, String(Date.now()))
     setUser(await authApi.me())
     return { ok: true }
+  }, [])
+
+  const loginWithSso = useCallback(async (code: string) => {
+    const res = await api<{ access_token: string }>('POST', '/auth/sso/exchange', { code }, { skipAuthRedirect: true })
+    tokenStore.set(res.access_token)
+    store('local', ISSUED_KEY, String(Date.now()))
+    setUser(await authApi.me())
   }, [])
 
   const logout = useCallback(async (reason?: 'idle') => {
@@ -128,8 +135,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const can = (...permissions: string[]) =>
       !!user && (user.is_super_admin || permissions.some((p) => user.permissions.includes(p)))
     const canOpen = (module: string) => !!user && user.accessible_modules.includes(module)
-    return { user, loading, login, logout, refresh, can, canOpen }
-  }, [user, loading, login, logout, refresh])
+    return { user, loading, login, loginWithSso, logout, refresh, can, canOpen }
+  }, [user, loading, login, loginWithSso, logout, refresh])
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>
 }

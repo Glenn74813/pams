@@ -119,6 +119,24 @@ public class AuthService {
         return jwtService.issue(principal.user().getId());
     }
 
+    /**
+     * Sign-in vouched for by the SSO identity provider (which did the password and any second factor):
+     * the account must still be active here, and the attempt is logged like any other.
+     */
+    public JwtService.IssuedToken ssoLogin(User user, String ip, String userAgent) {
+        if (!user.isActive()) {
+            record(user.getEmail(), ip, userAgent, false, "Account deactivated (SSO)");
+            throw ApiException.of(HttpStatus.FORBIDDEN, "This account has been deactivated. Ask your system administrator.");
+        }
+        record(user.getEmail(), ip, userAgent, true, null);
+        return jwtService.issue(user.getId());
+    }
+
+    /** Logs an SSO sign-in that was refused before a PAMS account was found. */
+    public void ssoRefused(String email, String ip, String userAgent, String reason) {
+        record(email == null ? "(unknown)" : email, ip, userAgent, false, reason);
+    }
+
     private void record(String email, String ip, String userAgent, boolean ok, String reason) {
         attempts.save(new LoginAttempt(email, ip, userAgent, ok, reason));
     }

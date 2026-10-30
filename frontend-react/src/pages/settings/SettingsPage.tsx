@@ -3,12 +3,13 @@ import { useAuth } from '../../auth/AuthContext'
 import { AccountTab } from './AccountTab'
 import { AgencyTab } from './AgencyTab'
 import { DataTab } from './DataTab'
+import { LocationsTab } from './LocationsTab'
 import { SignatoriesTab } from './SignatoriesTab'
 import { SystemTab } from './SystemTab'
 import '../inventory/inventory.css'
 import './settings.css'
 
-type Tab = 'account' | 'agency' | 'signatories' | 'system' | 'data'
+type Tab = 'account' | 'agency' | 'signatories' | 'locations' | 'system' | 'data'
 
 export function SettingsPage() {
   const { can } = useAuth()
@@ -16,6 +17,7 @@ export function SettingsPage() {
     ['account', 'My account', true],
     ['agency', 'Agency profile & logos', can('view_settings', 'edit_settings', 'manage_agency_profile')],
     ['signatories', 'Signatories', can('view_settings', 'edit_settings', 'manage_signatories')],
+    ['locations', 'Locations', can('view_settings', 'edit_settings', 'view_properties')],
     ['system', 'System', can('view_settings', 'edit_settings', 'manage_system_settings')],
     ['data', 'Data import/export', can('manage_system_settings')],
   ]
@@ -36,6 +38,7 @@ export function SettingsPage() {
       {tab === 'account' && <AccountTab />}
       {tab === 'agency' && <AgencyTab />}
       {tab === 'signatories' && <SignatoriesTab />}
+      {tab === 'locations' && <LocationsTab />}
       {tab === 'system' && <SystemTab />}
       {tab === 'data' && <DataTab />}
     </div>

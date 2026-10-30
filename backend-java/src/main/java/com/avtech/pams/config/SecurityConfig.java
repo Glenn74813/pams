@@ -35,6 +35,11 @@ public class SecurityConfig {
                 .sessionManagement(s -> s.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers(HttpMethod.POST, "/api/auth/login").permitAll()
+                        // Single sign-on: the provider redirects the browser here before there is a PAMS token.
+                        .requestMatchers(HttpMethod.GET, "/api/auth/sso/config", "/api/auth/sso/start", "/api/auth/sso/callback").permitAll()
+                        .requestMatchers(HttpMethod.POST, "/api/auth/sso/exchange").permitAll()
+                        // The external signing platform authenticates with its own key (checked in SigningController).
+                        .requestMatchers("/api/signing/platform/**").permitAll()
                         // QR scan pages opened from a phone; every request carries a signed checksum.
                         .requestMatchers(HttpMethod.GET, "/api/public/qr/**").permitAll()
                         .requestMatchers("/api/**").authenticated()

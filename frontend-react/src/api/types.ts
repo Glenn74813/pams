@@ -147,6 +147,7 @@ export interface Item {
   total_value: number
   /** Same rule as Monitoring: top up to the maximum (or twice the minimum) once at or below the minimum. */
   suggested_order: number
+  has_photo: boolean
   stocks?: StockLot[]
   created_at: string | null
   updated_at: string | null
@@ -305,6 +306,8 @@ export interface Asset {
   accumulated_depreciation: number
   book_value: number
   monthly_depreciation: number
+  location: { id: number; name: string } | null
+  has_photo: boolean
   can_edit: boolean
   can_transfer: boolean
   can_delete: boolean
@@ -1352,8 +1355,10 @@ export interface DashboardData {
     expired_lots: number
     top_items: Ranked[]
     by_department: Ranked[]
+    by_category: Ranked[]
+    trend: { month: string; received: number; issued: number; receipts: number; issues: number }[]
   }
-  assets?: { total: number; assigned: number; available: number; under_repair: number; acquisition_cost: number; book_value: number; disposal_pending: number }
+  assets?: { total: number; assigned: number; available: number; under_repair: number; acquisition_cost: number; book_value: number; disposal_pending: number; by_category: Ranked[]; maintenance_overdue: number }
   procurement?: {
     active: Record<string, number>
     app_utilization: { estimated: number; utilized: number; remaining: number; rate: number }

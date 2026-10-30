@@ -84,7 +84,7 @@ public class PropertyController {
                                LocalDate assignedDate, String accountabilityNumber, String status, String condition,
                                BigDecimal acquisitionCost, LocalDate acquisitionDate, int usefulLifeYears, BigDecimal salvageValue,
                                boolean isDepreciable, BigDecimal accumulatedDepreciation, BigDecimal bookValue, BigDecimal monthlyDepreciation,
-                               boolean canEdit, boolean canTransfer, boolean canDelete) {
+                               Ref location, boolean hasPhoto, boolean canEdit, boolean canTransfer, boolean canDelete) {
     }
 
     public record TransferView(Long id, String transferType, String referenceNumber, LocalDate transferDate, Ref from, Ref to,
@@ -286,6 +286,12 @@ public class PropertyController {
             jdbc.query("select u.id, d.name from users u join departments d on d.id = u.department_id where u.id in (" + in + ")",
                     rs -> { offices.put(rs.getLong(1), rs.getString(2)); }, byUser.keySet().toArray());
         }
+        Map<Long, String> locations = new HashMap<>();
+        Set<Long> locIds = list.stream().map(Property::getLocationId).filter(Objects::nonNull).collect(Collectors.toSet());
+        if (!locIds.isEmpty()) {
+            String in = locIds.stream().map(x -> "?").collect(Collectors.joining(","));
+            jdbc.query("select id, name from asset_locations where id in (" + in + ")", rs -> { locations.put(rs.getLong(1), rs.getString(2)); }, locIds.toArray());
+        }
         boolean edit = current.any("edit_properties");
         boolean move = current.any("transfer_properties", "assign_properties");
         boolean del = current.any("delete_properties");
@@ -303,6 +309,7 @@ public class PropertyController {
                     p.getAssignedDate(), p.getAccountabilityNumber(), p.getStatus(), p.getCondition(),
                     p.getAcquisitionCost(), p.getAcquisitionDate(), p.getUsefulLifeYears(), p.getSalvageValue(), p.isDepreciable(),
                     p.getAccumulatedDepreciation(), depreciation.bookValue(p), p.isDepreciable() ? depreciation.monthly(p) : BigDecimal.ZERO,
+                    p.getLocationId() == null ? null : new Ref(p.getLocationId(), locations.get(p.getLocationId())), p.hasPhoto(),
                     edit && !p.isGone(), move && !p.isGone(), del));
         }
         return out;

@@ -14,9 +14,11 @@ import { QrLabelSheet } from '../../components/QrLabelSheet'
 import { qrApi } from '../../api/endpoints'
 import { AssemblyPanel } from './AssemblyPanel'
 import { useAuth } from '../../auth/AuthContext'
+import { photosApi } from '../../api/tor'
+import { AssetMaintenance, LocationHistory, MoveLocationForm, PhotoPanel } from './AssetExtras'
 
-type Tab = 'details' | 'history' | 'depreciation' | 'gate'
-type Action = 'transfer' | 'return' | 'issue' | 'edit' | null
+type Tab = 'details' | 'history' | 'location' | 'maintenance' | 'depreciation' | 'gate'
+type Action = 'transfer' | 'return' | 'issue' | 'edit' | 'move' | null
 
 interface Props {
   assetId: number
@@ -114,6 +116,11 @@ export function AssetDetailModal({ assetId, onClose, onChanged }: Props) {
                 Reinstate
               </button>
             )}
+            {(a.can_edit || a.can_transfer) && (
+              <button className="btn btn-outline btn-sm" onClick={() => setAction('move')}>
+                ⌖ Move location
+              </button>
+            )}
             {a.can_edit && (
               <button className="btn btn-outline btn-sm" onClick={() => setAction('edit')}>
                 ✎ Edit details
@@ -127,7 +134,18 @@ export function AssetDetailModal({ assetId, onClose, onChanged }: Props) {
             {can('view_properties') && <ExcelButton path={`/reports/property-card/${a.id}/export`} name={`PropertyCard_${a.tag_number}.xlsx`} label="Property Card" />}
           </div>
 
-          {action && action !== 'edit' && (
+          {action === 'move' && (
+            <MoveLocationForm
+              asset={a}
+              onCancel={() => setAction(null)}
+              onDone={(msg) => {
+                setAction(null)
+                asset.refetch()
+                onChanged(msg)
+              }}
+            />
+          )}
+          {action && action !== 'edit' && action !== 'move' && (
             <MoveForm
               asset={a}
               kind={action}
@@ -154,7 +172,7 @@ export function AssetDetailModal({ assetId, onClose, onChanged }: Props) {
           )}
 
           <div className="tabs">
-            {(['details', 'history', 'depreciation', 'gate'] as Tab[]).map((t) => (
+            {(['details', 'history', 'location', 'maintenance', 'depreciation', 'gate'] as Tab[]).map((t) => (
               <button key={t} className={tab === t ? 'active' : ''} onClick={() => setTab(t)}>
                 {t === 'gate' ? 'Gate passes' : cap(t)}
               </button>
@@ -162,6 +180,15 @@ export function AssetDetailModal({ assetId, onClose, onChanged }: Props) {
           </div>
 
           {tab === 'details' && (
+            <div className="asset-details">
+            <PhotoPanel
+              path={photosApi.asset(a.id)}
+              hasPhoto={a.has_photo}
+              canEdit={a.can_edit}
+              label={`${a.tag_number} ${a.item?.name ?? ''}`}
+              onUpload={async (f) => { await photosApi.uploadAsset(a.id, f); await asset.refetch() }}
+              onRemove={async () => { await photosApi.removeAsset(a.id); await asset.refetch() }}
+            />
             <dl className="detail-grid">
               <dt>Status</dt>
               <dd>
@@ -169,6 +196,8 @@ export function AssetDetailModal({ assetId, onClose, onChanged }: Props) {
               </dd>
               <dt>Accountable person</dt>
               <dd>{a.holder ? `${a.holder.name}${a.holder_office ? ' · ' + a.holder_office : ''} since ${formatDate(a.assigned_date)}` : 'Returned to the property office'}</dd>
+              <dt>Location</dt>
+              <dd>{a.location?.name ?? '—'}</dd>
               <dt>Document</dt>
               <dd className="mono">{a.accountability_number ?? '—'}</dd>
               <dt>Item</dt>
@@ -198,7 +227,11 @@ export function AssetDetailModal({ assetId, onClose, onChanged }: Props) {
               <dt>Warranty</dt>
               <dd>{a.warranty_expiry ? `until ${formatDate(a.warranty_expiry)}` : a.warranty ?? '—'}</dd>
             </dl>
+            </div>
           )}
+
+          {tab === 'location' && <LocationHistory assetId={a.id} />}
+          {tab === 'maintenance' && <AssetMaintenance asset={a} canManage={can('edit_properties')} />}
 
           {tab === 'history' && (
             <div className="table-wrap">

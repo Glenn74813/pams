@@ -1,6 +1,6 @@
 import {
   Activity, Armchair, BadgeCheck, CalendarRange, ChartColumn, ClipboardCheck, DoorOpen, FileChartColumn, FilePlus2, FileQuestion, FileSignature,
-  FolderOpen, Gavel, LayoutDashboard, Laptop, Package, PackageCheck, ScanLine, ScrollText, Settings, ShieldCheck, ShoppingCart,
+  FolderOpen, Gavel, PenLine, UserRoundCheck, Wrench, LayoutDashboard, Laptop, Package, PackageCheck, ScanLine, ScrollText, Settings, ShieldCheck, ShoppingCart,
   SlidersHorizontal, Store, Trash2, Truck, UserCheck, Users, UsersRound, Wallet, Warehouse, type LucideIcon,
 } from 'lucide-react'
 
@@ -74,6 +74,8 @@ export const menuGroups: MenuGroup[] = [
       { path: '/properties', icon: Laptop, label: 'Assets (PAR / PTR)', module: 'properties', ported: true },
       { path: '/my-assets', icon: UserCheck, label: 'My Assets', module: 'my-assets', ported: true },
       { path: '/gate-pass', icon: DoorOpen, label: 'Gate Pass', module: 'gate-pass', ported: true },
+      { path: '/maintenance', icon: Wrench, label: 'Maintenance', module: 'maintenance', ported: true },
+      { path: '/clearance', icon: UserRoundCheck, label: 'Turnover & Clearance', module: 'clearance', ported: true },
     ],
   },
   {
@@ -90,6 +92,7 @@ export const menuGroups: MenuGroup[] = [
       { path: '/procurement-reports', icon: FileChartColumn, label: 'Procurement Reports', module: 'reports', ported: true },
       { path: '/apcpi', icon: BadgeCheck, label: 'APCPI Self-Assessment', module: 'apcpi', ported: true },
       { path: '/documents', icon: FolderOpen, label: 'Documents', module: 'documents', ported: true },
+      { path: '/signing', icon: PenLine, label: 'Digital Signatures', module: 'signing', ported: true },
       { path: '/audit', icon: ShieldCheck, label: 'Audit Trail', module: 'audit', ported: true },
       { path: '/log-trails', icon: ScrollText, label: 'Log Trails', module: 'log-trails', ported: true },
     ],

@@ -185,7 +185,7 @@ public class StockCardForm {
     }
 
     /** Signed change per movement (positive = receipt, negative = issue). */
-    private static int signedDelta(Map<String, Object> log) {
+    static int signedDelta(Map<String, Object> log) {
         int qty = Math.abs(intOf(log.get("quantity")));
         String action = (String) log.get("action");
         if (RECEIPTS.contains(action)) return qty;

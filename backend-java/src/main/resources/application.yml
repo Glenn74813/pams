@@ -49,3 +49,19 @@ pams:
     max-login-attempts: 5
     lockout-minutes: 15
     login-requests-per-minute: 5
+  # Single sign-on through an OpenID Connect identity provider (TOR 1.3.1), e.g. Microsoft Entra ID,
+  # Google Workspace or Keycloak. Off unless an issuer and client are configured. People sign in with
+  # the provider; their PAMS account is matched by email and must already exist and be active.
+  sso:
+    issuer: ${PAMS_SSO_ISSUER:}
+    client-id: ${PAMS_SSO_CLIENT_ID:}
+    client-secret: ${PAMS_SSO_CLIENT_SECRET:}
+    # The provider sends people back here; register it with the provider. Defaults to {app-url}/api/auth/sso/callback.
+    redirect-uri: ${PAMS_SSO_REDIRECT_URI:}
+    button-label: ${PAMS_SSO_BUTTON_LABEL:Sign in with single sign-on}
+    scopes: ${PAMS_SSO_SCOPES:openid email profile}
+  # Digital signing (TOR 1.4.11): an external signing platform (e.g. one using PNPKI certificates) is
+  # told about each new signing request and posts the signature back with this key.
+  signing:
+    platform-url: ${PAMS_SIGNING_PLATFORM_URL:}
+    platform-key: ${PAMS_SIGNING_PLATFORM_KEY:}

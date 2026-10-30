@@ -11,6 +11,8 @@ export interface AuthState {
   /** True until the stored token has been checked against /auth/me. */
   loading: boolean
   login: (email: string, password: string, otp?: string) => Promise<LoginOutcome>
+  /** Finishes a single sign-on: swaps the one-time code from the provider's redirect for a session. */
+  loginWithSso: (code: string) => Promise<void>
   logout: (reason?: 'idle') => Promise<void>
   /** Reloads the signed-in user, e.g. after a forced password change. */
   refresh: () => Promise<void>

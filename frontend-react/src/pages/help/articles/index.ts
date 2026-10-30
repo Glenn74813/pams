@@ -4,6 +4,7 @@ import { dashboardArticle, faqArticle, gettingStartedArticle, notificationsArtic
 import { inventoryArticles } from './inventory'
 import { procurementArticles } from './procurement'
 import { reportArticles } from './reports'
+import { torArticles } from './tor'
 import type { Article, Block } from './types'
 
 export { AREAS, type Area, type Article, type Block, type Section } from './types'
@@ -21,6 +22,7 @@ export const ARTICLES: Article[] = [
   ...assetArticles,
   ...reportArticles,
   ...adminArticles,
+  ...torArticles,
 ]
 
 export const articleBySlug = new Map(ARTICLES.map((a) => [a.slug, a]))

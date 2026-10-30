@@ -208,7 +208,7 @@ public class AuthController {
         return users.findById(current.user().getId()).orElseThrow(() -> ApiException.notFound("User"));
     }
 
-    private Map<String, Object> tokenResponse(JwtService.IssuedToken token, User user) {
+    Map<String, Object> tokenResponse(JwtService.IssuedToken token, User user) {
         Map<String, Object> res = new LinkedHashMap<>();
         res.put("access_token", token.token());
         res.put("token_type", "bearer");

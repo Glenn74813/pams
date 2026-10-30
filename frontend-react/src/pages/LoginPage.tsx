@@ -1,6 +1,8 @@
-import { useState, type FormEvent } from 'react'
+import { useEffect, useRef, useState, type FormEvent } from 'react'
+import { useQuery } from '@tanstack/react-query'
 import { Navigate, useLocation, useNavigate } from 'react-router'
 import { ApiError } from '../api/client'
+import { ssoApi } from '../api/tor'
 import { IDLE_FLAG, useAuth } from '../auth/AuthContext'
 import { PasswordInput } from '../components/PasswordInput'
 import './LoginPage.css'
@@ -13,7 +15,7 @@ function greeting() {
 }
 
 export function LoginPage() {
-  const { user, login } = useAuth()
+  const { user, login, loginWithSso } = useAuth()
   const navigate = useNavigate()
   const location = useLocation()
   const [email, setEmail] = useState('')
@@ -32,6 +34,28 @@ export function LoginPage() {
       return null
     }
   })
+
+  const sso = useQuery({ queryKey: ['sso-config'], queryFn: ssoApi.config, retry: false, staleTime: Infinity })
+  // Back from the identity provider: ?sso_code= to finish signing in, or ?sso_error= to say why it failed.
+  const ssoHandled = useRef(false)
+  useEffect(() => {
+    if (ssoHandled.current) return
+    ssoHandled.current = true
+    const params = new URLSearchParams(window.location.search)
+    const code = params.get('sso_code')
+    const ssoError = params.get('sso_error')
+    if (!code && !ssoError) return
+    window.history.replaceState(null, '', window.location.pathname)
+    if (ssoError) {
+      setError(ssoError)
+      return
+    }
+    setBusy(true)
+    loginWithSso(code!)
+      .then(() => navigate('/dashboard', { replace: true }))
+      .catch((err) => setError(err instanceof ApiError ? err.message : 'Single sign-on failed. Please try again.'))
+      .finally(() => setBusy(false))
+  }, [loginWithSso, navigate])
 
   const from = (location.state as { from?: string } | null)?.from ?? '/dashboard'
   if (user) return <Navigate to={from} replace />
@@ -154,6 +178,16 @@ export function LoginPage() {
                 {busy ? 'Verifying…' : twoFactor ? 'Verify & Login' : 'Login'}
               </button>
             </form>
+            {sso.data?.enabled && !twoFactor && (
+              <>
+                <div className="login-divider">
+                  <span>or</span>
+                </div>
+                <a className="btn-sso" href={ssoApi.startUrl}>
+                  {sso.data.label}
+                </a>
+              </>
+            )}
           </div>
         </div>
       </div>

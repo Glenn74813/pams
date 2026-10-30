@@ -72,7 +72,18 @@ Edit `C:\PAMS\.env` (see the comments in it):
   requests to HTTPS and sends HSTS.
 - `PAMS_FRONTEND_DIR=C:/PAMS/web`, `PAMS_STORAGE_DIR=C:/PAMS/storage/public` (signatures, logos,
   uploaded documents; backups go to `C:\PAMS\storage\backups`).
-- `PAMS_APP_URL` — the address on QR labels (can be changed later in Settings → System).
+- `PAMS_APP_URL` — the address on QR labels (can be changed later in Settings → System). Single sign-on
+  and the signing platform also send people and files back to this address.
+- Single sign-on (optional): `PAMS_SSO_ISSUER` (the provider's issuer URL, e.g.
+  `https://login.microsoftonline.com/<tenant-id>/v2.0`), `PAMS_SSO_CLIENT_ID`, `PAMS_SSO_CLIENT_SECRET`, and
+  optionally `PAMS_SSO_BUTTON_LABEL`. Register `https://<PAMS_APP_URL host>/api/auth/sso/callback` as the
+  redirect URI with the provider (or set `PAMS_SSO_REDIRECT_URI`). Accounts are matched by email, so create
+  the users in PAMS first; their role still comes from PAMS.
+- Digital signing platform (optional): `PAMS_SIGNING_PLATFORM_KEY` (a long random value shared with the
+  platform) and `PAMS_SIGNING_PLATFORM_URL` (where PAMS posts each new signing request). The platform fetches
+  the file from `/api/signing/platform/requests/{number}/file` and posts signatures to
+  `/api/signing/platform/signatures`, both with the key in the `X-Signing-Key` header. Add the agency's CA
+  certificates (PNPKI root and intermediates) under Digital Signatures → Trusted CAs before anyone signs.
 
 Restrict `C:\PAMS\.env` and `C:\PAMS\certs` to Administrators and the service account.
 

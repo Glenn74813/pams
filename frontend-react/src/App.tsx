@@ -39,6 +39,9 @@ import { PurchaseRequestsPage } from './pages/procurement/PurchaseRequestsPage'
 import { LoginPage } from './pages/LoginPage'
 import { NotFoundPage } from './pages/NotFoundPage'
 import { UsersPage } from './pages/users/UsersPage'
+import { MaintenancePage } from './pages/maintenance/MaintenancePage'
+import { ClearancePage } from './pages/clearance/ClearancePage'
+import { SigningPage } from './pages/signing/SigningPage'
 
 /** The page for each menu path. */
 const ported: Record<string, React.ReactNode> = {
@@ -53,6 +56,9 @@ const ported: Record<string, React.ReactNode> = {
   '/my-assets': <MyAssetsPage />,
   '/disposal': <DisposalPage />,
   '/gate-pass': <GatePassPage />,
+  '/maintenance': <MaintenancePage />,
+  '/clearance': <ClearancePage />,
+  '/signing': <SigningPage />,
   '/procurement-planning': <PlanningPage />,
   '/purchase-requests': <PurchaseRequestsPage />,
   '/rfq': <RfqPage />,

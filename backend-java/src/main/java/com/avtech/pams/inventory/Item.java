@@ -51,6 +51,10 @@ public class Item extends Timestamped {
     @Column(name = "max_stock")
     private Integer maxStock;
 
+    /** Set through the photo endpoints only, never by saving the item. */
+    @Column(name = "photo_path", insertable = false, updatable = false)
+    private String photoPath;
+
     @Column(name = "is_expandable", nullable = false)
     private boolean ppe;
 
@@ -102,6 +106,10 @@ public class Item extends Timestamped {
 
     public Long getId() {
         return id;
+    }
+
+    public boolean hasPhoto() {
+        return photoPath != null && !photoPath.isBlank();
     }
 
     public String getCode() {

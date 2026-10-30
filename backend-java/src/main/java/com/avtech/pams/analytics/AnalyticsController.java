@@ -98,6 +98,8 @@ public class AnalyticsController {
         if (current.any("approve_disposal")) t.add(new Todo("disposal", "Disposal requests to approve", count("select count(*) from disposal_requests where status = 'submitted'"), "/disposal"));
         if (current.any("accept_delivery")) t.add(new Todo("iar", "Inspection reports awaiting acceptance", count("select count(*) from inspection_acceptance_reports where acceptance_status = 'pending'"), "/receiving"));
         if (current.any("approve_adjustments", "manage_warehouse")) t.add(new Todo("counts", "Physical counts to verify", count("select count(*) from physical_inventory_counts where status = 'completed'"), "/physical"));
+        if (current.any("edit_properties")) t.add(new Todo("maintenance", "Asset maintenance overdue", count("select count(*) from property_maintenance where status = 'scheduled' and scheduled_date < ?", Date.valueOf(LocalDate.now(Times.ZONE))), "/maintenance"));
+        if (current.any("assign_properties", "transfer_properties")) t.add(new Todo("clearance", "Clearances waiting for property turnover", count("select count(*) from clearance_certificates where status = 'pending'"), "/clearance"));
         if (current.any("view_gate_pass")) t.add(new Todo("gate_pass", "Gate passes past their return date", count("select count(*) from gate_passes where status in ('released', 'overdue') and expected_return_date < ?", Date.valueOf(LocalDate.now(Times.ZONE))), "/gate-pass"));
         return t.stream().filter(x -> x.count() > 0).toList();
     }
@@ -128,7 +130,52 @@ public class AnalyticsController {
                 where r.request_date >= ? group by d.name order by 3 desc, d.name offset 0 rows fetch next 8 rows only""",
                 (rs, n) -> new Ranked(rs.getString(1), null, rs.getLong(3), rs.getBigDecimal(4).setScale(2, RoundingMode.HALF_UP)),
                 Date.valueOf(today.minusDays(90))));
+        m.put("by_category", shares("""
+                select coalesce(c.name, 'Uncategorized'), count(*), coalesce(sum(case when i.current_stock > 0 then i.current_stock else 0 end * coalesce(i.weighted_average_cost, 0)), 0)
+                from items i left join categories c on c.id = i.category_id group by c.name"""));
+        m.put("trend", trend(today));
         return m;
+    }
+
+    /** Slices for a pie: the largest six by amount, the rest folded into "Other". */
+    private List<Ranked> shares(String sql, Object... args) {
+        List<Ranked> all = new java.util.ArrayList<>(jdbc.query(sql, (rs, n) -> new Ranked(rs.getString(1), null, rs.getLong(2),
+                rs.getBigDecimal(3).setScale(2, RoundingMode.HALF_UP)), args));
+        all.sort((a, b) -> b.amount().compareTo(a.amount()));
+        if (all.size() <= 7) return all;
+        List<Ranked> top = new java.util.ArrayList<>(all.subList(0, 6));
+        List<Ranked> rest = all.subList(6, all.size());
+        top.add(new Ranked("Other", null, rest.stream().mapToLong(Ranked::count).sum(), rest.stream().map(Ranked::amount).reduce(BigDecimal.ZERO, BigDecimal::add)));
+        return top;
+    }
+
+    public record Month(String month, BigDecimal received, BigDecimal issued, long receipts, long issues) {
+    }
+
+    /** Stock received and issued per month over the last twelve, valued at each item's current average cost. */
+    private List<Month> trend(LocalDate today) {
+        java.time.YearMonth first = java.time.YearMonth.from(today).minusMonths(11);
+        Map<String, BigDecimal[]> amounts = new LinkedHashMap<>();
+        Map<String, long[]> counts = new LinkedHashMap<>();
+        for (int k = 0; k < 12; k++) {
+            String key = first.plusMonths(k).toString();
+            amounts.put(key, new BigDecimal[]{BigDecimal.ZERO, BigDecimal.ZERO});
+            counts.put(key, new long[]{0, 0});
+        }
+        jdbc.query("select " + db.year("l.created_at") + ", " + db.month("l.created_at") + """
+                , l.action, count(*), coalesce(sum(abs(l.quantity) * coalesce(i.weighted_average_cost, 0)), 0)
+                from inventory_logs l join items i on i.id = l.item_id
+                where l.action in ('stock_in', 'item_issued') and l.created_at >= ?
+                group by""" + " " + db.year("l.created_at") + ", " + db.month("l.created_at") + ", l.action", rs -> {
+            String key = java.time.YearMonth.of(rs.getInt(1), rs.getInt(2)).toString();
+            BigDecimal[] a = amounts.get(key);
+            if (a == null) return;
+            int idx = "stock_in".equals(rs.getString(3)) ? 0 : 1;
+            a[idx] = a[idx].add(rs.getBigDecimal(5));
+            counts.get(key)[idx] += rs.getLong(4);
+        }, java.sql.Timestamp.valueOf(first.atDay(1).atStartOfDay()));
+        return amounts.entrySet().stream().map(e -> new Month(e.getKey(), e.getValue()[0].setScale(2, RoundingMode.HALF_UP),
+                e.getValue()[1].setScale(2, RoundingMode.HALF_UP), counts.get(e.getKey())[0], counts.get(e.getKey())[1])).toList();
     }
 
     private Map<String, Object> assets() {
@@ -140,6 +187,11 @@ public class AnalyticsController {
         m.put("acquisition_cost", money("select coalesce(sum(acquisition_cost), 0) from properties where status <> 'disposed'"));
         m.put("book_value", money("select coalesce(sum(coalesce(current_book_value, acquisition_cost)), 0) from properties where status <> 'disposed'"));
         m.put("disposal_pending", count("select count(*) from disposal_requests where status in ('submitted', 'approved')"));
+        m.put("by_category", shares("""
+                select coalesce(c.name, 'Uncategorized'), count(*), coalesce(sum(p.acquisition_cost), 0)
+                from properties p join items i on i.id = p.item_id left join categories c on c.id = i.category_id
+                where p.status <> 'disposed' group by c.name"""));
+        m.put("maintenance_overdue", count("select count(*) from property_maintenance where status = 'scheduled' and scheduled_date < ?", Date.valueOf(LocalDate.now(Times.ZONE))));
         return m;
     }
 

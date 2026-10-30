@@ -23,3 +23,32 @@
 .stat-list li { display: flex; justify-content: space-between; gap: 1rem; border-bottom: 1px dashed var(--table-border); padding-bottom: 0.3rem; }
 .watch-list { list-style: none; display: flex; flex-direction: column; gap: 0.5rem; }
 .watch-list li { display: flex; flex-direction: column; gap: 0.1rem; font-size: 0.88rem; }
+
+/* ── Charts (donut for shares, lines for the 12-month trend) ── */
+.dash-card-wide { grid-column: 1 / -1; }
+.donut { display: flex; align-items: center; gap: 1.25rem; flex-wrap: wrap; }
+.donut svg { width: 150px; height: 150px; flex-shrink: 0; }
+.donut path { cursor: default; transition: opacity 0.15s; }
+.donut-total { font-size: 13px; font-weight: 700; fill: var(--text-dark); }
+.donut-total-sub { font-size: 8px; fill: var(--text-light); }
+.chart-legend { list-style: none; margin: 0; padding: 0; flex: 1; min-width: 200px; display: flex; flex-direction: column; gap: 0.3rem; font-size: 0.86rem; }
+.chart-legend li { display: grid; grid-template-columns: 10px 1fr auto 3.2rem; align-items: center; gap: 0.5rem; padding: 0.15rem 0.3rem; border-radius: 5px; }
+.chart-legend li.active { background: var(--table-hover); }
+.chart-legend.inline { flex-direction: row; gap: 1rem; flex: none; }
+.chart-legend.inline li { grid-template-columns: 10px auto; }
+.swatch { display: inline-block; width: 10px; height: 10px; border-radius: 3px; }
+.legend-name { color: var(--text-dark); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.legend-value { color: var(--text-dark); font-variant-numeric: tabular-nums; }
+.legend-share { color: var(--text-light); text-align: right; font-variant-numeric: tabular-nums; }
+.trend-plot { position: relative; }
+.trend svg { width: 100%; height: auto; display: block; }
+.trend .grid { stroke: var(--border-color); stroke-width: 1; }
+.trend .axis { font-size: 10px; fill: var(--text-light); }
+.trend .crosshair { stroke: var(--text-light); stroke-width: 1; stroke-dasharray: 3 3; }
+.chart-tip {
+  position: absolute; top: 0; transform: translateX(-50%); pointer-events: none;
+  display: flex; flex-direction: column; gap: 0.15rem; padding: 0.45rem 0.6rem; white-space: nowrap;
+  background: var(--card-bg); border: 1px solid var(--border-color); border-radius: 7px; box-shadow: 0 6px 18px rgba(15, 23, 42, 0.12);
+  font-size: 0.8rem; color: var(--text-dark);
+}
+.chart-tip .swatch { margin-right: 0.3rem; }

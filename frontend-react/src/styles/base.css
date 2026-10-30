@@ -254,6 +254,8 @@ button, input, select, textarea { font: inherit; }
 .kpi-label { color: var(--text-light); font-size: 0.85rem; }
 .kpi-warn { border-left: 4px solid var(--warning); }
 .kpi-bad { border-left: 4px solid var(--danger); }
+button.kpi { font: inherit; color: inherit; text-align: left; cursor: pointer; }
+button.kpi:hover { border-color: var(--primary-accent); }
 .st-pending { background: #fef3c7; color: #92400e; }
 .st-partial { background: #e0f2fe; color: #075985; }
 .st-ok { background: #dcfce7; color: #166534; }

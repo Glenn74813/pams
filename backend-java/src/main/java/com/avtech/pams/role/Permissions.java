@@ -174,6 +174,10 @@ public final class Permissions {
         m.put("stock-adjustments", List.of("create_adjustments", "approve_adjustments"));
         m.put("semi-expendable", List.of("view_inventory", "manage_warehouse", "add_stock"));
         m.put("gate-pass", List.of("view_gate_pass"));
+        m.put("maintenance", List.of("view_properties", "edit_properties"));
+        m.put("clearance", List.of("view_properties", "assign_properties", "transfer_properties"));
+        // Everyone can send documents for signing and sign what is sent to them.
+        m.put("signing", List.of());
         m.put("disposal", List.of("view_disposal", "create_disposal", "approve_disposal"));
         m.put("reports", List.of("view_reports"));
         m.put("apcpi", List.of("view_procurement", "approve_procurement", "manage_bac_meetings", "view_reports"));

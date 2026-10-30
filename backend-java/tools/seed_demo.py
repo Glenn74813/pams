@@ -506,6 +506,24 @@ def main():
         if n < 2:
             call('POST', f"/gate-pass/{g['id']}/return", {'condition_on_return': 'good', 'actual_return_date': day(-1), 'returned_by': by}, SA)
 
+    # ── locations and maintenance ───────────────────────────────────────
+    step('asset locations and maintenance')
+    LOC = []
+    for name, bldg, floor, room in [('Supply and Property Office', 'Main Building', '1F', '104'), ('ICT Server Room', 'Main Building', '2F', '210'),
+                                    ('Finance Division', 'Main Building', '2F', '201'), ('Records Storage', 'Annex', 'Ground', 'R-1'),
+                                    ('Conference Room A', 'Main Building', '3F', '301')]:
+        LOC.append(call('POST', '/locations', {'name': name, 'building': bldg, 'floor': floor, 'room': room}, SA)['id'])
+    for aid, loc in zip(A + D, [LOC[0], LOC[2], LOC[2], LOC[1], LOC[0], LOC[1], LOC[3], LOC[4]]):
+        call('POST', f'/properties/{aid}/location', {'location_id': loc, 'remarks': 'Initial location'}, SA)
+    for aid, kind, work, due, every in [(D[0], 'preventive', 'Clean and dust the desktop, check fans', -10, 6), (D[1], 'preventive', 'Clean and dust the desktop, check fans', 12, 6),
+                                        (A[3], 'corrective', 'Replace the laptop battery', -2, None), (D[2], 'inspection', 'Annual inspection of the UPS and power supply', 25, 12),
+                                        (A[0], 'preventive', 'OS and antivirus update', -40, 3)]:
+        m = call('POST', '/maintenance', {'property_id': aid, 'maintenance_type': kind, 'description': work, 'scheduled_date': day(due), 'interval_months': every}, SA)
+        if due == -40:
+            call('POST', f"/maintenance/{m['id']}/complete", {'completed_date': day(-38), 'performed_by': 'ICT Unit', 'cost': 0}, SA)
+        if kind == 'corrective':
+            call('POST', f"/maintenance/{m['id']}/complete", {'completed_date': day(-1), 'performed_by': 'Laptop service center', 'cost': 3850, 'remarks': 'Battery replaced'}, SA)
+
     # ── physical counts ─────────────────────────────────────────────────
     step('physical counts')
     P = '/physical-inventory/counts'
@@ -570,6 +588,16 @@ def main():
         if owner:
             fields.update({'documentable_type': owner, 'documentable_id': oid})
         upload('/documents', fields, title.split(' —')[0].replace(' ', '_') + '.pdf', pdf(title), SA)
+
+    # ── clearance and digital signing ───────────────────────────────────
+    step('clearances and signing requests')
+    call('POST', '/clearances', {'user_id': U['liza.mendoza'], 'purpose': 'transfer', 'purpose_details': 'Transfer to the regional office', 'effective_date': day(30)}, SA)
+    call('POST', '/clearances', {'user_id': U['carlo.bautista'], 'purpose': 'end_of_contract', 'effective_date': day(14)}, SA)
+    c = call('POST', '/clearances', {'user_id': U['ben.torres'], 'purpose': 'resignation', 'effective_date': day(7)}, SA)
+    call('POST', f"/clearances/{c['id']}/issue", tok=SA)
+    for title, signer in [('Property Card — laptop', 'ramon.delacruz'), ('RSMI — last month', 'liza.mendoza'), ('Inspection and Acceptance Report', 'ana.cruz'),
+                          ('Clearance certificate — Ben Torres', 'ramon.delacruz'), ('Waste Materials Report', 'jose.reyes')]:
+        upload('/signing/requests', {'title': title, 'signer_id': U[signer]}, title.split(' —')[0].replace(' ', '_') + '.pdf', pdf(title), T['maria.santos'])
 
     print('Done. Demo staff sign in with', DEMO_PASSWORD, '(e.g. maria.santos@agency.gov.ph).')
 
