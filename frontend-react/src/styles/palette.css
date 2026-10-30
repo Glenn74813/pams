@@ -30,12 +30,12 @@
   --modal-bg: #ffffff;
   --badge-bg: #e0f2fe;
 
-  /* Sidebar: dark navy with sky-blue highlights. */
-  --sidebar-bg: #0f2744;
-  --sidebar-text: #cbd5e1;
-  --sidebar-muted: #8ba3c0;
+  /* Sidebar: dark slate-navy, line icons, a soft highlight for the current page. */
+  --sidebar-bg: #131c2e;
+  --sidebar-text: #d4dbe6;
+  --sidebar-muted: #8391a7;
   --sidebar-hover: rgba(255, 255, 255, 0.07);
-  --sidebar-active-bg: rgba(56, 189, 248, 0.16);
+  --sidebar-active-bg: rgba(255, 255, 255, 0.09);
   --sidebar-accent: #38bdf8;
   --sidebar-border: rgba(255, 255, 255, 0.08);
 }

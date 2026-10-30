@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { NavLink, Outlet, useLocation } from 'react-router'
+import { ChevronsUpDown, CircleHelp, LogOut, Settings, type LucideIcon } from 'lucide-react'
 import { auditApi } from '../api/endpoints'
 import { useAuth } from '../auth/AuthContext'
 import { dashboardItem, menuGroups } from './menu'
@@ -22,11 +23,14 @@ function initials(name: string) {
     .join('')
 }
 
+function NavIcon({ icon: Icon }: { icon: LucideIcon }) {
+  return <Icon className="icon" size={18} strokeWidth={1.75} aria-hidden />
+}
+
 export function AppLayout() {
   const { user, logout, canOpen } = useAuth()
   const location = useLocation()
   const [sidebarOpen, setSidebarOpen] = useState(false)
-  const [collapsed, setCollapsed] = useState<Record<string, boolean>>({})
   const [userMenuOpen, setUserMenuOpen] = useState(false)
   const [shownPath, setShownPath] = useState(location.pathname)
 
@@ -81,42 +85,24 @@ export function AppLayout() {
           <nav className="sidebar-nav">
             {canOpen(dashboardItem.module) && (
               <NavLink to={dashboardItem.path} className={({ isActive }) => 'nav-item' + (isActive ? ' active' : '')}>
-                <span className="icon">{dashboardItem.icon}</span>
+                <NavIcon icon={dashboardItem.icon} />
                 <span className="label">{dashboardItem.label}</span>
               </NavLink>
             )}
 
-            {groups.map((group) => {
-              const open = !collapsed[group.key]
-              const hasActive = group.children.some((c) => isUnder(location.pathname, c.path))
-              return (
-                <div key={group.key} className="nav-group">
-                  <button
-                    className={'nav-group-header' + (hasActive ? ' has-active' : '')}
-                    onClick={() => setCollapsed((c) => ({ ...c, [group.key]: !c[group.key] }))}
-                    aria-expanded={open}
-                  >
-                    <span className="icon">{group.icon}</span>
-                    <span className="label">{group.label}</span>
-                    <span className={'chevron' + (open ? ' open' : '')}>▸</span>
-                  </button>
-                  {open && (
-                    <div className="nav-group-children">
-                      {group.children.map((item) => (
-                        <NavLink
-                          key={item.path}
-                          to={item.path}
-                          className={() => 'nav-item child' + (isUnder(location.pathname, item.path) ? ' active' : '')}
-                        >
-                          <span className="icon">{item.icon}</span>
-                          <span className="label">{item.label}</span>
-                        </NavLink>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              )
-            })}
+            {groups.map((group) => (
+              <section key={group.key} className="nav-group" aria-labelledby={`nav-${group.key}`}>
+                <h2 id={`nav-${group.key}`} className="nav-group-label">
+                  {group.label}
+                </h2>
+                {group.children.map((item) => (
+                  <NavLink key={item.path} to={item.path} className={() => 'nav-item' + (isUnder(location.pathname, item.path) ? ' active' : '')}>
+                    <NavIcon icon={item.icon} />
+                    <span className="label">{item.label}</span>
+                  </NavLink>
+                ))}
+              </section>
+            ))}
           </nav>
 
           <div className="sidebar-user">
@@ -125,13 +111,13 @@ export function AppLayout() {
               <div className="user-menu-panel" role="menu">
                 <div className="user-menu-role">{user.role.name}</div>
                 <NavLink className="user-menu-item" role="menuitem" to="/settings">
-                  <span className="user-menu-icon">⚙</span> My account
+                  <Settings className="user-menu-icon" size={16} strokeWidth={1.75} aria-hidden /> My account
                 </NavLink>
                 <NavLink className="user-menu-item" role="menuitem" to="/help">
-                  <span className="user-menu-icon">?</span> Help &amp; user manual
+                  <CircleHelp className="user-menu-icon" size={16} strokeWidth={1.75} aria-hidden /> Help &amp; user manual
                 </NavLink>
                 <button className="user-menu-item logout" role="menuitem" onClick={() => void logout()}>
-                  <span className="user-menu-icon">⏻</span> Logout
+                  <LogOut className="user-menu-icon" size={16} strokeWidth={1.75} aria-hidden /> Logout
                 </button>
               </div>
             )}
@@ -143,7 +129,7 @@ export function AppLayout() {
             >
               <span className="user-avatar">{initials(user.name)}</span>
               <span className="user-trigger-name">{user.name}</span>
-              <span className="user-trigger-chevron">⌄</span>
+              <ChevronsUpDown className="user-trigger-chevron" size={16} strokeWidth={1.75} aria-hidden />
             </button>
           </div>
         </aside>

@@ -1,6 +1,12 @@
+import {
+  Activity, Armchair, BadgeCheck, CalendarRange, ChartColumn, ClipboardCheck, DoorOpen, FileChartColumn, FilePlus2, FileQuestion, FileSignature,
+  FolderOpen, Gavel, LayoutDashboard, Laptop, Package, PackageCheck, ScanLine, ScrollText, Settings, ShieldCheck, ShoppingCart,
+  SlidersHorizontal, Store, Trash2, Truck, UserCheck, Users, UsersRound, Wallet, Warehouse, type LucideIcon,
+} from 'lucide-react'
+
 export interface MenuItem {
   path: string
-  icon: string
+  icon: LucideIcon
   label: string
   /** Key in the user's accessible_modules list. */
   module: string
@@ -8,14 +14,14 @@ export interface MenuItem {
   ported: boolean
 }
 
+/** A titled section of the sidebar. */
 export interface MenuGroup {
   key: string
   label: string
-  icon: string
   children: MenuItem[]
 }
 
-export const dashboardItem: MenuItem = { path: '/dashboard', icon: '📊', label: 'Dashboard', module: 'dashboard', ported: true }
+export const dashboardItem: MenuItem = { path: '/dashboard', icon: LayoutDashboard, label: 'Dashboard', module: 'dashboard', ported: true }
 
 /**
  * The sidebar follows the procurement and supply cycle: plan and request (RA 12009: PPMP, APP, PR),
@@ -26,73 +32,73 @@ export const dashboardItem: MenuItem = { path: '/dashboard', icon: '📊', label
  */
 export const menuGroups: MenuGroup[] = [
   {
-    key: 'planning', label: 'Planning & Requests', icon: '🗓️',
+    key: 'planning', label: 'Planning & Requests',
     children: [
-      { path: '/procurement-planning', icon: '🗓️', label: 'Procurement Planning', module: 'procurement-planning', ported: true },
-      { path: '/purchase-requests', icon: '📝', label: 'Purchase Requests', module: 'purchase-requests', ported: true },
+      { path: '/procurement-planning', icon: CalendarRange, label: 'Procurement Planning', module: 'procurement-planning', ported: true },
+      { path: '/purchase-requests', icon: FilePlus2, label: 'Purchase Requests', module: 'purchase-requests', ported: true },
     ],
   },
   {
-    key: 'procurement', label: 'Procurement', icon: '🛒',
+    key: 'procurement', label: 'Procurement',
     children: [
-      { path: '/ps-dbm', icon: '🏬', label: 'PS-DBM (Common-Use)', module: 'ps-dbm', ported: true },
-      { path: '/bidding', icon: '🏛️', label: 'Competitive Bidding', module: 'bidding', ported: true },
-      { path: '/rfq', icon: '🧮', label: 'RFQ / Alternative Modes', module: 'rfq', ported: true },
-      { path: '/bac', icon: '⚖️', label: 'BAC Management', module: 'bac', ported: true },
-      { path: '/suppliers', icon: '🏢', label: 'Vendors / Suppliers', module: 'suppliers', ported: true },
+      { path: '/ps-dbm', icon: Store, label: 'PS-DBM (Common-Use)', module: 'ps-dbm', ported: true },
+      { path: '/bidding', icon: Gavel, label: 'Competitive Bidding', module: 'bidding', ported: true },
+      { path: '/rfq', icon: FileQuestion, label: 'RFQ / Alternative Modes', module: 'rfq', ported: true },
+      { path: '/bac', icon: Users, label: 'BAC Management', module: 'bac', ported: true },
+      { path: '/suppliers', icon: Truck, label: 'Vendors / Suppliers', module: 'suppliers', ported: true },
     ],
   },
   {
-    key: 'award', label: 'Award & Payment', icon: '🧾',
+    key: 'award', label: 'Award & Payment',
     children: [
-      { path: '/procurement', icon: '🧾', label: 'Purchase Orders', module: 'procurement', ported: true },
-      { path: '/contracts', icon: '📜', label: 'Contracts', module: 'contracts', ported: true },
-      { path: '/petty-cash', icon: '💵', label: 'Petty Cash', module: 'payments', ported: true },
+      { path: '/procurement', icon: ShoppingCart, label: 'Purchase Orders', module: 'procurement', ported: true },
+      { path: '/contracts', icon: FileSignature, label: 'Contracts', module: 'contracts', ported: true },
+      { path: '/petty-cash', icon: Wallet, label: 'Petty Cash', module: 'payments', ported: true },
     ],
   },
   {
-    key: 'inventory', label: 'Inventory', icon: '📦',
+    key: 'inventory', label: 'Inventory',
     children: [
-      { path: '/receiving', icon: '📥', label: 'Receiving (IAR)', module: 'receiving', ported: true },
-      { path: '/items', icon: '📦', label: 'Items', module: 'items', ported: true },
-      { path: '/warehouse', icon: '🏬', label: 'Warehouse / Stock', module: 'warehouse', ported: true },
-      { path: '/requests', icon: '📋', label: 'Issuance (RIS)', module: 'requests', ported: true },
-      { path: '/semi-expendable', icon: '🧾', label: 'Semi-Expendable (ICS)', module: 'semi-expendable', ported: true },
-      { path: '/stock-adjustments', icon: '⚖️', label: 'Stock Adjustments', module: 'stock-adjustments', ported: true },
-      { path: '/monitoring', icon: '📊', label: 'Monitoring', module: 'monitoring', ported: true },
+      { path: '/receiving', icon: PackageCheck, label: 'Receiving (IAR)', module: 'receiving', ported: true },
+      { path: '/items', icon: Package, label: 'Items', module: 'items', ported: true },
+      { path: '/warehouse', icon: Warehouse, label: 'Warehouse / Stock', module: 'warehouse', ported: true },
+      { path: '/requests', icon: ClipboardCheck, label: 'Issuance (RIS)', module: 'requests', ported: true },
+      { path: '/semi-expendable', icon: Armchair, label: 'Semi-Expendable (ICS)', module: 'semi-expendable', ported: true },
+      { path: '/stock-adjustments', icon: SlidersHorizontal, label: 'Stock Adjustments', module: 'stock-adjustments', ported: true },
+      { path: '/monitoring', icon: Activity, label: 'Monitoring', module: 'monitoring', ported: true },
     ],
   },
   {
-    key: 'assets', label: 'Assets / Property', icon: '🏢',
+    key: 'assets', label: 'Assets / Property',
     children: [
-      { path: '/properties', icon: '🏢', label: 'Assets (PAR / PTR)', module: 'properties', ported: true },
-      { path: '/my-assets', icon: '🙋', label: 'My Assets', module: 'my-assets', ported: true },
-      { path: '/gate-pass', icon: '🚪', label: 'Gate Pass', module: 'gate-pass', ported: true },
+      { path: '/properties', icon: Laptop, label: 'Assets (PAR / PTR)', module: 'properties', ported: true },
+      { path: '/my-assets', icon: UserCheck, label: 'My Assets', module: 'my-assets', ported: true },
+      { path: '/gate-pass', icon: DoorOpen, label: 'Gate Pass', module: 'gate-pass', ported: true },
     ],
   },
   {
-    key: 'count', label: 'Count & Disposal', icon: '🔍',
+    key: 'count', label: 'Count & Disposal',
     children: [
-      { path: '/physical', icon: '🔍', label: 'Physical Count', module: 'physical', ported: true },
-      { path: '/disposal', icon: '♻️', label: 'Disposal', module: 'disposal', ported: true },
+      { path: '/physical', icon: ScanLine, label: 'Physical Count', module: 'physical', ported: true },
+      { path: '/disposal', icon: Trash2, label: 'Disposal', module: 'disposal', ported: true },
     ],
   },
   {
-    key: 'reports', label: 'Reports & Compliance', icon: '📈',
+    key: 'reports', label: 'Reports & Compliance',
     children: [
-      { path: '/reports', icon: '📈', label: 'Reports (COA forms)', module: 'reports', ported: true },
-      { path: '/procurement-reports', icon: '📑', label: 'Procurement Reports', module: 'reports', ported: true },
-      { path: '/apcpi', icon: '✅', label: 'APCPI Self-Assessment', module: 'apcpi', ported: true },
-      { path: '/documents', icon: '🗂️', label: 'Documents', module: 'documents', ported: true },
-      { path: '/audit', icon: '🛡️', label: 'Audit Trail', module: 'audit', ported: true },
-      { path: '/log-trails', icon: '📋', label: 'Log Trails', module: 'log-trails', ported: true },
+      { path: '/reports', icon: ChartColumn, label: 'Reports (COA forms)', module: 'reports', ported: true },
+      { path: '/procurement-reports', icon: FileChartColumn, label: 'Procurement Reports', module: 'reports', ported: true },
+      { path: '/apcpi', icon: BadgeCheck, label: 'APCPI Self-Assessment', module: 'apcpi', ported: true },
+      { path: '/documents', icon: FolderOpen, label: 'Documents', module: 'documents', ported: true },
+      { path: '/audit', icon: ShieldCheck, label: 'Audit Trail', module: 'audit', ported: true },
+      { path: '/log-trails', icon: ScrollText, label: 'Log Trails', module: 'log-trails', ported: true },
     ],
   },
   {
-    key: 'administration', label: 'Administration', icon: '⚙️',
+    key: 'administration', label: 'Administration',
     children: [
-      { path: '/users', icon: '👥', label: 'Users & Roles', module: 'users', ported: true },
-      { path: '/settings', icon: '⚙️', label: 'Settings', module: 'settings', ported: true },
+      { path: '/users', icon: UsersRound, label: 'Users & Roles', module: 'users', ported: true },
+      { path: '/settings', icon: Settings, label: 'Settings', module: 'settings', ported: true },
     ],
   },
 ]
