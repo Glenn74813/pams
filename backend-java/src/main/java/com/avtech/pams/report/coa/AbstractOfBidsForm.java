@@ -64,7 +64,7 @@ public class AbstractOfBidsForm {
         x.merge("A5:I5");
         BigDecimal abc = bidding.get("abc") instanceof BigDecimal b ? b : BigDecimal.ZERO;
         x.set("A5", "Approved Budget for the Contract (ABC): ₱" + numberFormat(abc)
-                + "   |   Method: " + ("mearb".equals(bidding.get("evaluation_method")) ? "MEARB (rated)" : "Lowest Calculated Bid"));
+                + "   |   Method: " + ("mearb".equals(bidding.get("evaluation_method")) ? "MEARB (rated)" : "marb".equals(bidding.get("evaluation_method")) ? "MARB (rated)" : "Lowest Calculated Bid"));
 
         // Header row
         int headRow = 7;

@@ -135,6 +135,16 @@ NPC IMS Terms of Reference (V23):
   layout to maintain. Check marks are drawn; text the standard fonts lack (₱) uses the Unicode font bundled with OpenPDF.
 - Dashboard: stock value and assets by category, received/issued per month over 12 months, overdue maintenance.
 
+RA 12009 IRR alignment (V24, V25), checked against the February 2025 IRR: bid security 2% or 5% by form (56.2); MEARB price
+weight 15–40% with an optional minimum quality score, and MARB (61); pre-procurement conference above ₱5M goods, ₱10M
+infrastructure, ₱2M consulting (49.1); 7-day ITB posting (50), bid deadline periods by category (54.5) and 60 days from opening
+to award (67.1); the modes of Section 26, with Shopping refused on new lines and RFQs while lines already approved under it go
+to SVP; Direct Acquisition ceiling ₱200,000 (32.1); Negotiated Procurement only with a recorded ground, and after two failed
+biddings at least three invited suppliers and at most 20% over the last ABC (35.1.1); five or seven voting BAC members
+(41.2.1); all four grounds for buying common-use items outside PS-DBM (40.2). The 15-day CNAS validity is not in the IRR
+sections read and should be confirmed. Eligibility documents are still one list for every mode, not by mode as GPPB Circular
+06-2026 sets out. Suppliers (V25): view access for the BAC, supply, property, accounting and audit roles.
+
 Issuance assigns RIS numbers (plus ICS for semi-expendable and PAR for PPE) when stock goes out; both "approve all" and
 per-line approval issue first-expired-first-out and write the stock card. Requesters can't approve their own requests and
 adjustment makers can't approve their own adjustments. Approved adjustments move real lots (Laravel only changed the

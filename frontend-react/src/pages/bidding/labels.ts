@@ -20,8 +20,8 @@ export const SECURITY_FORMS: Record<string, string> = {
   cash: 'Cash (2%)',
   cashiers_check: "Cashier's check (2%)",
   managers_check: "Manager's check (2%)",
-  bank_draft: 'Bank draft (2%)',
-  irrevocable_letter_of_credit: 'Irrevocable LC (2%)',
+  bank_draft: 'Bank draft or guarantee (5%)',
+  irrevocable_letter_of_credit: 'Irrevocable LC (5%)',
   surety_bond: 'Surety bond (5%)',
   bid_securing_declaration: 'Bid Securing Declaration',
 }

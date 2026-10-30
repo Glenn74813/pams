@@ -66,17 +66,19 @@ public class BiddingController {
     private static final String TYPE = "App\\Models\\Bidding";
     private static final String READ = "@perm.any('view_bidding', 'manage_bidding', 'process_award', 'conduct_bid_evaluation')";
     private static final String EVALUATE = "@perm.any('manage_bidding', 'conduct_bid_evaluation')";
-    /** ABC above which a pre-procurement conference must be held. */
-    private static final BigDecimal PRE_PROC_THRESHOLD = new BigDecimal("2000000");
-    /** Bid security as a share of the ABC, by form (a Bid Securing Declaration needs no amount). */
+    /** ABC above which a pre-procurement conference must be held (IRR 49.1): goods, infrastructure, consulting. */
+    private static final BigDecimal[] PRE_PROC_THRESHOLDS = {new BigDecimal("5000000"), new BigDecimal("10000000"), new BigDecimal("2000000")};
+    /** Days a bidding's Invitation stays posted before bids can close (IRR 50). */
+    private static final int ITB_POSTING_DAYS = 7;
+    /** Bid security as a share of the ABC, by form (IRR 56.2) (a Bid Securing Declaration needs no amount). */
     static final Map<String, BigDecimal> SECURITY_RATES = new LinkedHashMap<>();
 
     static {
         SECURITY_RATES.put("cash", new BigDecimal("0.02"));
         SECURITY_RATES.put("cashiers_check", new BigDecimal("0.02"));
         SECURITY_RATES.put("managers_check", new BigDecimal("0.02"));
-        SECURITY_RATES.put("bank_draft", new BigDecimal("0.02"));
-        SECURITY_RATES.put("irrevocable_letter_of_credit", new BigDecimal("0.02"));
+        SECURITY_RATES.put("bank_draft", new BigDecimal("0.05"));
+        SECURITY_RATES.put("irrevocable_letter_of_credit", new BigDecimal("0.05"));
         SECURITY_RATES.put("surety_bond", new BigDecimal("0.05"));
         SECURITY_RATES.put("bid_securing_declaration", BigDecimal.ZERO);
     }
@@ -92,6 +94,9 @@ public class BiddingController {
     private final CurrentUser current;
     private final JdbcTemplate jdbc;
     private final Db db;
+    /** Reloads a saved bidding so its database-computed category reflects its lines. */
+    @jakarta.persistence.PersistenceContext
+    private jakarta.persistence.EntityManager entities;
 
     public BiddingController(BiddingRepository biddings, BacResolutionRepository resolutions, UserRepository users,
                              PrLineUsage usage, AwardSupport awards, DocumentNumbers numbers, NotificationService notifications, AuditService audit,
@@ -140,7 +145,7 @@ public class BiddingController {
 
     public record BiddingView(Long id, String biddingNumber, String title, String status, BigDecimal abc, Ref purchaseRequest, Ref department,
                               Ref preparer, String deliveryTerm, Integer deliveryLeadDays, String evaluationMethod, BigDecimal priceWeight,
-                              BigDecimal technicalWeight, OffsetDateTime preProcDate, String preProcNotes, boolean preProcRequired,
+                              BigDecimal technicalWeight, BigDecimal minQualityScore, OffsetDateTime preProcDate, String preProcNotes, boolean preProcRequired,
                               String itbReference, LocalDate itbPostedAt, String itbPublication, OffsetDateTime submissionDeadline,
                               boolean deadlinePassed, OffsetDateTime bidOpeningDate, Ref awardedSupplier, BigDecimal awardedAmount,
                               OffsetDateTime awardedAt, Ref bacResolution, String noaNumber, LocalDate noaDate, String ntpNumber, LocalDate ntpDate,
@@ -219,7 +224,7 @@ public class BiddingController {
     }
 
     public record BiddingInput(String title, Long purchaseRequestId, String deliveryTerm, Integer deliveryLeadDays, String evaluationMethod,
-                               BigDecimal priceWeight, BigDecimal technicalWeight, String remarks, List<ItemInput> items) {
+                               BigDecimal priceWeight, BigDecimal technicalWeight, BigDecimal minQualityScore, String remarks, List<ItemInput> items) {
     }
 
     @PostMapping
@@ -229,6 +234,7 @@ public class BiddingController {
         Bidding b = new Bidding(numbers.yearly("PB", "biddings.bidding_number"), current.user().getId());
         apply(b, in, true);
         biddings.saveAndFlush(b);
+        entities.refresh(b);
         audit.record("created", TYPE, b.getId(), "Drafted bidding " + b.getBiddingNumber(), null, snapshot(b));
         return ResponseEntity.status(HttpStatus.CREATED).body(view(b));
     }
@@ -244,8 +250,9 @@ public class BiddingController {
         }
         Map<String, Object> before = snapshot(b);
         apply(b, new BiddingInput(in.title(), b.getPurchaseRequestId(), in.deliveryTerm(), in.deliveryLeadDays(), in.evaluationMethod(),
-                in.priceWeight(), in.technicalWeight(), in.remarks(), in.items()), true);
+                in.priceWeight(), in.technicalWeight(), in.minQualityScore(), in.remarks(), in.items()), true);
         biddings.flush();
+        entities.refresh(b);
         audit.record("updated", TYPE, b.getId(), "Edited bidding " + b.getBiddingNumber(), before, snapshot(b));
         return view(b);
     }
@@ -274,7 +281,7 @@ public class BiddingController {
     public BiddingView setCriteria(@PathVariable Long id, @RequestBody CriteriaInput in) {
         Bidding b = lock(id);
         if (!b.isPlanning()) throw ApiException.of(HttpStatus.CONFLICT, "Criteria are fixed once the Invitation to Bid is posted.");
-        if (!b.isMearb()) throw ApiException.validation("criteria", "Rated criteria apply to MEARB evaluation only.");
+        if (!b.isRated()) throw ApiException.validation("criteria", "Rated criteria apply to MEARB or MARB evaluation only.");
         List<CriterionInput> list = in == null || in.criteria() == null ? List.of() : in.criteria();
         BigDecimal sum = BigDecimal.ZERO;
         Set<String> names = new HashSet<>();
@@ -328,19 +335,22 @@ public class BiddingController {
     public BiddingView setInvitation(@PathVariable Long id, @RequestBody InvitationInput in) {
         Bidding b = lock(id);
         if (!b.isPlanning()) throw ApiException.of(HttpStatus.CONFLICT, "The Invitation to Bid has already been posted.");
-        if (b.getAbc().compareTo(PRE_PROC_THRESHOLD) > 0 && b.getPreProcDate() == null) {
-            throw ApiException.of(HttpStatus.CONFLICT, "The ABC is over ₱" + ProcurementRules.peso(PRE_PROC_THRESHOLD) + "; hold the pre-procurement conference first.");
+        if (preProcRequired(b) && b.getPreProcDate() == null) {
+            throw ApiException.of(HttpStatus.CONFLICT, "The ABC is over ₱" + ProcurementRules.peso(PRE_PROC_THRESHOLDS[b.getCategoryRank()]) + "; hold the pre-procurement conference first.");
         }
-        if (b.isMearb()) {
+        if (b.isRated()) {
             BigDecimal sum = b.getCriteria().stream().map(BiddingCriterion::getWeight).reduce(BigDecimal.ZERO, BigDecimal::add);
             if (b.getCriteria().isEmpty() || sum.compareTo(BigDecimal.valueOf(100)) != 0) {
-                throw ApiException.of(HttpStatus.CONFLICT, "Set the MEARB rated criteria (weights totalling 100) before the Invitation to Bid.");
+                throw ApiException.of(HttpStatus.CONFLICT, "Set the rated criteria (weights totalling 100) before the Invitation to Bid.");
             }
         }
         LocalDate today = LocalDate.now(Times.ZONE);
         LocalDate posted = in.itbPostedAt() == null ? today : in.itbPostedAt();
         if (posted.isAfter(today)) throw ApiException.validation("itb_posted_at", "Record the posting once it has happened.");
         if (in.submissionDeadline() == null) throw ApiException.validation("submission_deadline", "Set the deadline for bids.");
+        if (in.submissionDeadline().toLocalDate().isBefore(posted.plusDays(ITB_POSTING_DAYS))) {
+            throw ApiException.validation("submission_deadline", "The Invitation to Bid stays posted for " + ITB_POSTING_DAYS + " calendar days; set the deadline on or after " + posted.plusDays(ITB_POSTING_DAYS) + ".");
+        }
         if (!in.submissionDeadline().toLocalDate().isAfter(posted)) throw ApiException.validation("submission_deadline", "The deadline has to come after the Invitation is posted.");
         if (!in.submissionDeadline().isAfter(Times.now())) throw ApiException.validation("submission_deadline", "The deadline for bids has to be in the future.");
         LocalDateTime opening = in.bidOpeningDate() == null ? in.submissionDeadline() : in.bidOpeningDate();
@@ -458,7 +468,7 @@ public class BiddingController {
     @Transactional
     public BiddingView scoreBidder(@PathVariable Long bidderId, @RequestBody ScoresInput in) {
         Bidding b = lock(biddings.biddingOfBidder(bidderId).orElseThrow(() -> ApiException.notFound("Bidder")));
-        if (!b.isMearb()) throw ApiException.validation("scores", "Rated scores apply to MEARB evaluation only.");
+        if (!b.isRated()) throw ApiException.validation("scores", "Rated scores apply to MEARB or MARB evaluation only.");
         if (!Bidding.BID_OPENING.equals(b.getStatus()) && !Bidding.EVALUATION.equals(b.getStatus())) throw ApiException.of(HttpStatus.CONFLICT, "Scores are given during evaluation.");
         if (postQualStarted(b)) throw ApiException.of(HttpStatus.CONFLICT, "Post-qualification has started; the rated scores are final.");
         BiddingBidder x = b.getBidders().stream().filter(y -> y.getId().equals(bidderId)).findFirst().orElseThrow();
@@ -538,7 +548,7 @@ public class BiddingController {
         if (ev.recommended() == null) throw ApiException.of(HttpStatus.CONFLICT, "No bidder has passed post-qualification yet.");
         if (!x.getId().equals(ev.recommended())) {
             throw ApiException.validation("bidder_id", "The award goes to the bidder that passed post-qualification as the "
-                    + (b.isMearb() ? "highest-rated" : "lowest calculated") + " responsive bid.");
+                    + (b.isRated() ? "highest-rated" : "lowest calculated") + " responsive bid.");
         }
         if (!awards.eligible(x.getSupplierId())) throw ApiException.validation("bidder_id", awards.supplierName(x.getSupplierId()) + " is inactive or not eligible.");
         BacResolution res = awards.resolution(in.bacResolutionId(), b.getPurchaseRequestId(), null, b.getId());
@@ -725,7 +735,9 @@ public class BiddingController {
             PrLine p = it == null || it.purchaseRequestItemId() == null ? null : prLines.get(it.purchaseRequestItemId());
             if (p == null) throw ApiException.validation(f + "purchase_request_item_id", "Line " + (i + 1) + " is not on the purchase request.");
             if (!seen.add(p.id())) throw ApiException.validation(f + "purchase_request_item_id", "\"" + p.description() + "\" is listed twice.");
-            if (p.mode() != null && !"Competitive Bidding".equals(p.mode())) {
+            // A common-use line released from PS-DBM (IRR 40.2) may be bid out, as when it is above the SVP ceiling.
+            boolean psOut = ProcurementRules.PS_DBM.equals(p.mode()) && usage.releasedFromPs(p.id());
+            if (p.mode() != null && !"Competitive Bidding".equals(p.mode()) && !psOut) {
                 throw ApiException.validation(f + "purchase_request_item_id", "\"" + p.description() + "\" was planned under " + p.mode() + ", not competitive bidding.");
             }
             int left = p.quantity() - taken.getOrDefault(p.id(), 0);
@@ -743,14 +755,24 @@ public class BiddingController {
             lines.add(new BiddingItem(b, p.id(), p.description(), spec != null ? spec : p.specifications(), p.unit(), qty, cost.setScale(2, RoundingMode.HALF_UP)));
         }
         String method = in.evaluationMethod() == null ? "price" : in.evaluationMethod();
-        if (!List.of("price", "mearb").contains(method)) throw ApiException.validation("evaluation_method", "Evaluation is by lowest price or MEARB.");
-        BigDecimal pw = BigDecimal.valueOf(100), tw = BigDecimal.ZERO;
+        if (!List.of("price", "mearb", "marb").contains(method)) throw ApiException.validation("evaluation_method", "Evaluation is by lowest price, MEARB or MARB.");
+        BigDecimal pw = BigDecimal.valueOf(100), tw = BigDecimal.ZERO, minScore = null;
         if ("mearb".equals(method)) {
-            pw = in.priceWeight() == null ? BigDecimal.valueOf(70) : in.priceWeight();
+            pw = in.priceWeight() == null ? BigDecimal.valueOf(40) : in.priceWeight();
             tw = in.technicalWeight() == null ? BigDecimal.valueOf(100).subtract(pw) : in.technicalWeight();
             if (pw.signum() < 0 || tw.signum() < 0 || pw.add(tw).compareTo(BigDecimal.valueOf(100)) != 0) {
                 throw ApiException.validation("price_weight", "Price and rated weights must add up to 100.");
             }
+            if (pw.compareTo(BigDecimal.valueOf(15)) < 0 || pw.compareTo(BigDecimal.valueOf(40)) > 0) {
+                throw ApiException.validation("price_weight", "Under RA 12009 the price proposal weighs at least 15% and at most 40% in MEARB.");
+            }
+            minScore = in.minQualityScore();
+            if (minScore != null && (minScore.signum() < 0 || minScore.compareTo(BigDecimal.valueOf(100)) > 0)) {
+                throw ApiException.validation("min_quality_score", "The minimum quality score is between 0 and 100.");
+            }
+        } else if ("marb".equals(method)) {
+            pw = BigDecimal.ZERO; // Quality alone decides; the price only has to be within the ABC (IRR 61.8).
+            tw = BigDecimal.valueOf(100);
         }
         if (in.deliveryLeadDays() != null && in.deliveryLeadDays() < 0) throw ApiException.validation("delivery_lead_days", "Delivery days cannot be negative.");
         if (!replace) return;
@@ -762,6 +784,7 @@ public class BiddingController {
         b.setEvaluationMethod(method);
         b.setPriceWeight(pw);
         b.setTechnicalWeight(tw);
+        b.setMinQualityScore(minScore);
         b.setRemarks(text(in.remarks()));
         b.getItems().clear();
         biddings.flush();
@@ -824,7 +847,7 @@ public class BiddingController {
                 throw ApiException.validation("result", name + " is not eligible: verify its PhilGEPS, permits and tax documents in the supplier register (and check sanctions) first.");
             }
             if (!current && !"pending".equals(result)) {
-                throw ApiException.validation("stage", "Post-qualification is for the " + (b.isMearb() ? "highest-rated" : "lowest calculated")
+                throw ApiException.validation("stage", "Post-qualification is for the " + (b.isRated() ? "highest-rated" : "lowest calculated")
                         + " responsive bidder; it moves to the next only when that one fails.");
             }
         } else {
@@ -853,12 +876,16 @@ public class BiddingController {
     private record Evaluation(Map<Long, Integer> ranks, Map<Long, BigDecimal> rated, Map<Long, BigDecimal> mearb, Long postQualTurn, Long recommended) {
     }
 
+    private static boolean preProcRequired(Bidding b) {
+        return b.getAbc().compareTo(PRE_PROC_THRESHOLDS[b.getCategoryRank()]) > 0;
+    }
+
     private Evaluation evaluation(Bidding b) {
         List<BiddingBidder> pool = b.getBidders().stream().filter(x -> x.responsive() && !overAbc(b, x) && x.getBidAmount() != null).toList();
         Map<Long, BigDecimal> rated = new HashMap<>();
         Map<Long, BigDecimal> total = new HashMap<>();
         List<BiddingBidder> ranked;
-        if (b.isMearb()) {
+        if (b.isRated()) {
             BigDecimal lowest = pool.stream().map(BiddingBidder::getBidAmount).min(BigDecimal::compareTo).orElse(null);
             BigDecimal weights = b.getCriteria().stream().map(BiddingCriterion::getWeight).reduce(BigDecimal.ZERO, BigDecimal::add);
             for (BiddingBidder x : pool) {
@@ -870,9 +897,10 @@ public class BiddingController {
                 }
                 BigDecimal price = lowest == null ? BigDecimal.ZERO : lowest.multiply(BigDecimal.valueOf(100)).divide(x.getBidAmount(), 4, RoundingMode.HALF_UP);
                 rated.put(x.getId(), r);
+                if (b.isMearb() && b.getMinQualityScore() != null && r.compareTo(b.getMinQualityScore()) < 0) continue;
                 total.put(x.getId(), price.multiply(b.getPriceWeight()).add(r.multiply(b.getTechnicalWeight())).divide(BigDecimal.valueOf(100), 2, RoundingMode.HALF_UP));
             }
-            ranked = pool.stream().sorted(Comparator.comparing((BiddingBidder x) -> total.get(x.getId())).reversed().thenComparing(BiddingBidder::getBidAmount)).toList();
+            ranked = pool.stream().filter(x -> total.containsKey(x.getId())).sorted(Comparator.comparing((BiddingBidder x) -> total.get(x.getId())).reversed().thenComparing(BiddingBidder::getBidAmount)).toList();
         } else {
             ranked = pool.stream().sorted(Comparator.comparing(BiddingBidder::getBidAmount).thenComparing(BiddingBidder::getId)).toList();
         }
@@ -902,14 +930,18 @@ public class BiddingController {
         o.setRemarks(text(in.remarks()));
     }
 
-    /** Maximum procurement timelines for goods (RA 12009 IRR), measured in calendar days. */
+    /** Maximum periods in calendar days: posting to bid deadline by category (IRR 54.5) and bid opening to award (IRR 67.1). */
     public static List<Interval> timeline(Bidding b) {
         LocalDate opening = b.getBidOpeningDate() == null ? null : b.getBidOpeningDate().toLocalDate();
+        LocalDate deadline = b.getSubmissionDeadline() == null ? null : b.getSubmissionDeadline().toLocalDate();
+        int toDeadline = switch (b.getCategoryRank()) {
+            case 2 -> 75;
+            case 1 -> b.getAbc().compareTo(new BigDecimal("50000000")) > 0 ? 65 : 50;
+            default -> 45;
+        };
         Object[][] spec = {
-                {"itb_to_opening", "Posting of ITB → bid opening", b.getItbPostedAt(), opening, 50},
-                {"opening_to_noa", "Bid opening → Notice of Award", opening, b.getNoaDate(), 40},
-                {"itb_to_noa", "Posting of ITB → Notice of Award", b.getItbPostedAt(), b.getNoaDate(), 90},
-                {"noa_to_ntp", "Notice of Award → Notice to Proceed", b.getNoaDate(), b.getNtpDate(), 17},
+                {"itb_to_deadline", "Last day of ITB posting → bid deadline", b.getItbPostedAt() == null ? null : b.getItbPostedAt().plusDays(ITB_POSTING_DAYS), deadline, toDeadline},
+                {"opening_to_noa", "Bid opening → Notice of Award", opening, b.getNoaDate(), 60},
         };
         LocalDate today = LocalDate.now(Times.ZONE);
         List<Interval> out = new ArrayList<>();
@@ -990,8 +1022,8 @@ public class BiddingController {
             out.put(b, new BiddingView(b.getId(), b.getBiddingNumber(), b.getTitle(), b.getStatus(), b.getAbc(),
                     pr == null ? null : new Ref(b.getPurchaseRequestId(), pr[0]), pr == null ? null : new Ref(Long.valueOf(pr[1]), pr[2]),
                     b.getPreparedBy() == null ? null : new Ref(b.getPreparedBy(), names.get(b.getPreparedBy())), b.getDeliveryTerm(), b.getDeliveryLeadDays(),
-                    b.getEvaluationMethod(), b.getPriceWeight(), b.getTechnicalWeight(), Times.toOffset(b.getPreProcDate()), b.getPreProcNotes(),
-                    b.getAbc().compareTo(PRE_PROC_THRESHOLD) > 0, b.getItbReference(), b.getItbPostedAt(), b.getItbPublication(),
+                    b.getEvaluationMethod(), b.getPriceWeight(), b.getTechnicalWeight(), b.getMinQualityScore(), Times.toOffset(b.getPreProcDate()), b.getPreProcNotes(),
+                    preProcRequired(b), b.getItbReference(), b.getItbPostedAt(), b.getItbPublication(),
                     Times.toOffset(b.getSubmissionDeadline()), deadlinePassed, Times.toOffset(b.getBidOpeningDate()),
                     b.getAwardedSupplierId() == null ? null : new Ref(b.getAwardedSupplierId(), suppliers.get(b.getAwardedSupplierId())), b.getAwardedAmount(),
                     Times.toOffset(b.getAwardedAt()), b.getBacResolutionId() == null ? null : new Ref(b.getBacResolutionId(), resNumbers.get(b.getBacResolutionId())),

@@ -27,6 +27,16 @@ export interface PsCatalogueInput {
 }
 
 export type PsOrderStatus = 'draft' | 'submitted' | 'paid' | 'delivered' | 'cancelled'
+export type PsReleaseGround = 'zero_inventory' | 'specs_insufficient' | 'insufficient_stock' | 'bac_resolution'
+
+/** Why a common-use line may be bought outside PS-DBM (RA 12009 IRR 40.2), and the document that supports it. */
+export const PS_RELEASE_GROUNDS: Record<PsReleaseGround, { label: string; reference: string }> = {
+  zero_inventory: { label: 'Zero inventory', reference: 'Certificate of Non-Availability of Stock' },
+  specs_insufficient: { label: 'Specifications do not meet the need', reference: 'Specifications list from the PhilGEPS Electronic Catalogue' },
+  insufficient_stock: { label: 'Stock too low for the quantity', reference: 'Stock Position Report from the PhilGEPS Electronic Catalogue' },
+  bac_resolution: { label: 'Efficiency, practicality or economic viability', reference: 'BAC resolution; PS-DBM informed through its online form' },
+}
+
 export type PsPaymentMode = 'cash' | 'lddap_ada' | 'check' | 'unutilized_funds'
 
 export interface PsOrderLine {
@@ -40,6 +50,7 @@ export interface PsOrderLine {
   unit_price: number
   amount: number
   availability: 'available' | 'not_available'
+  release_ground: PsReleaseGround | null
   cnas_number: string | null
   cnas_date: string | null
   cnas_valid_until: string | null
@@ -101,7 +112,7 @@ export const psDbmApi = {
   update: (id: number, input: PsOrderInput) => api<PsOrder>('PUT', `/ps-dbm/orders/${id}`, input),
   remove: (id: number) => api<{ message: string }>('DELETE', `/ps-dbm/orders/${id}`),
   submit: (id: number, input: { vs_reference: string; submitted_date?: string }) => api<PsOrder>('POST', `/ps-dbm/orders/${id}/submit`, input),
-  notAvailable: (id: number, lineId: number, input: { cnas_number: string; cnas_date?: string }) =>
+  notAvailable: (id: number, lineId: number, input: { release_ground: PsReleaseGround; cnas_number: string; cnas_date?: string }) =>
     api<PsOrder>('POST', `/ps-dbm/orders/${id}/items/${lineId}/not-available`, input),
   pay: (id: number, input: { payment_mode: PsPaymentMode; payment_reference: string; payment_date?: string; amount_paid: number }) =>
     api<PsOrder>('POST', `/ps-dbm/orders/${id}/pay`, input),

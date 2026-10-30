@@ -2,7 +2,7 @@ import { useState, type FormEvent } from 'react'
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Link } from 'react-router'
 import { ApiError } from '../../api/client'
-import { psDbmApi, type PsCatalogueItem, type PsOrder, type PsOrderLine, type PsPaymentMode } from '../../api/psdbm'
+import { psDbmApi, type PsCatalogueItem, type PsOrder, type PsOrderLine, type PsPaymentMode, PS_RELEASE_GROUNDS, type PsReleaseGround } from '../../api/psdbm'
 import { useAuth } from '../../auth/AuthContext'
 import { HelpLink } from '../../components/HelpLink'
 import { ConfirmDialog, Modal } from '../../components/Modal'
@@ -309,7 +309,7 @@ function OrderDetail({ id, onClose, onEdit, onChanged }: { id: number; onClose: 
       if (step === 'deliver') return (await psDbmApi.deliver(o.id, { dr_number: f.ref ?? '', dr_date: f.date || undefined, delivery_mode: (f.mode || 'pickup') as 'pickup' | 'delivery', delivery_address: f.address || undefined })).apr_number + ' delivered; inspect it in Receiving.'
       if (step === 'cancel') return (await psDbmApi.cancel(o.id, f.reason ?? '')).apr_number + ' cancelled.'
       if (step === 'delete') return (await psDbmApi.remove(o.id)).message
-      if (step && typeof step === 'object') return (await psDbmApi.notAvailable(o.id, step.cnas.id, { cnas_number: f.ref ?? '', cnas_date: f.date || undefined })).apr_number + ': line marked not available.'
+      if (step && typeof step === 'object') return (await psDbmApi.notAvailable(o.id, step.cnas.id, { release_ground: (f.ground || 'zero_inventory') as PsReleaseGround, cnas_number: f.ref ?? '', cnas_date: f.date || undefined })).apr_number + ': line marked not available.'
       return ''
     },
     onSuccess: (m) => {
@@ -388,14 +388,15 @@ function OrderDetail({ id, onClose, onEdit, onChanged }: { id: number; onClose: 
                       {l.availability === 'available' ? (
                         o.can_mark_unavailable ? (
                           <button className="btn btn-outline btn-sm" onClick={() => { setF({}); setStep({ cnas: l }) }}>
-                            Not available…
+                            Cannot buy from PS…
                           </button>
                         ) : (
                           'Available'
                         )
                       ) : (
                         <span className="small">
-                          CNAS {l.cnas_number}, {formatDate(l.cnas_date)} — buy by Shopping or SVP until {formatDate(l.cnas_valid_until)}
+                          {PS_RELEASE_GROUNDS[l.release_ground ?? 'zero_inventory'].label}: {l.cnas_number}, {formatDate(l.cnas_date)} — may be bought elsewhere
+                          {l.cnas_valid_until ? ` until ${formatDate(l.cnas_valid_until)}` : ''}
                         </span>
                       )}
                     </td>
@@ -469,12 +470,22 @@ function OrderDetail({ id, onClose, onEdit, onChanged }: { id: number; onClose: 
           {step && typeof step === 'object' && (
             <div className="reject-box">
               <p>
-                <strong>{step.cnas.description}</strong>: PS has no stock. Record its Certificate of Non-Availability of Stock; the line can then be bought by
-                Shopping or Small Value Procurement within 15 days.
+                <strong>{step.cnas.description}</strong>: record why this line cannot come from PS-DBM. It can then go to Small Value Procurement or Direct
+                Acquisition, or to Competitive Bidding if above their ceilings. A CNAS holds for 15 days.
               </p>
               <div className="form-grid">
-                {field('ref', 'CNAS reference *')}
-                {field('date', 'CNAS date', 'date')}
+                <div className="field span-2">
+                  <label htmlFor="psd-ground">Ground *</label>
+                  <select id="psd-ground" value={f.ground ?? 'zero_inventory'} onChange={(e) => setF({ ...f, ground: e.target.value })}>
+                    {Object.entries(PS_RELEASE_GROUNDS).map(([k, g]) => (
+                      <option key={k} value={k}>
+                        {g.label}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                {field('ref', `${PS_RELEASE_GROUNDS[(f.ground || 'zero_inventory') as PsReleaseGround].reference}: reference *`)}
+                {field('date', 'Document date', 'date')}
               </div>
               <StepButtons label="Mark not available" busy={act.isPending} onCancel={() => setStep(null)} onGo={() => act.mutate()} />
             </div>

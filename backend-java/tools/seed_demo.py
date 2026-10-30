@@ -289,7 +289,7 @@ def main():
                                                            'estimated_unit_cost': 7800, 'procurement_mode': SVP}]}, T['maria.santos'])
     review = call('POST', '/purchase-requests', {'purpose': 'Extension cords and surge protectors', 'priority': 'high', 'department_id': depts['SPU'],
                                                  'items': [{'general_description': 'Surge protector, 6-outlet', 'unit': 'piece', 'quantity': 15,
-                                                            'estimated_unit_cost': 850, 'procurement_mode': 'Shopping'}]}, T['maria.santos'])
+                                                            'estimated_unit_cost': 850, 'procurement_mode': SVP}]}, T['maria.santos'])
     call('POST', f"/purchase-requests/{review['id']}/submit", tok=T['maria.santos'])
 
     # ── RFQs (alternative modes) ────────────────────────────────────────

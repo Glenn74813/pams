@@ -31,7 +31,7 @@ export function BiddersPanel({ b, onChanged, onError }: Props) {
     onError: fail,
   })
   const remove = useMutation({ mutationFn: (x: Bidder) => biddingApi.removeBidder(x.id), onSuccess: () => onChanged('Bid removed.'), onError: fail })
-  const mearb = b.evaluation_method === 'mearb'
+  const mearb = b.evaluation_method !== 'price'
   const nextStage = (x: Bidder) => STAGES.find(([s]) => x.results[s] === 'pending')?.[0]
   const anyPostQual = (b.bidders ?? []).some((x) => x.results.post_qualification !== 'pending')
 
@@ -183,7 +183,7 @@ function BidForm({ b, onCancel, onSaved, onError }: { b: Bidding; onCancel: () =
     onError: (err) => onError(err instanceof ApiError ? err.message : 'Could not record the bid.'),
   })
   const bidding = new Set(b.bidders?.map((x) => x.supplier.id))
-  const rate = form === 'surety_bond' ? 0.05 : form === 'bid_securing_declaration' ? 0 : 0.02
+  const rate = ['surety_bond', 'bank_draft', 'irrevocable_letter_of_credit'].includes(form) ? 0.05 : form === 'bid_securing_declaration' ? 0 : 0.02
   return (
     <div className="reject-box">
       <div className="form-grid three">

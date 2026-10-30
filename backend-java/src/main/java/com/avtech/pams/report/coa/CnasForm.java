@@ -38,13 +38,16 @@ public class CnasForm {
 
     public byte[] generate(long lineId, String agencyName) {
         List<Map<String, Object>> found = jdbc.queryForList("""
-                select oi.ps_order_id, oi.availability, oi.cnas_number, oi.cnas_date, o.apr_number, o.submitted_date, o.created_at,
+                select oi.release_ground, oi.ps_order_id, oi.availability, oi.cnas_number, oi.cnas_date, o.apr_number, o.submitted_date, o.created_at,
                        pr.pr_number, d.name as department_name
                 from ps_order_items oi join ps_orders o on o.id = oi.ps_order_id
                 left join purchase_requests pr on pr.id = o.purchase_request_id left join departments d on d.id = pr.department_id
                 where oi.id = ?""", lineId);
         if (found.isEmpty()) throw ApiException.notFound("PS-DBM order line");
         Map<String, Object> head = found.get(0);
+        if (head.get("release_ground") != null && !"zero_inventory".equals(head.get("release_ground"))) {
+            throw ApiException.of(HttpStatus.UNPROCESSABLE_CONTENT, "This line left PS-DBM on another ground; a CNAS is issued only for zero inventory.");
+        }
         if (!"not_available".equals(head.get("availability"))) {
             throw ApiException.of(HttpStatus.UNPROCESSABLE_CONTENT, "This line is available at PS-DBM; a CNAS is issued only for lines marked not available.");
         }

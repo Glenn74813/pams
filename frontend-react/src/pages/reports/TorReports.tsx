@@ -14,6 +14,7 @@ interface Named {
 
 interface TorOptions {
   departments: Named[]
+  suppliers: Named[]
   users: (Named & { email: string; department: string | null })[]
   semi_expendable_items: (Named & { code: string })[]
   issuances: { id: number; request_number: string; par_number: string | null; ics_number: string | null; request_date: string; requester: string | null }[]
@@ -117,7 +118,7 @@ function lastDayOf(ym: string) {
   return `${ym}-${String(d).padStart(2, '0')}`
 }
 
-function RangeReport({ id, title, code, hint, path, name, optional, office, options, extra, extraParams }: {
+function RangeReport({ id, title, code, hint, path, name, optional, office, supplier, options, extra, extraParams }: {
   id: string
   title: string
   code?: string
@@ -127,6 +128,8 @@ function RangeReport({ id, title, code, hint, path, name, optional, office, opti
   /** Dates may be left blank (master lists: everything on record). */
   optional?: boolean
   office?: boolean
+  /** Offer a filter by supplier. */
+  supplier?: boolean
   options?: TorOptions
   /** More filter fields for this report. */
   extra?: React.ReactNode
@@ -138,6 +141,7 @@ function RangeReport({ id, title, code, hint, path, name, optional, office, opti
   const [fromDate, setFrom] = useState(optional ? '' : firstOfYear())
   const [toDate, setTo] = useState(optional ? '' : today())
   const [dept, setDept] = useState('')
+  const [supplierId, setSupplierId] = useState('')
   const [format, setFormat] = useState<Format>('xlsx')
   const from = kind === 'month' ? (month ? `${month}-01` : '') : kind === 'year' ? (/^\d{4}$/.test(year) ? `${year}-01-01` : '') : fromDate
   const to = kind === 'month' ? (month ? lastDayOf(month) : '') : kind === 'year' ? (/^\d{4}$/.test(year) ? `${year}-12-31` : '') : toDate
@@ -171,11 +175,24 @@ function RangeReport({ id, title, code, hint, path, name, optional, office, opti
         </div>
       )}
       {office && <OfficeField id={`${id}-dept`} value={dept} onChange={setDept} options={options} />}
+      {supplier && (
+        <div className="field">
+          <label htmlFor={`${id}-sup`}>Supplier</label>
+          <select id={`${id}-sup`} value={supplierId} onChange={(e) => setSupplierId(e.target.value)}>
+            <option value="">All suppliers</option>
+            {options?.suppliers.map((s) => (
+              <option key={s.id} value={s.id}>
+                {s.name}
+              </option>
+            ))}
+          </select>
+        </div>
+      )}
       {extra}
       <FormatField id={`${id}-fmt`} value={format} onChange={setFormat} />
       <ExportButton
         path={path}
-        params={{ from: from || undefined, to: to || undefined, department_id: dept || undefined, ...extraParams, format }}
+        params={{ from: from || undefined, to: to || undefined, department_id: dept || undefined, supplier_id: supplierId || undefined, ...extraParams, format }}
         name={`${name}.${format}`}
         label="Download"
         disabled={bad || (!optional && (!from || !to))}
@@ -446,11 +463,11 @@ export function TorReports() {
 
       <h4 className="muted small" style={{ textTransform: 'uppercase', margin: '1rem 0 0.5rem' }}>Registers</h4>
       <RangeReport id="tor-iar" title="IAR Monitoring" hint="Inspection and Acceptance Reports by inspection date: PO, supplier, dates, status and accepted amount."
-        path="/reports/registers/iar/export" name="IAR_Monitoring" options={o} />
+        path="/reports/registers/iar/export" name="IAR_Monitoring" supplier options={o} />
       <RangeReport id="tor-ris" title="RIS Monitoring" hint="Requisitions with RIS numbers: requested, approved and issued dates, office, status, items and amount."
         path="/reports/registers/ris/export" name="RIS_Monitoring" office options={o} />
       <RangeReport id="tor-po" title="Summary of Purchase Orders" hint="Purchase orders by PO date: supplier, mode of procurement, amount, status and deliveries."
-        path="/reports/registers/purchase-orders/export" name="PO_Summary" options={o} />
+        path="/reports/registers/purchase-orders/export" name="PO_Summary" supplier options={o} />
 
       <h4 className="muted small" style={{ textTransform: 'uppercase', margin: '1rem 0 0.5rem' }}>Monthly, annual or any dates</h4>
       <RangeReport id="tor-par" title="Property Acknowledgment Receipts" code="PAR" hint="PARs issued in the period, with asset, accountable officer and amount."

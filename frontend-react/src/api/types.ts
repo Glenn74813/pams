@@ -645,6 +645,8 @@ export interface Rfq {
   delivery_lead_days: number | null
   description: string | null
   justification: string | null
+  negotiated_ground: string | null
+  invited_suppliers: string[]
   purchase_request: NamedRef | null
   department: NamedRef | null
   preparer: NamedRef | null
@@ -837,7 +839,8 @@ export interface Bidding {
   preparer: NamedRef | null
   delivery_term: string | null
   delivery_lead_days: number | null
-  evaluation_method: 'price' | 'mearb'
+  evaluation_method: 'price' | 'mearb' | 'marb'
+  min_quality_score: number | null
   price_weight: number
   technical_weight: number
   pre_proc_date: string | null

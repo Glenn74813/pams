@@ -62,7 +62,7 @@ public class RfqController {
 
     private static final String TYPE = "App\\Models\\Rfq";
     private static final String READ = "@perm.any('view_rfq', 'create_rfq', 'generate_abstract', 'process_award')";
-    /** Quotations needed before an award without a recorded justification (Shopping, SVP, …). */
+    /** Quotations needed before an award without a recorded justification (SVP, …). */
     private static final int MIN_QUOTATIONS = 3;
 
     private final RfqRepository rfqs;
@@ -112,7 +112,7 @@ public class RfqController {
 
     public record RfqView(Long id, String rfqNumber, String title, String procurementMethod, boolean singleSource, String status, BigDecimal abc,
                           OffsetDateTime deadline, boolean deadlinePassed, String deliveryTerm, Integer deliveryLeadDays, String description,
-                          String justification, Ref purchaseRequest, Ref department, Ref preparer, Ref awardedSupplier, OffsetDateTime awardedAt,
+                          String justification, String negotiatedGround, List<String> invitedSuppliers, Ref purchaseRequest, Ref department, Ref preparer, Ref awardedSupplier, OffsetDateTime awardedAt,
                           Ref bacResolution, String remarks, String noaNumber, LocalDate noaDate, String ntpNumber, LocalDate ntpDate,
                           int itemsCount, int quotationsCount, List<LineView> items, List<QuotationView> quotations,
                           boolean canEdit, boolean canIssue, boolean canClose, boolean canCancel, boolean canDelete, boolean canQuote,
@@ -176,7 +176,7 @@ public class RfqController {
             if (mode != null && !o.modes().contains(mode)) o.modes().add(mode);
             o.lines().add(new PrLineOption(rs.getLong(6), rs.getString(7), rs.getString(8), rs.getString(9), rs.getInt(10), left, rs.getBigDecimal(11), mode));
         });
-        return Map.of("data", byPr.values(), "methods", Rfq.METHODS, "single_source", Rfq.SINGLE_SOURCE);
+        return Map.of("data", byPr.values(), "methods", Rfq.METHODS, "single_source", Rfq.SINGLE_SOURCE, "negotiated_grounds", Rfq.NEGOTIATED_GROUNDS);
     }
 
     public record AbstractRow(Long rfqItemId, String generalDescription, String unit, int quantity, BigDecimal abcUnitCost,
@@ -215,7 +215,8 @@ public class RfqController {
     }
 
     public record RfqInput(String title, String procurementMethod, Long purchaseRequestId, LocalDateTime deadline, String deliveryTerm,
-                           Integer deliveryLeadDays, String description, String justification, List<ItemInput> items) {
+                           Integer deliveryLeadDays, String description, String justification, String negotiatedGround, List<String> invitedSuppliers,
+                           List<ItemInput> items) {
     }
 
     @PostMapping
@@ -240,7 +241,7 @@ public class RfqController {
         }
         Map<String, Object> before = snapshot(r);
         apply(r, new RfqInput(in.title(), in.procurementMethod(), r.getPurchaseRequestId(), in.deadline(), in.deliveryTerm(),
-                in.deliveryLeadDays(), in.description(), in.justification(), in.items()), true);
+                in.deliveryLeadDays(), in.description(), in.justification(), in.negotiatedGround(), in.invitedSuppliers(), in.items()), true);
         rfqs.flush();
         audit.record("updated", TYPE, r.getId(), "Edited RFQ " + r.getRfqNumber(), before, snapshot(r));
         return views(List.of(r), true).get(r);
@@ -426,7 +427,8 @@ public class RfqController {
                     + "). To pass over a lower one, mark it non-responsive with the reason first.");
         }
         String why = text(in.remarks());
-        if (!r.isSingleSource() && r.getQuotations().size() < MIN_QUOTATIONS && why == null) {
+        // Negotiated Procurement proceeds even with one response (IRR 35.1.1): the recorded quotations are the best offers.
+        if (!r.isSingleSource() && !r.isNegotiated() && r.getQuotations().size() < MIN_QUOTATIONS && why == null) {
             throw ApiException.validation("remarks", "Only " + r.getQuotations().size() + " quotation(s) were received; at least " + MIN_QUOTATIONS
                     + " are expected. Record the justification for awarding anyway.");
         }
@@ -493,7 +495,13 @@ public class RfqController {
         String title = text(in.title());
         if (title == null || title.length() > 255) throw ApiException.validation("title", "Give the RFQ a title of up to 255 characters.");
         String method = in.procurementMethod();
+        if (ProcurementRules.SHOPPING.equals(method)) throw ApiException.validation("procurement_method", "Shopping is no longer a mode under RA 12009; use Small Value Procurement.");
         if (method == null || !Rfq.METHODS.contains(method)) throw ApiException.validation("procurement_method", "Choose an alternative mode of procurement.");
+        boolean negotiated = ProcurementRules.NEGOTIATED.equals(method);
+        String ground = negotiated ? text(in.negotiatedGround()) : null;
+        if (negotiated && (ground == null || !Rfq.NEGOTIATED_GROUNDS.containsKey(ground))) {
+            throw ApiException.validation("negotiated_ground", "Choose the ground for Negotiated Procurement; it is allowed only in the instances of Section 35.");
+        }
         if (in.purchaseRequestId() == null) throw ApiException.validation("purchase_request_id", "Choose the approved purchase request this RFQ is for.");
         // Locking the PR serialises RFQs drawing on the same lines.
         List<Map<String, Object>> pr = db.lockRows("purchase_requests", "id = ? and deleted_at is null", in.purchaseRequestId());
@@ -506,10 +514,22 @@ public class RfqController {
                 }, in.purchaseRequestId());
         if (in.items() == null || in.items().isEmpty()) throw ApiException.validation("items", "Add at least one line from the purchase request.");
         Map<Long, Integer> taken = usage.taken(in.purchaseRequestId(), r.getId(), null);
-        // RA 12009: after two failed biddings, the bidding lines may go to Negotiated Procurement.
+        // IRR 64.5 and 35.1: after two failed biddings, the bidding lines may go to Negotiated Procurement.
         Integer failedBiddings = jdbc.queryForObject("select count(*) from biddings where purchase_request_id = ? and status = 'failed' and deleted_at is null",
                 Integer.class, in.purchaseRequestId());
         boolean twoFailed = failedBiddings != null && failedBiddings >= 2;
+        boolean onTwoFailed = Rfq.TWO_FAILED.equals(ground);
+        if (onTwoFailed && !twoFailed) {
+            throw ApiException.validation("negotiated_ground", "This purchase request has " + (failedBiddings == null ? 0 : failedBiddings) + " failed bidding(s); Negotiated Procurement on this ground needs two failed biddings.");
+        }
+        // The ABC may rise at most 20% over the last failed bidding (IRR 35.1.1(a)).
+        Map<Long, BigDecimal> failedAbc = new HashMap<>();
+        if (onTwoFailed) {
+            jdbc.query("""
+                    select bi.purchase_request_item_id, bi.abc_unit_cost from bidding_items bi join biddings b on b.id = bi.bidding_id
+                    where b.purchase_request_id = ? and b.status = 'failed' and b.deleted_at is null order by b.id""",
+                    rs -> { failedAbc.put(rs.getLong(1), rs.getBigDecimal(2)); }, in.purchaseRequestId());
+        }
         Set<Long> seen = new HashSet<>();
         List<RfqItem> lines = new ArrayList<>();
         for (int i = 0; i < in.items().size(); i++) {
@@ -518,16 +538,18 @@ public class RfqController {
             PrLine p = it == null || it.purchaseRequestItemId() == null ? null : prLines.get(it.purchaseRequestItemId());
             if (p == null) throw ApiException.validation(f + "purchase_request_item_id", "Line " + (i + 1) + " is not on the purchase request.");
             if (!seen.add(p.id())) throw ApiException.validation(f + "purchase_request_item_id", "\"" + p.description() + "\" is listed twice.");
-            boolean afterFailure = twoFailed && "Competitive Bidding".equals(p.mode()) && "Negotiated Procurement".equals(method);
-            // Common-use supplies come from PS-DBM; only a Certificate of Non-Availability of Stock (valid 15 days) lets them be bought elsewhere.
-            boolean psOut = ProcurementRules.PS_DBM.equals(p.mode()) && List.of("Shopping", "Small Value Procurement").contains(method) && cnasValid(p.id());
+            boolean afterFailure = onTwoFailed && "Competitive Bidding".equals(p.mode());
+            // Common-use supplies come from PS-DBM unless released on a ground of IRR 40.2; SVP and Direct Acquisition both cover those not available from it.
+            boolean psOut = ProcurementRules.PS_DBM.equals(p.mode()) && List.of(ProcurementRules.SVP, "Direct Acquisition").contains(method) && usage.releasedFromPs(p.id());
+            // A line approved as Shopping before the change is bought by SVP, which took its place.
+            boolean wasShopping = ProcurementRules.SHOPPING.equals(p.mode()) && ProcurementRules.SVP.equals(method);
             if (ProcurementRules.PS_DBM.equals(p.mode()) && !psOut) {
                 throw ApiException.validation("procurement_method", "\"" + p.description() + "\" is a common-use item for PS-DBM; buy it through a PS-DBM "
-                        + "Agency Procurement Request, or record PS's Certificate of Non-Availability of Stock there first (then Shopping or SVP within 15 days).");
+                        + "Agency Procurement Request, or record there why it cannot come from PS (then SVP or Direct Acquisition).");
             }
-            if (p.mode() != null && !p.mode().equals(method) && !afterFailure && !psOut) {
+            if (p.mode() != null && !p.mode().equals(method) && !afterFailure && !psOut && !wasShopping) {
                 throw ApiException.validation("procurement_method", "\"" + p.description() + "\" was planned under " + p.mode() + "; the RFQ method must match the approved mode (RA 12009)"
-                        + ("Competitive Bidding".equals(p.mode()) && "Negotiated Procurement".equals(method) ? ", or the PR must have two failed biddings." : "."));
+                        + ("Competitive Bidding".equals(p.mode()) && "Negotiated Procurement".equals(method) ? ", or choose the ground of two failed biddings once the PR has them." : "."));
             }
             int qty = it.quantity() == null ? p.quantity() - taken.getOrDefault(p.id(), 0) : it.quantity();
             int left = p.quantity() - taken.getOrDefault(p.id(), 0);
@@ -539,6 +561,10 @@ public class RfqController {
                 throw ApiException.validation(f + "abc_unit_cost", "\"" + p.description() + "\": the ABC of ₱" + ProcurementRules.peso(cost)
                         + " per unit is above the ₱" + ProcurementRules.peso(p.unitCost()) + " the purchase request was approved for.");
             }
+            BigDecimal lastAbc = failedAbc.get(p.id());
+            if (lastAbc != null && cost.compareTo(lastAbc.multiply(new BigDecimal("1.20"))) > 0) {
+                throw ApiException.validation(f + "abc_unit_cost", "\"" + p.description() + "\": the ABC cannot rise more than 20% over the last failed bidding (₱" + ProcurementRules.peso(lastAbc) + " per unit).");
+            }
             String spec = text(it.specifications());
             lines.add(new RfqItem(r, p.id(), p.description(), spec != null ? spec : p.specifications(), p.unit(), qty, cost.setScale(2, RoundingMode.HALF_UP), text(it.deliveryLeadTime())));
         }
@@ -546,6 +572,16 @@ public class RfqController {
         if (Rfq.SINGLE_SOURCE.contains(method) && justification == null) {
             throw ApiException.validation("justification", method + " is a single or exclusive-source method; record the justification "
                     + "(e.g. exclusive distributorship, proprietary nature, legal ground) as RA 12009 requires.");
+        }
+        if (negotiated && !onTwoFailed && justification == null) {
+            throw ApiException.validation("justification", "Record how this purchase meets the conditions of its Section 35 ground.");
+        }
+        if (ProcurementRules.UNSOLICITED.equals(method) && justification == null) {
+            throw ApiException.validation("justification", "Record the new concept or technology that the HoPE determined the offer involves (IRR 30.1).");
+        }
+        List<String> invited = in.invitedSuppliers() == null ? List.of() : in.invitedSuppliers().stream().map(RfqController::text).filter(Objects::nonNull).distinct().toList();
+        if (onTwoFailed && invited.size() < MIN_QUOTATIONS) {
+            throw ApiException.validation("invited_suppliers", "Invite at least " + MIN_QUOTATIONS + " suppliers, including those disqualified in the earlier biddings (IRR 35.1.1).");
         }
         BigDecimal abc = lines.stream().map(RfqItem::getAbcTotal).reduce(BigDecimal.ZERO, BigDecimal::add);
         rules.checkCeiling("procurement_method", title, method, abc);
@@ -559,6 +595,8 @@ public class RfqController {
         r.setDeliveryLeadDays(in.deliveryLeadDays());
         r.setDescription(text(in.description()));
         r.setJustification(justification);
+        r.setNegotiatedGround(ground);
+        r.setInvitedSuppliers(invited.isEmpty() ? null : String.join("\n", invited));
         r.getItems().clear();
         rfqs.flush();
         r.getItems().addAll(lines);
@@ -567,7 +605,7 @@ public class RfqController {
 
     private static RfqInput inputOf(Rfq r) {
         return new RfqInput(r.getTitle(), r.getProcurementMethod(), r.getPurchaseRequestId(), r.getDeadline(), r.getDeliveryTerm(), r.getDeliveryLeadDays(),
-                r.getDescription(), r.getJustification(), r.getItems().stream().map(i -> new ItemInput(i.getPurchaseRequestItemId(), i.getQuantity(),
+                r.getDescription(), r.getJustification(), r.getNegotiatedGround(), invitedList(r), r.getItems().stream().map(i -> new ItemInput(i.getPurchaseRequestItemId(), i.getQuantity(),
                 i.getAbcUnitCost(), i.getSpecifications(), i.getDeliveryLeadTime())).toList());
     }
 
@@ -626,6 +664,7 @@ public class RfqController {
             boolean pastDeadline = r.getDeadline() != null && !r.getDeadline().isAfter(now);
             out.put(r, new RfqView(r.getId(), r.getRfqNumber(), r.getTitle(), r.getProcurementMethod(), r.isSingleSource(), r.getStatus(), r.getAbc(),
                     Times.toOffset(r.getDeadline()), pastDeadline, r.getDeliveryTerm(), r.getDeliveryLeadDays(), r.getDescription(), r.getJustification(),
+                    r.getNegotiatedGround(), invitedList(r),
                     pr == null ? null : new Ref(r.getPurchaseRequestId(), pr[0]), pr == null ? null : new Ref(Long.valueOf(pr[1]), pr[2]),
                     r.getPreparedBy() == null ? null : new Ref(r.getPreparedBy(), names.get(r.getPreparedBy())),
                     r.getAwardedSupplierId() == null ? null : new Ref(r.getAwardedSupplierId(), suppliers.get(r.getAwardedSupplierId())), Times.toOffset(r.getAwardedAt()),
@@ -660,12 +699,8 @@ public class RfqController {
     }
 
     /** A PS Certificate of Non-Availability of Stock for this PR line, issued within the last 15 days. */
-    private boolean cnasValid(Long prItemId) {
-        Integer n = jdbc.queryForObject("""
-                select count(*) from ps_order_items pi join ps_orders o on o.id = pi.ps_order_id
-                where pi.purchase_request_item_id = ? and pi.availability = 'not_available' and o.deleted_at is null and pi.cnas_date >= ?""",
-                Integer.class, prItemId, java.sql.Date.valueOf(LocalDate.now(Times.ZONE).minusDays(15)));
-        return n != null && n > 0;
+    private static List<String> invitedList(Rfq r) {
+        return r.getInvitedSuppliers() == null ? List.of() : List.of(r.getInvitedSuppliers().split("\n"));
     }
 
 }

@@ -15,7 +15,11 @@ import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
+import com.avtech.pams.procurement.ProcurementRules;
+
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 
 /**
  * A request for quotation under an alternative mode of procurement (RA 12009):
@@ -25,10 +29,32 @@ import java.util.List;
 @Table(name = "rfqs")
 public class Rfq extends Timestamped {
 
-    public static final List<String> METHODS = List.of("Shopping", "Small Value Procurement", "Negotiated Procurement", "Direct Contracting",
-            "Direct Acquisition", "Repeat Order", "Limited Source Bidding", "Competitive Dialogue", "Unsolicited Offer", "Direct Sales");
+    public static final List<String> METHODS = List.of(ProcurementRules.SVP, ProcurementRules.NEGOTIATED, "Direct Contracting",
+            "Direct Acquisition", "Repeat Order", "Limited Source Bidding", "Competitive Dialogue", ProcurementRules.UNSOLICITED, "Direct Sales", ProcurementRules.STI);
+    /** The instances of Negotiated Procurement (IRR Section 35; GPPB Resolution 01-2026; GPPB Circular 06-2026), by the code stored on the RFQ. */
+    public static final Map<String, String> NEGOTIATED_GROUNDS = new LinkedHashMap<>();
+    public static final String TWO_FAILED = "two_failed_biddings";
+
+    static {
+        NEGOTIATED_GROUNDS.put(TWO_FAILED, "Two failed biddings (35.1)");
+        NEGOTIATED_GROUNDS.put("emergency", "Emergency cases (35.2)");
+        NEGOTIATED_GROUNDS.put("take_over", "Take-over of contracts (35.3)");
+        NEGOTIATED_GROUNDS.put("adjacent", "Adjacent or contiguous (35.4)");
+        NEGOTIATED_GROUNDS.put("agency_to_agency", "Agency-to-agency (35.5)");
+        NEGOTIATED_GROUNDS.put("scientific_artistic", "Scientific, scholarly or artistic work, exclusive technology and media (35.6)");
+        NEGOTIATED_GROUNDS.put("highly_technical", "Highly technical consultants (35.7)");
+        NEGOTIATED_GROUNDS.put("defense", "Defense cooperation agreements and inventory-based items (35.8)");
+        NEGOTIATED_GROUNDS.put("lease", "Lease of real property and venue (35.9)");
+        NEGOTIATED_GROUNDS.put("ngo", "NGO participation (35.10)");
+        NEGOTIATED_GROUNDS.put("community", "Community participation (35.11)");
+        NEGOTIATED_GROUNDS.put("un_agencies", "UN agencies and international organizations (35.12)");
+        NEGOTIATED_GROUNDS.put("direct_retail", "Direct retail purchase of fuel, charging devices and online subscriptions (35.13)");
+        NEGOTIATED_GROUNDS.put("international_events", "International events hosted by the Philippine Government (GPPB Resolution 01-2026)");
+        NEGOTIATED_GROUNDS.put("sagip_saka", "Sagip Saka (GPPB Circular 06-2026)");
+    }
+
     /** Single or exclusive-source methods: one supplier, and a documented justification. */
-    public static final List<String> SINGLE_SOURCE = List.of("Direct Contracting", "Direct Acquisition", "Repeat Order", "Direct Sales", "Unsolicited Offer");
+    public static final List<String> SINGLE_SOURCE = List.of("Direct Contracting", "Direct Acquisition", "Repeat Order", "Direct Sales", ProcurementRules.STI);
     public static final String DRAFT = "draft";
     public static final String ISSUED = "issued";
     public static final String CLOSED = "closed";
@@ -74,6 +100,13 @@ public class Rfq extends Timestamped {
 
     private String remarks;
     private String justification;
+
+    @jakarta.persistence.Column(name = "negotiated_ground")
+    private String negotiatedGround;
+
+    /** One invited supplier per line (a Negotiated Procurement after two failed biddings invites at least three). */
+    @jakarta.persistence.Column(name = "invited_suppliers")
+    private String invitedSuppliers;
 
     @Column(name = "noa_number")
     private String noaNumber;
@@ -149,6 +182,11 @@ public class Rfq extends Timestamped {
     public void setBacResolutionId(Long bacResolutionId) { this.bacResolutionId = bacResolutionId; }
     public String getRemarks() { return remarks; }
     public void setRemarks(String remarks) { this.remarks = remarks; }
+    public String getNegotiatedGround() { return negotiatedGround; }
+    public void setNegotiatedGround(String negotiatedGround) { this.negotiatedGround = negotiatedGround; }
+    public String getInvitedSuppliers() { return invitedSuppliers; }
+    public void setInvitedSuppliers(String invitedSuppliers) { this.invitedSuppliers = invitedSuppliers; }
+    public boolean isNegotiated() { return ProcurementRules.NEGOTIATED.equals(procurementMethod); }
     public String getJustification() { return justification; }
     public void setJustification(String justification) { this.justification = justification; }
     public String getNoaNumber() { return noaNumber; }

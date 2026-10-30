@@ -75,7 +75,8 @@ function Details({ r, onPrint, onEdit, onChanged }: { r: Rfq; onPrint: () => voi
   const noa = useMutation({ mutationFn: () => rfqApi.noa(r.id), onSuccess: (x) => onChanged(`Notice of Award ${x.noa_number} issued.`), onError: fail })
   const ntp = useMutation({ mutationFn: () => rfqApi.ntp(r.id), onSuccess: (x) => onChanged(`Notice to Proceed ${x.ntp_number} issued.`), onError: fail })
   const busy = [issue, close, cancel, remove, responsive, dropQuote, noa, ntp].some((m) => m.isPending)
-  const enough = r.single_source || r.quotations_count >= 3
+  // Negotiated Procurement proceeds even with one response (IRR 35.1.1).
+  const enough = r.single_source || r.procurement_method === 'Negotiated Procurement' || r.quotations_count >= 3
 
   return (
     <>
@@ -104,6 +105,18 @@ function Details({ r, onPrint, onEdit, onChanged }: { r: Rfq; onPrint: () => voi
               {r.delivery_term}
               {r.delivery_lead_days != null && ` · within ${r.delivery_lead_days} days`}
             </dd>
+          </>
+        )}
+        {r.negotiated_ground && (
+          <>
+            <dt>Ground</dt>
+            <dd>{r.negotiated_ground.replaceAll('_', ' ')}</dd>
+          </>
+        )}
+        {r.invited_suppliers.length > 0 && (
+          <>
+            <dt>Invited</dt>
+            <dd>{r.invited_suppliers.join(', ')}</dd>
           </>
         )}
         {r.justification && (

@@ -73,7 +73,7 @@ function Details({ b, onPrint, onEdit, onChanged }: { b: Bidding; onPrint: () =>
       <ol className="chain" style={{ display: 'flex', flexWrap: 'wrap', gap: '0.75rem' }}>
         {FLOW.map((s, i) => {
           const passed = stepAt > i || b.status === 'awarded'
-          // The pre-procurement conference is optional below ₱2M; show it as skipped, not done.
+          // The pre-procurement conference is optional at or below its threshold; show it as skipped, not done.
           const skipped = s === 'pre_procurement' && passed && !b.pre_proc_date
           return (
             <li key={s} className={skipped ? '' : passed ? 'step-approved' : stepAt === i ? 'step-current' : ''} style={{ display: 'flex', gap: '0.35rem', alignItems: 'center' }}>
@@ -95,10 +95,10 @@ function Details({ b, onPrint, onEdit, onChanged }: { b: Bidding; onPrint: () =>
         <dt>ABC</dt>
         <dd>{formatPeso(b.abc)}</dd>
         <dt>Evaluation</dt>
-        <dd>{b.evaluation_method === 'mearb' ? `MEARB — price ${b.price_weight}%, rated ${b.technical_weight}%` : 'Lowest calculated responsive bid'}</dd>
+        <dd>{b.evaluation_method === 'mearb' ? `MEARB — price ${b.price_weight}%, rated ${b.technical_weight}%${b.min_quality_score != null ? `, minimum quality ${b.min_quality_score}` : ''}` : b.evaluation_method === 'marb' ? 'MARB — highest rated, price within the ABC' : 'Lowest calculated responsive bid'}</dd>
         <dt>Pre-procurement</dt>
         <dd>
-          {b.pre_proc_date ? formatDateTime(b.pre_proc_date) : b.pre_proc_required ? <span className="badge st-pending">required (ABC over ₱2M)</span> : 'Not held'}
+          {b.pre_proc_date ? formatDateTime(b.pre_proc_date) : b.pre_proc_required ? <span className="badge st-pending">required for this ABC</span> : 'Not held'}
           {b.pre_proc_notes && <div className="small">{b.pre_proc_notes}</div>}
         </dd>
         {b.itb_posted_at && (
@@ -168,7 +168,7 @@ function Details({ b, onPrint, onEdit, onChanged }: { b: Bidding; onPrint: () =>
         </table>
       </div>
 
-      {b.evaluation_method === 'mearb' && (
+      {b.evaluation_method !== 'price' && (
         <>
           <div className="section-header" style={{ marginTop: '1rem' }}>
             <h4>Rated criteria</h4>
@@ -406,7 +406,7 @@ function AwardForm({ b, onCancel, onSaved, onError }: SubProps & { onSaved: (m: 
     <div className="reject-box">
       <p>
         Award to <strong>{winner?.supplier.name}</strong> at {formatPeso(winner?.bid_amount)} — passed post-qualification as the{' '}
-        {b.evaluation_method === 'mearb' ? 'highest-rated' : 'lowest calculated'} responsive bid.
+        {b.evaluation_method !== 'price' ? 'highest-rated' : 'lowest calculated'} responsive bid.
       </p>
       <div className="form-grid">
         <div className="field">

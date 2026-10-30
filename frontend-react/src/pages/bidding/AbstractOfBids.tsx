@@ -34,7 +34,7 @@ export function AbstractOfBids({ b, config }: { b: Bidding; config?: InventoryCo
             {STAGES.map(([, l]) => (
               <th key={l}>{l}</th>
             ))}
-            {b.evaluation_method === 'mearb' && <th>MEARB score</th>}
+            {b.evaluation_method !== 'price' && <th>Score</th>}
           </tr>
         </thead>
         <tbody>
@@ -47,7 +47,7 @@ export function AbstractOfBids({ b, config }: { b: Bidding; config?: InventoryCo
               {STAGES.map(([s]) => (
                 <td key={s}>{x.results[s]}</td>
               ))}
-              {b.evaluation_method === 'mearb' && <td className="num">{x.mearb_score ?? '—'}</td>}
+              {b.evaluation_method !== 'price' && <td className="num">{x.mearb_score ?? '—'}</td>}
             </tr>
           ))}
         </tbody>

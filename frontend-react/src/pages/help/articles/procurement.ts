@@ -32,7 +32,7 @@ export const procurementArticles: Article[] = [
           'When it is complete, open it and click **Submit for review**.',
         ),
         p('A PPMP needs at least 1 line and can have up to 200.'),
-        warn('Shopping and Small Value Procurement are capped at ₱2,000,000 per line by default (the cap can be changed by the administrator). The form warns "Over the ₱… ceiling for this mode", and saving is refused until you lower the amount or choose another mode such as Competitive Bidding.'),
+        warn('Small Value Procurement is capped at ₱2,000,000 and Direct Acquisition at ₱200,000 per line by default (the administrator can change the caps). Shopping is no longer a mode under RA 12009. A low amount does not by itself allow Negotiated Procurement, which has its own grounds. The form warns "Over the ₱… ceiling for this mode", and saving is refused until you lower the amount or choose another mode such as Competitive Bidding.'),
       ),
       sec(
         'review-ppmp',
@@ -191,7 +191,7 @@ export const procurementArticles: Article[] = [
         'Place, pay and receive',
         steps(
           'Order the same items in the Virtual Store, then click **Placed in Virtual Store…** and enter its order reference.',
-          'If PS has no stock of a line, click **Not available…** and record the Certificate of Non-Availability of Stock (CNAS). That line drops off the request and, for 15 days, can be bought by Shopping or Small Value Procurement through an RFQ.',
+          'If a line cannot come from PS, click **Cannot buy from PS…** and choose the ground: zero inventory (CNAS), specifications that do not meet the need, too little stock, or a BAC resolution on efficiency, practicality or economic viability. Enter the supporting document. The line drops off the request and can go to Small Value Procurement, Direct Acquisition or Competitive Bidding. A CNAS holds for 15 days; the others have no limit.',
           'Pay PS (cash, LDDAP-ADA, check, or funds already with PS) and click **Record payment…**. The amount must equal the request total.',
           'When PS issues its Delivery Receipt, click **Record Delivery Receipt…**: pick-up at the depot or delivery. PS releases a request in one lot.',
           'An order to PS-DBM opens in **Receiving**, numbered as the APR. Inspect, accept and take the items into stock there as with any delivery.',
@@ -224,7 +224,7 @@ export const procurementArticles: Article[] = [
     route: '/rfq',
     keywords: ['request for quotation', 'shopping', 'small value procurement', 'SVP', 'negotiated', 'direct contracting', 'repeat order', 'abstract of quotations', 'NOA', 'NTP', 'notice of award', 'notice to proceed'],
     summary:
-      'Buy through alternative modes (Shopping, Small Value Procurement, Negotiated, Direct Contracting and others): issue the RFQ, record quotations, award, and issue the NOA and NTP.',
+      'Buy through alternative modes (Small Value Procurement, Negotiated, Direct Contracting and others): issue the RFQ, record quotations, award, and issue the NOA and NTP.',
     sections: [
       who(
         'The page opens for view_rfq, create_rfq or generate_abstract.',
@@ -232,8 +232,9 @@ export const procurementArticles: Article[] = [
         'process_award: award, issue the Notice of Award and Notice to Proceed (seeded: BAC Chairperson).',
       ),
       purpose(
-        p('Use this module for any approved PR line planned under an alternative mode: Shopping, Small Value Procurement, Negotiated Procurement, Direct Contracting, Direct Acquisition, Repeat Order, Limited Source Bidding, Competitive Dialogue, Unsolicited Offer or Direct Sales.'),
-        p('Direct Contracting, Direct Acquisition, Repeat Order, Direct Sales and Unsolicited Offer are single-source: they need a written justification and take one quotation only.'),
+        p('Use this module for any approved PR line planned under an alternative mode: Small Value Procurement, Negotiated Procurement, Direct Contracting, Direct Acquisition, Repeat Order, Limited Source Bidding, Competitive Dialogue, Unsolicited Offer with Bid Matching, Direct Sales or Direct Procurement for Science, Technology and Innovation. Lines approved earlier as Shopping go to Small Value Procurement.'),
+        p('Negotiated Procurement needs a ground from Section 35, such as two failed biddings, an emergency or a take-over. After two failed biddings, choose at least three invited suppliers from the list (including those disqualified earlier), or type a name that is not on it; the ABC may rise at most 20% over the last failed bidding, and each supplier\'s best offer is recorded as its quotation. The award may proceed even with one response. Every other ground needs a written justification.'),
+        p('Direct Contracting, Direct Acquisition, Repeat Order, Direct Sales and Direct Procurement for Science, Technology and Innovation are single-source: they need a written justification and take one quotation only. Unsolicited Offer with Bid Matching needs the justification but can take matching offers.'),
       ),
       sec(
         'create-rfq',
@@ -304,7 +305,7 @@ export const procurementArticles: Article[] = [
         'Evaluation and scores: manage_bidding or conduct_bid_evaluation.',
         'Award, NOA and NTP: process_award.',
       ),
-      purpose(p('For PR lines planned as Competitive Bidding (or with no mode). Evaluation is either "Lowest calculated responsive bid" or "MEARB (price + rated criteria)".')),
+      purpose(p('For PR lines planned as Competitive Bidding (or with no mode). Evaluation is "Lowest calculated responsive bid", "MEARB" (rated criteria plus price, which weighs 15–40%, with an optional minimum quality score) or "MARB" (the highest-rated bid whose price is within the ABC).')),
       sec(
         'set-up',
         'Set up the bidding',
@@ -312,7 +313,7 @@ export const procurementArticles: Article[] = [
           'Click **+ New bidding** and choose the **Approved purchase request**. A warning shows if the PR already has failed biddings.',
           'Choose the **Evaluation** method (for MEARB, set the **Price weight (%)**, default 70), fill in **Title**, **Delivery term**, **Delivery within (days)**, and the lines with quantity and ABC per unit (not more than the PR cost). Save.',
           'MEARB only: click **Set criteria**. The weights must total 100, and this must be done before the Invitation to Bid.',
-          '**Pre-procurement conference**: record the date and notes. Required when the ABC is over ₱2,000,000; otherwise optional (shown as "skipped").',
+          '**Pre-procurement conference**: record the date and notes. Required when the ABC is over ₱5,000,000 for goods, ₱10,000,000 for infrastructure or ₱2,000,000 for consulting; otherwise optional (shown as "skipped").',
           '**Post Invitation to Bid**: enter the **ITB reference**, **Posted on** (not in the future), **Posted at**, the **Deadline for bids** (after posting) and **Bid opening** (defaults to the deadline).',
         ),
       ),
@@ -326,7 +327,8 @@ export const procurementArticles: Article[] = [
         table(
           ['Bid security form', 'Minimum'],
           [
-            ['Cash, cashier\'s/manager\'s check, bank draft or letter of credit', '2% of the ABC'],
+            ['Cash, cashier\'s or manager\'s check', '2% of the ABC'],
+            ['Bank draft, guarantee or letter of credit', '5% of the ABC'],
             ['Surety bond', '5% of the ABC'],
             ['Bid Securing Declaration', 'None'],
           ],
@@ -407,7 +409,7 @@ export const procurementArticles: Article[] = [
           'Optionally link a **System user**, then fill in **Full name** and **Designation** (Chairperson, Vice-Chairperson, Member, Provisional member, Secretariat, Technical Working Group).',
           'Add **Position**, **Office**, **Office order no.**, **Order date** and **Term from / to**, and tick **Active**.',
         ),
-        p('A banner checks the RA 12009 composition: a chairperson, a vice-chairperson, at least 5 voting members and a secretariat. It is a reminder only; nothing is blocked. Removing a member who has attended meetings makes them inactive instead of deleting them.'),
+        p('A banner checks the RA 12009 composition: a chairperson, a vice-chairperson, 5 or 7 voting members and a secretariat. It is a reminder only; nothing is blocked. Removing a member who has attended meetings makes them inactive instead of deleting them.'),
       ),
       sec(
         'meetings',

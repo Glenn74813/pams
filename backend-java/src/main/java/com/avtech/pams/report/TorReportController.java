@@ -94,6 +94,7 @@ public class TorReportController {
     public Map<String, Object> options() {
         Map<String, Object> m = new LinkedHashMap<>();
         m.put("departments", jdbc.queryForList("select id, name from departments order by name"));
+        m.put("suppliers", jdbc.queryForList("select id, name from suppliers order by name"));
         m.put("users", jdbc.queryForList("select u.id, u.name, u.email, d.name as department from users u left join departments d on d.id = u.department_id order by u.name"));
         m.put("semi_expendable_items", jdbc.queryForList("select id, code, name from items where is_semi_expandable = " + db.t() + " order by name"));
         m.put("issuances", jdbc.queryForList("""
@@ -112,7 +113,7 @@ public class TorReportController {
         m.put("cnas_lines", jdbc.queryForList("""
                 select oi.id, oi.cnas_number, oi.cnas_date, oi.description, o.apr_number
                 from ps_order_items oi join ps_orders o on o.id = oi.ps_order_id
-                where oi.availability = 'not_available' and o.deleted_at is null order by oi.cnas_date desc, oi.id desc"""));
+                where oi.availability = 'not_available' and coalesce(oi.release_ground, 'zero_inventory') = 'zero_inventory' and o.deleted_at is null order by oi.cnas_date desc, oi.id desc"""));
         return m;
     }
 
@@ -258,8 +259,9 @@ public class TorReportController {
     @GetMapping("/registers/iar/export")
     @PreAuthorize(REPORTS)
     public ResponseEntity<byte[]> iarRegister(@RequestParam(required = false) LocalDate from, @RequestParam(required = false) LocalDate to,
-                                              @RequestParam(required = false) String format, @RequestParam(name = "entity_name", required = false) String entity) {
-        return period(from, to, format, "IAR_Monitoring", "IAR monitoring", p -> lists.iarRegister(p, entity(entity)));
+                                              @RequestParam(required = false) String format, @RequestParam(name = "supplier_id", required = false) Long supplierId,
+                                              @RequestParam(name = "entity_name", required = false) String entity) {
+        return period(from, to, format, "IAR_Monitoring", "IAR monitoring", p -> lists.iarRegister(p, supplierId, entity(entity)));
     }
 
     /** RIS monitoring register (optionally one office). */
@@ -275,8 +277,9 @@ public class TorReportController {
     @GetMapping("/registers/purchase-orders/export")
     @PreAuthorize(REPORTS)
     public ResponseEntity<byte[]> purchaseOrders(@RequestParam(required = false) LocalDate from, @RequestParam(required = false) LocalDate to,
-                                                 @RequestParam(required = false) String format, @RequestParam(name = "entity_name", required = false) String entity) {
-        return period(from, to, format, "PO_Summary", "Summary of Purchase Orders", p -> lists.purchaseOrders(p, entity(entity)));
+                                                 @RequestParam(required = false) String format, @RequestParam(name = "supplier_id", required = false) Long supplierId,
+                                                 @RequestParam(name = "entity_name", required = false) String entity) {
+        return period(from, to, format, "PO_Summary", "Summary of Purchase Orders", p -> lists.purchaseOrders(p, supplierId, entity(entity)));
     }
 
     /** Master lists: assets, items, suppliers, users, available-supplies; from/to filter on acquisition/creation date. */

@@ -19,9 +19,15 @@ public class ProcurementRules {
 
     /** Common-use supplies and equipment bought from the Procurement Service of the DBM (LOI 755, EO 359, AO 17), without bidding. */
     public static final String PS_DBM = "Procurement from PS-DBM";
-    public static final List<String> MODES = List.of("Competitive Bidding", "Competitive Dialogue", "Limited Source Bidding",
-            "Direct Contracting", "Direct Acquisition", "Repeat Order", "Small Value Procurement", "Negotiated Procurement",
-            "Shopping", "Direct Sales", "Unsolicited Offer", PS_DBM);
+    public static final String SVP = "Small Value Procurement";
+    /** No longer a mode under RA 12009; kept only so past records and lines already approved under it can still be read and bought by SVP. */
+    public static final String SHOPPING = "Shopping";
+    public static final String NEGOTIATED = "Negotiated Procurement";
+    public static final String UNSOLICITED = "Unsolicited Offer with Bid Matching";
+    public static final String STI = "Direct Procurement for Science, Technology and Innovation";
+    /** The modes of RA 12009 Section 26, and PS-DBM for common-use items (Section 40). */
+    public static final List<String> MODES = List.of("Competitive Bidding", "Limited Source Bidding", "Competitive Dialogue", UNSOLICITED,
+            "Direct Contracting", "Direct Acquisition", "Repeat Order", SVP, NEGOTIATED, "Direct Sales", STI, PS_DBM);
     public static final List<String> CATEGORIES = List.of("Goods", "Infrastructure Projects", "Consulting Services");
     public static final List<String> FUND_SOURCES = List.of("General Appropriations Act (GAA)", "Continuing Appropriations",
             "Special Purpose Funds (SPFs)", "Automatic Appropriations", "Revolving Funds", "Trust Receipts / Trust Funds",
@@ -30,7 +36,7 @@ public class ProcurementRules {
     public static final List<String> QUARTERS = List.of("Q1", "Q2", "Q3", "Q4");
     /** RA 12009 IRR ceilings, overridable per method through the procurement_method_ceilings setting. */
     private static final Map<String, BigDecimal> CEILINGS = Map.of(
-            "Shopping", new BigDecimal("2000000"), "Small Value Procurement", new BigDecimal("2000000"));
+            SVP, new BigDecimal("2000000"), "Direct Acquisition", new BigDecimal("200000"));
     private static final JsonMapper JSON = JsonMapper.builder().build();
 
     private final SettingService settings;
@@ -75,6 +81,7 @@ public class ProcurementRules {
             }
             String mode = text(l.procurementMode());
             if (mode == null && modeRequired) throw ApiException.validation(f + "procurement_mode", "Line " + (i + 1) + ": choose the mode of procurement.");
+            if (SHOPPING.equals(mode)) throw ApiException.validation(f + "procurement_mode", "Line " + (i + 1) + ": Shopping is no longer a mode under RA 12009; use Small Value Procurement.");
             if (mode != null && !MODES.contains(mode)) throw ApiException.validation(f + "procurement_mode", "Line " + (i + 1) + ": unknown mode of procurement.");
             String category = text(l.procurementCategory());
             if (category != null && !CATEGORIES.contains(category)) throw ApiException.validation(f + "procurement_category", "Line " + (i + 1) + ": unknown procurement category.");

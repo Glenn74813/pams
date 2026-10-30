@@ -128,6 +128,14 @@ public class Bidding extends Timestamped {
     @Column(name = "technical_weight", nullable = false)
     private BigDecimal technicalWeight = BigDecimal.ZERO;
 
+    /** MEARB: bids scoring below this on quality are not ranked (IRR 61.3). */
+    @Column(name = "min_quality_score")
+    private BigDecimal minQualityScore;
+
+    /** 0 goods, 1 infrastructure, 2 consulting: the strictest category on its lines, which sets its thresholds and periods. */
+    @org.hibernate.annotations.Formula("(select max(case when pri.procurement_category = 'Consulting Services' then 2 when pri.procurement_category = 'Infrastructure Projects' then 1 else 0 end) from bidding_items bi join purchase_request_items pri on pri.id = bi.purchase_request_item_id where bi.bidding_id = id)")
+    private Integer categoryRank;
+
     @Column(name = "delivery_term")
     private String deliveryTerm;
 
@@ -170,6 +178,15 @@ public class Bidding extends Timestamped {
     }
 
     /** Before the Invitation to Bid: the terms can still change. */
+    /** Awards decided on rated quality criteria: MEARB, or MARB where only the top-rated bid's price is opened. */
+    public boolean isRated() {
+        return isMearb() || "marb".equals(evaluationMethod);
+    }
+
+    public BigDecimal getMinQualityScore() { return minQualityScore; }
+    public void setMinQualityScore(BigDecimal minQualityScore) { this.minQualityScore = minQualityScore; }
+    public int getCategoryRank() { return categoryRank == null ? 0 : categoryRank; }
+
     public boolean isPlanning() {
         return DRAFT.equals(status) || PRE_PROCUREMENT.equals(status);
     }

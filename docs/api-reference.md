@@ -407,7 +407,7 @@ Sign-out is recorded (TOR 6.3), including the automatic one after the configured
 
 ### Bac
 
-The Bids and Awards Committee: its standing composition (RA 12009: chair, vice-chair, at least five voting members, a secretariat), its meetings with attendance and quorum, and its resolutions. A resolution is approved by someone other than its drafter, and only once the meeting that adopted it has been held with a quorum.
+The Bids and Awards Committee: its standing composition (RA 12009: chair, vice-chair, five or seven voting members, a secretariat), its meetings with attendance and quorum, and its resolutions. A resolution is approved by someone other than its drafter, and only once the meeting that adopted it has been held with a quorum.
 
 **`GET /api/bac/meetings`**
 
@@ -533,7 +533,7 @@ Competitive (public) bidding under RA 12009: pre-procurement conference, Invitat
 **`POST /api/bidding`**
 
 - Requires: `manage_bidding`
-- Body: `title` string, `purchase_request_id` integer, `delivery_term` string, `delivery_lead_days` integer, `evaluation_method` string, `price_weight` number, `technical_weight` number, `remarks` string, `items` ItemInput[]
+- Body: `title` string, `purchase_request_id` integer, `delivery_term` string, `delivery_lead_days` integer, `evaluation_method` string, `price_weight` number, `technical_weight` number, `min_quality_score` number, `remarks` string, `items` ItemInput[]
 - Returns: [`BiddingView`](#biddingview)
 
 **`DELETE /api/bidding/bidders/{bidderId}`**
@@ -594,7 +594,7 @@ Approved purchase requests with lines planned for competitive bidding that are n
 **`PUT /api/bidding/{id}`**
 
 - Requires: `manage_bidding`
-- Body: `title` string, `purchase_request_id` integer, `delivery_term` string, `delivery_lead_days` integer, `evaluation_method` string, `price_weight` number, `technical_weight` number, `remarks` string, `items` ItemInput[]
+- Body: `title` string, `purchase_request_id` integer, `delivery_term` string, `delivery_lead_days` integer, `evaluation_method` string, `price_weight` number, `technical_weight` number, `min_quality_score` number, `remarks` string, `items` ItemInput[]
 - Returns: [`BiddingView`](#biddingview)
 
 **`POST /api/bidding/{id}/award`**
@@ -2204,10 +2204,10 @@ PS issued its Delivery Receipt: the goods are picked up or delivered in one lot.
 
 **`POST /api/ps-dbm/orders/{id}/items/{lineId}/not-available`**
 
-PS has no stock of this line: its Certificate of Non-Availability of Stock frees the quantity, which may then be bought by Shopping or SVP while the certificate is valid (15 days).
+This line cannot come from PS on a ground of IRR 40.2. It frees the quantity for other sources; a Certificate of Non-Availability of Stock does so while it is valid (15 days), the other grounds without a limit.
 
 - Requires: `edit_procurement`
-- Body: `cnas_number` string, `cnas_date` date
+- Body: `release_ground` string, `cnas_number` string, `cnas_date` date
 - Returns: [`OrderView`](#orderview)
 
 **`POST /api/ps-dbm/orders/{id}/pay`**
@@ -2605,7 +2605,7 @@ Requests for quotation under the alternative modes (Shopping, SVP, negotiated, d
 **`POST /api/rfq`**
 
 - Requires: `create_rfq`
-- Body: `title` string, `procurement_method` string, `purchase_request_id` integer, `deadline` date-time, `delivery_term` string, `delivery_lead_days` integer, `description` string, `justification` string, `items` ItemInput[]
+- Body: `title` string, `procurement_method` string, `purchase_request_id` integer, `deadline` date-time, `delivery_term` string, `delivery_lead_days` integer, `description` string, `justification` string, `negotiated_ground` string, `invited_suppliers` string[], `items` ItemInput[]
 - Returns: [`RfqView`](#rfqview)
 
 **`GET /api/rfq/purchase-requests`**
@@ -2639,7 +2639,7 @@ Approved purchase requests with lines not yet on an RFQ, for the new-RFQ form.
 **`PUT /api/rfq/{id}`**
 
 - Requires: `create_rfq`
-- Body: `title` string, `procurement_method` string, `purchase_request_id` integer, `deadline` date-time, `delivery_term` string, `delivery_lead_days` integer, `description` string, `justification` string, `items` ItemInput[]
+- Body: `title` string, `procurement_method` string, `purchase_request_id` integer, `deadline` date-time, `delivery_term` string, `delivery_lead_days` integer, `description` string, `justification` string, `negotiated_ground` string, `invited_suppliers` string[], `items` ItemInput[]
 - Returns: [`RfqView`](#rfqview)
 
 **`GET /api/rfq/{id}/abstract`**
@@ -2988,7 +2988,7 @@ An evaluator can withdraw their own rating.
 
 Supplier names for pickers.
 
-- Requires: `view_suppliers`, `create_inventory`, `edit_inventory`, `add_stock`, `manage_warehouse`, `create_rfq`, `manage_bidding`, `conduct_bid_evaluation`, `create_receiving`
+- Requires: `view_suppliers`, `create_inventory`, `edit_inventory`, `add_stock`, `manage_warehouse`, `create_rfq`, `manage_bidding`, `conduct_bid_evaluation`, `create_receiving`, `view_procurement`, `view_contracts`, `view_receiving`, `view_payments`, `view_reports`, `generate_reports`
 - Returns: a JSON object
 
 **`DELETE /api/suppliers/{id}`**
@@ -3108,7 +3108,7 @@ Appendix 70 — Property, Plant and Equipment Ledger Card.
 IAR monitoring register.
 
 - Requires: `view_reports`, `generate_reports`
-- Query: `from` (optional) date, `to` (optional) date, `format` (optional), `entity_name` (optional)
+- Query: `from` (optional) date, `to` (optional) date, `format` (optional), `supplier_id` (optional) integer, `entity_name` (optional)
 - Returns: a file download
 
 **`GET /api/reports/registers/purchase-orders/export`**
@@ -3116,7 +3116,7 @@ IAR monitoring register.
 Summary of purchase orders.
 
 - Requires: `view_reports`, `generate_reports`
-- Query: `from` (optional) date, `to` (optional) date, `format` (optional), `entity_name` (optional)
+- Query: `from` (optional) date, `to` (optional) date, `format` (optional), `supplier_id` (optional) integer, `entity_name` (optional)
 - Returns: a file download
 
 **`GET /api/reports/registers/ris/export`**
@@ -3306,7 +3306,7 @@ Ends a lockout from failed sign-ins before it times out.
 
 ### BiddingView
 
-`id` integer, `bidding_number` string, `title` string, `status` string, `abc` number, `purchase_request` Ref, `department` Ref, `preparer` Ref, `delivery_term` string, `delivery_lead_days` integer, `evaluation_method` string, `price_weight` number, `technical_weight` number, `pre_proc_date` date-time, `pre_proc_notes` string, `pre_proc_required` boolean, `itb_reference` string, `itb_posted_at` date, `itb_publication` string, `submission_deadline` date-time, `deadline_passed` boolean, `bid_opening_date` date-time, `awarded_supplier` Ref, `awarded_amount` number, `awarded_at` date-time, `bac_resolution` Ref, `noa_number` string, `noa_date` date, `ntp_number` string, `ntp_date` date, `contract_recommendation` string, `failure_reason` string, `failed_count` integer, `remarks` string, `bidders_count` integer, `items` LineView[], `criteria` CriterionView[], `bidders` BidderView[], `protests` ProtestView[], `observers` ObserverView[], `recommended_bidder_id` integer, `next_post_qual_bidder_id` integer, `open_protests` integer, `observers_invited` integer, `timeline` Interval[], `can_edit` boolean, `can_schedule` boolean, `can_open` boolean, `can_record_bids` boolean, `can_evaluate` boolean, `can_award` boolean, `can_noa` boolean, `can_ntp` boolean, `can_fail` boolean, `can_cancel` boolean, `can_delete` boolean, `created_at` date-time
+`id` integer, `bidding_number` string, `title` string, `status` string, `abc` number, `purchase_request` Ref, `department` Ref, `preparer` Ref, `delivery_term` string, `delivery_lead_days` integer, `evaluation_method` string, `price_weight` number, `technical_weight` number, `min_quality_score` number, `pre_proc_date` date-time, `pre_proc_notes` string, `pre_proc_required` boolean, `itb_reference` string, `itb_posted_at` date, `itb_publication` string, `submission_deadline` date-time, `deadline_passed` boolean, `bid_opening_date` date-time, `awarded_supplier` Ref, `awarded_amount` number, `awarded_at` date-time, `bac_resolution` Ref, `noa_number` string, `noa_date` date, `ntp_number` string, `ntp_date` date, `contract_recommendation` string, `failure_reason` string, `failed_count` integer, `remarks` string, `bidders_count` integer, `items` LineView[], `criteria` CriterionView[], `bidders` BidderView[], `protests` ProtestView[], `observers` ObserverView[], `recommended_bidder_id` integer, `next_post_qual_bidder_id` integer, `open_protests` integer, `observers_invited` integer, `timeline` Interval[], `can_edit` boolean, `can_schedule` boolean, `can_open` boolean, `can_record_bids` boolean, `can_evaluate` boolean, `can_award` boolean, `can_noa` boolean, `can_ntp` boolean, `can_fail` boolean, `can_cancel` boolean, `can_delete` boolean, `created_at` date-time
 
 ### BudgetRow
 
@@ -3458,7 +3458,7 @@ Ends a lockout from failed sign-ins before it times out.
 
 ### Line (PsDbm)
 
-`id` integer, `purchase_request_item_id` integer, `ps_catalogue_item_id` integer, `catalogue_code` string, `description` string, `unit` string, `quantity` integer, `unit_price` number, `amount` number, `availability` string, `cnas_number` string, `cnas_date` date, `cnas_valid_until` date
+`id` integer, `purchase_request_item_id` integer, `ps_catalogue_item_id` integer, `catalogue_code` string, `description` string, `unit` string, `quantity` integer, `unit_price` number, `amount` number, `availability` string, `release_ground` string, `cnas_number` string, `cnas_date` date, `cnas_valid_until` date
 
 ### LineView (Bidding)
 
@@ -3626,7 +3626,7 @@ Ends a lockout from failed sign-ins before it times out.
 
 ### RfqView
 
-`id` integer, `rfq_number` string, `title` string, `procurement_method` string, `single_source` boolean, `status` string, `abc` number, `deadline` date-time, `deadline_passed` boolean, `delivery_term` string, `delivery_lead_days` integer, `description` string, `justification` string, `purchase_request` Ref, `department` Ref, `preparer` Ref, `awarded_supplier` Ref, `awarded_at` date-time, `bac_resolution` Ref, `remarks` string, `noa_number` string, `noa_date` date, `ntp_number` string, `ntp_date` date, `items_count` integer, `quotations_count` integer, `items` LineView[], `quotations` QuotationView[], `can_edit` boolean, `can_issue` boolean, `can_close` boolean, `can_cancel` boolean, `can_delete` boolean, `can_quote` boolean, `can_award` boolean, `can_noa` boolean, `can_ntp` boolean, `created_at` date-time
+`id` integer, `rfq_number` string, `title` string, `procurement_method` string, `single_source` boolean, `status` string, `abc` number, `deadline` date-time, `deadline_passed` boolean, `delivery_term` string, `delivery_lead_days` integer, `description` string, `justification` string, `negotiated_ground` string, `invited_suppliers` string[], `purchase_request` Ref, `department` Ref, `preparer` Ref, `awarded_supplier` Ref, `awarded_at` date-time, `bac_resolution` Ref, `remarks` string, `noa_number` string, `noa_date` date, `ntp_number` string, `ntp_date` date, `items_count` integer, `quotations_count` integer, `items` LineView[], `quotations` QuotationView[], `can_edit` boolean, `can_issue` boolean, `can_close` boolean, `can_cancel` boolean, `can_delete` boolean, `can_quote` boolean, `can_award` boolean, `can_noa` boolean, `can_ntp` boolean, `created_at` date-time
 
 ### SanctionView
 

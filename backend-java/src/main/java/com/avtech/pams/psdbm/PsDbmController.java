@@ -63,7 +63,17 @@ public class PsDbmController {
     private static final String MANAGE = "@perm.any('edit_procurement')";
     public static final String SUPPLIER_NAME = "Procurement Service - DBM";
     static final List<String> PAYMENT_MODES = List.of("cash", "lddap_ada", "check", "unutilized_funds");
-    static final int CNAS_DAYS = 15;
+    static final int CNAS_DAYS = PrLineUsage.CNAS_DAYS;
+    /** Why a common-use line may be bought outside PS-DBM (IRR 40.2), and what document supports each. */
+    static final Map<String, String> RELEASE_GROUNDS = new java.util.LinkedHashMap<>();
+    private static final String ZERO_INVENTORY = "zero_inventory";
+
+    static {
+        RELEASE_GROUNDS.put(ZERO_INVENTORY, "Zero inventory: Certificate of Non-Availability of Stock");
+        RELEASE_GROUNDS.put("specs_insufficient", "Specifications do not meet the need: list of technical specifications from the PhilGEPS Electronic Catalogue");
+        RELEASE_GROUNDS.put("insufficient_stock", "Stock too low for the quantity: Stock Position Report from the PhilGEPS Electronic Catalogue");
+        RELEASE_GROUNDS.put("bac_resolution", "Efficiency, practicality or economic viability: BAC resolution, with PS-DBM informed through the online form");
+    }
 
     private final JdbcTemplate jdbc;
     private final Db db;
@@ -207,7 +217,7 @@ public class PsDbmController {
     }
 
     public record Line(Long id, Long purchaseRequestItemId, Long psCatalogueItemId, String catalogueCode, String description, String unit, int quantity,
-                       BigDecimal unitPrice, BigDecimal amount, String availability, String cnasNumber, LocalDate cnasDate, LocalDate cnasValidUntil) {
+                       BigDecimal unitPrice, BigDecimal amount, String availability, String releaseGround, String cnasNumber, LocalDate cnasDate, LocalDate cnasValidUntil) {
     }
 
     public record OrderView(Long id, String aprNumber, String status, Ref purchaseRequest, String department, String vsReference, LocalDate submittedDate,
@@ -366,32 +376,36 @@ public class PsDbmController {
         return view(id, true);
     }
 
-    public record CnasInput(String cnasNumber, LocalDate cnasDate) {
+    public record CnasInput(String releaseGround, String cnasNumber, LocalDate cnasDate) {
     }
 
     /**
-     * PS has no stock of this line: its Certificate of Non-Availability of Stock frees the quantity, which
-     * may then be bought by Shopping or SVP while the certificate is valid (15 days).
+     * This line cannot come from PS on a ground of IRR 40.2. It frees the quantity for other sources; a Certificate of
+     * Non-Availability of Stock does so while it is valid (15 days), the other grounds without a limit.
      */
     @PostMapping("/orders/{id}/items/{lineId}/not-available")
     @PreAuthorize(MANAGE)
     @Transactional
     public OrderView notAvailable(@PathVariable Long id, @PathVariable Long lineId, @RequestBody CnasInput in) {
         Map<String, Object> o = lock(id);
-        if (!"submitted".equals(o.get("status"))) throw ApiException.of(HttpStatus.CONFLICT, "Stock availability is settled after the request is placed and before payment.");
+        String ground = in.releaseGround() == null || in.releaseGround().isBlank() ? ZERO_INVENTORY : in.releaseGround();
+        if (!RELEASE_GROUNDS.containsKey(ground)) throw ApiException.validation("release_ground", "Choose a ground for buying this line outside PS-DBM.");
+        // PS's stock is known once the request is placed; specifications or a BAC finding can be settled while it is a draft.
+        boolean stockGround = ZERO_INVENTORY.equals(ground) || "insufficient_stock".equals(ground);
+        if (!"submitted".equals(o.get("status")) && !(!stockGround && "draft".equals(o.get("status")))) throw ApiException.of(HttpStatus.CONFLICT, "Stock availability is settled after the request is placed and before payment.");
         String no = text(in.cnasNumber());
-        if (no == null || no.length() > 100) throw ApiException.validation("cnas_number", "Enter the CNAS reference.");
+        if (no == null || no.length() > 100) throw ApiException.validation("cnas_number", ZERO_INVENTORY.equals(ground) ? "Enter the CNAS reference." : "Enter the reference of the supporting document.");
         LocalDate date = in.cnasDate() == null ? LocalDate.now(Times.ZONE) : in.cnasDate();
-        if (date.isAfter(LocalDate.now(Times.ZONE))) throw ApiException.validation("cnas_date", "The CNAS date cannot be in the future.");
-        int n = jdbc.update("update ps_order_items set availability = 'not_available', cnas_number = ?, cnas_date = ?, updated_at = ? where id = ? and ps_order_id = ? and availability = 'available'",
-                no, Date.valueOf(date), Timestamp.valueOf(Times.now()), lineId, id);
+        if (date.isAfter(LocalDate.now(Times.ZONE))) throw ApiException.validation("cnas_date", "The document's date cannot be in the future.");
+        int n = jdbc.update("update ps_order_items set availability = 'not_available', release_ground = ?, cnas_number = ?, cnas_date = ?, updated_at = ? where id = ? and ps_order_id = ? and availability = 'available'",
+                ground, no, Date.valueOf(date), Timestamp.valueOf(Times.now()), lineId, id);
         if (n == 0) throw ApiException.validation("line", "That line is not on this request, or is already marked not available.");
         recalc(id);
         Integer left = jdbc.queryForObject("select count(*) from ps_order_items where ps_order_id = ? and availability = 'available'", Integer.class, id);
         if (left != null && left == 0) {
             jdbc.update("update ps_orders set status = 'cancelled', updated_at = ? where id = ?", Timestamp.valueOf(Times.now()), id);
         }
-        audit.record("updated", TYPE, id, o.get("apr_number") + ": line not available at PS (CNAS " + no + ")", null, Map.of("line", lineId, "cnas_number", no));
+        audit.record("updated", TYPE, id, o.get("apr_number") + ": line released from PS on " + ground + " (" + no + ")", null, Map.of("line", lineId, "release_ground", ground, "reference", no));
         return view(id, true);
     }
 
@@ -607,12 +621,13 @@ public class PsDbmController {
         Map<String, Object> o = rows.get(0);
         List<Line> lines = jdbc.query("""
                 select pi.id, pi.purchase_request_item_id, pi.ps_catalogue_item_id, c.code, pi.description, pi.unit, pi.quantity, pi.unit_price, pi.amount,
-                       pi.availability, pi.cnas_number, pi.cnas_date
+                       pi.availability, pi.cnas_number, pi.cnas_date, pi.release_ground
                 from ps_order_items pi left join ps_catalogue_items c on c.id = pi.ps_catalogue_item_id where pi.ps_order_id = ? order by pi.id""", (rs, n) -> {
             Date cnas = rs.getDate(12);
+            String ground = rs.getString(13) == null && cnas != null ? ZERO_INVENTORY : rs.getString(13);
             return new Line(rs.getLong(1), rs.getLong(2), rs.getObject(3, Long.class), rs.getString(4), rs.getString(5), rs.getString(6), rs.getInt(7),
-                    rs.getBigDecimal(8), rs.getBigDecimal(9), rs.getString(10), rs.getString(11), cnas == null ? null : cnas.toLocalDate(),
-                    cnas == null ? null : cnas.toLocalDate().plusDays(CNAS_DAYS));
+                    rs.getBigDecimal(8), rs.getBigDecimal(9), rs.getString(10), ground, rs.getString(11), cnas == null ? null : cnas.toLocalDate(),
+                    cnas == null || !ZERO_INVENTORY.equals(ground) ? null : cnas.toLocalDate().plusDays(CNAS_DAYS));
         }, id);
         String status = (String) o.get("status");
         boolean manage = current.any("edit_procurement");

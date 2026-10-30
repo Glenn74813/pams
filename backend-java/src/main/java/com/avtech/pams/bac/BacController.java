@@ -40,8 +40,8 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 /**
- * The Bids and Awards Committee: its standing composition (RA 12009: chair, vice-chair, at least
- * five voting members, a secretariat), its meetings with attendance and quorum, and its
+ * The Bids and Awards Committee: its standing composition (RA 12009: chair, vice-chair, five or
+ * seven voting members, a secretariat), its meetings with attendance and quorum, and its
  * resolutions. A resolution is approved by someone other than its drafter, and only once the
  * meeting that adopted it has been held with a quorum.
  */
@@ -107,7 +107,7 @@ public class BacController {
         return new MembersView(out, compliance(all));
     }
 
-    /** A BAC is properly constituted with a chairperson, a vice-chairperson, five or more voting members and a secretariat. */
+    /** A BAC is properly constituted with a chairperson, a vice-chairperson, five or seven voting members (IRR 41.2.1) and a secretariat. */
     private Compliance compliance(List<BacMember> all) {
         LocalDate today = LocalDate.now(Times.ZONE);
         List<BacMember> seated = all.stream().filter(m -> m.isActive() && (m.getTermEnd() == null || !m.getTermEnd().isBefore(today))).toList();
@@ -119,7 +119,7 @@ public class BacController {
         List<String> issues = new ArrayList<>();
         if (!chair) issues.add("No chairperson.");
         if (!vice) issues.add("No vice-chairperson.");
-        if (voting < 5) issues.add("Only " + voting + " voting member(s); at least 5 are required.");
+        if (voting != 5 && voting != 7) issues.add(voting + " voting member(s); the BAC has 5 or 7.");
         if (!secretariat) issues.add("No secretariat.");
         long chairs = seated.stream().filter(m -> "chairperson".equals(m.getDesignation())).count();
         if (chairs > 1) issues.add("More than one active chairperson.");

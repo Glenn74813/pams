@@ -1,7 +1,7 @@
 import { useState, type FormEvent } from 'react'
 import { useMutation, useQuery } from '@tanstack/react-query'
 import { ApiError } from '../../api/client'
-import { biddingApi, type BiddingInput } from '../../api/endpoints'
+import { biddingApi, type BiddingInput, type EvaluationMethod } from '../../api/endpoints'
 import type { Bidding } from '../../api/types'
 import { Modal } from '../../components/Modal'
 import { formatPeso, formatQty } from '../../lib/format'
@@ -23,8 +23,9 @@ export function BiddingFormModal({ bidding, onClose, onSaved }: Props) {
   const opts = useQuery({ queryKey: ['bidding-pr-options'], queryFn: biddingApi.prOptions })
   const [prId, setPrId] = useState(bidding?.purchase_request ? String(bidding.purchase_request.id) : '')
   const [title, setTitle] = useState(bidding?.title ?? '')
-  const [method, setMethod] = useState<'price' | 'mearb'>(bidding?.evaluation_method ?? 'price')
-  const [priceWeight, setPriceWeight] = useState(String(bidding?.evaluation_method === 'mearb' ? bidding.price_weight : 70))
+  const [method, setMethod] = useState<EvaluationMethod>(bidding?.evaluation_method ?? 'price')
+  const [priceWeight, setPriceWeight] = useState(String(bidding?.evaluation_method === 'mearb' ? bidding.price_weight : 40))
+  const [minScore, setMinScore] = useState(bidding?.min_quality_score != null ? String(bidding.min_quality_score) : '')
   const [term, setTerm] = useState(bidding?.delivery_term ?? '')
   const [days, setDays] = useState(bidding?.delivery_lead_days != null ? String(bidding.delivery_lead_days) : '')
   const [picks, setPicks] = useState<Record<number, Pick>>(() =>
@@ -59,6 +60,7 @@ export function BiddingFormModal({ bidding, onClose, onSaved }: Props) {
         evaluation_method: method,
         price_weight: method === 'mearb' ? Number(priceWeight) : undefined,
         technical_weight: method === 'mearb' ? 100 - Number(priceWeight) : undefined,
+        min_quality_score: method === 'mearb' && minScore !== '' ? Number(minScore) : null,
         delivery_term: term || null,
         delivery_lead_days: days === '' ? null : Number(days),
         items: chosen.map((l) => ({ purchase_request_item_id: l.id, quantity: Number(picks[l.id].quantity) || 0, abc_unit_cost: Number(picks[l.id].abc) || 0 })),
@@ -97,9 +99,10 @@ export function BiddingFormModal({ bidding, onClose, onSaved }: Props) {
           </div>
           <div className="field">
             <label htmlFor="bd-method">Evaluation *</label>
-            <select id="bd-method" value={method} onChange={(e) => setMethod(e.target.value as 'price' | 'mearb')}>
+            <select id="bd-method" value={method} onChange={(e) => setMethod(e.target.value as EvaluationMethod)}>
               <option value="price">Lowest calculated responsive bid</option>
               <option value="mearb">MEARB (price + rated criteria)</option>
+              <option value="marb">MARB (highest rated, price within the ABC)</option>
             </select>
           </div>
           <div className="field span-2">
@@ -109,11 +112,18 @@ export function BiddingFormModal({ bidding, onClose, onSaved }: Props) {
           {method === 'mearb' ? (
             <div className="field">
               <label htmlFor="bd-pw">Price weight (%)</label>
-              <input id="bd-pw" type="number" min={0} max={100} value={priceWeight} onChange={(e) => setPriceWeight(e.target.value)} />
-              <span className="hint">Rated criteria: {100 - (Number(priceWeight) || 0)}%</span>
+              <input id="bd-pw" type="number" min={15} max={40} value={priceWeight} onChange={(e) => setPriceWeight(e.target.value)} />
+              <span className="hint">15–40% under RA 12009. Rated criteria: {100 - (Number(priceWeight) || 0)}%</span>
             </div>
           ) : (
             <div />
+          )}
+          {method === 'mearb' && (
+            <div className="field">
+              <label htmlFor="bd-min">Minimum quality score</label>
+              <input id="bd-min" type="number" min={0} max={100} step="0.01" value={minScore} onChange={(e) => setMinScore(e.target.value)} placeholder="None" />
+              <span className="hint">Bids below this are not ranked.</span>
+            </div>
           )}
           <div className="field span-2">
             <label htmlFor="bd-term">Delivery term</label>
@@ -162,7 +172,7 @@ export function BiddingFormModal({ bidding, onClose, onSaved }: Props) {
           </div>
         )}
         <p className="form-total">
-          ABC <strong>{formatPeso(abc)}</strong> {abc > 2_000_000 && <span className="muted small">— needs a pre-procurement conference</span>}
+          ABC <strong>{formatPeso(abc)}</strong> {abc > 2_000_000 && <span className="muted small">— a pre-procurement conference is required above ₱5M for goods, ₱10M for infrastructure and ₱2M for consulting</span>}
         </p>
         <div className="modal-footer">
           <button type="button" className="btn btn-secondary" onClick={onClose}>

@@ -467,6 +467,8 @@ export interface RfqInput {
   delivery_lead_days?: number | null
   description?: string | null
   justification?: string | null
+  negotiated_ground?: string | null
+  invited_suppliers?: string[]
   items: { purchase_request_item_id: number; quantity: number; abc_unit_cost?: number; specifications?: string | null; delivery_lead_time?: string | null }[]
 }
 
@@ -483,7 +485,7 @@ export const rfqApi = {
   list: (f: { page: number; status?: string; procurement_method?: string; search?: string }) => api<Paged<Rfq>>('GET', '/rfq', undefined, { params: f }),
   get: (id: number) => api<Rfq>('GET', `/rfq/${id}`),
   abstract: (id: number) => api<RfqAbstract>('GET', `/rfq/${id}/abstract`),
-  prOptions: () => api<{ data: RfqPrOption[]; methods: string[]; single_source: string[] }>('GET', '/rfq/purchase-requests'),
+  prOptions: () => api<{ data: RfqPrOption[]; methods: string[]; single_source: string[]; negotiated_grounds: Record<string, string> }>('GET', '/rfq/purchase-requests'),
   create: (input: RfqInput) => api<Rfq>('POST', '/rfq', input),
   update: (id: number, input: RfqInput) => api<Rfq>('PUT', `/rfq/${id}`, input),
   remove: (id: number) => api<{ message: string }>('DELETE', `/rfq/${id}`),
@@ -555,14 +557,17 @@ export const bacApi = {
   removeResolution: (id: number) => api<{ message: string }>('DELETE', `/bac/resolutions/${id}`),
 }
 
+export type EvaluationMethod = 'price' | 'mearb' | 'marb'
+
 export interface BiddingInput {
   title: string
   purchase_request_id: number
   delivery_term?: string | null
   delivery_lead_days?: number | null
-  evaluation_method: 'price' | 'mearb'
+  evaluation_method: EvaluationMethod
   price_weight?: number
   technical_weight?: number
+  min_quality_score?: number | null
   remarks?: string | null
   items: { purchase_request_item_id: number; quantity: number; abc_unit_cost?: number }[]
 }
@@ -621,7 +626,7 @@ export interface PoInput {
 
 export const poApi = {
   sources: () => api<{ data: AwardSource[] }>('GET', '/procurement/award-sources'),
-  list: (f: { page: number; status?: string; search?: string }) => api<Paged<PurchaseOrder>>('GET', '/procurement/purchase-orders', undefined, { params: f }),
+  list: (f: { page: number; status?: string; search?: string; supplier_id?: number }) => api<Paged<PurchaseOrder>>('GET', '/procurement/purchase-orders', undefined, { params: f }),
   get: (id: number) => api<PurchaseOrder>('GET', `/procurement/purchase-orders/${id}`),
   create: (input: PoInput) => api<PurchaseOrder>('POST', '/procurement/purchase-orders', input),
   update: (id: number, input: PoInput) => api<PurchaseOrder>('PUT', `/procurement/purchase-orders/${id}`, input),
@@ -678,7 +683,7 @@ export interface ContractInput {
 const CT = '/contracts'
 
 export const contractApi = {
-  list: (f: { page: number; status?: string; contract_type?: string; expiring_days?: number; search?: string }) => api<Paged<Contract>>('GET', CT, undefined, { params: f }),
+  list: (f: { page: number; status?: string; contract_type?: string; expiring_days?: number; search?: string; supplier_id?: number }) => api<Paged<Contract>>('GET', CT, undefined, { params: f }),
   get: (id: number) => api<Contract>('GET', `${CT}/${id}`),
   sources: () => api<{ data: ContractSource[] }>('GET', `${CT}/awarded-sources`),
   create: (input: ContractInput) => api<Contract>('POST', CT, input),

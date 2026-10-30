@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { keepPreviousData, useQuery, useQueryClient } from '@tanstack/react-query'
-import { contractApi } from '../../api/endpoints'
+import { contractApi, supplierApi } from '../../api/endpoints'
 import type { Contract } from '../../api/types'
 import { useAuth } from '../../auth/AuthContext'
 import { Pager } from '../../components/Pager'
@@ -25,6 +25,8 @@ export function ContractsPage() {
   const [type, setType] = useState('')
   const [expiring, setExpiring] = useState(false)
   const [search, setSearch] = useState('')
+  const [supplierId, setSupplierId] = useState('')
+  const suppliers = useQuery({ queryKey: ['supplier-options'], queryFn: supplierApi.options, retry: false })
   const [viewing, setViewing] = useState<number | null>(null)
   const [form, setForm] = useState<Contract | 'new' | null>(null)
   const q = useDebounced(search.trim())
@@ -35,8 +37,8 @@ export function ContractsPage() {
     setPage(1)
   }
   const list = useQuery({
-    queryKey: ['contracts', page, status, type, expiring, q],
-    queryFn: () => contractApi.list({ page, status: status || undefined, contract_type: type || undefined, expiring_days: expiring ? 30 : undefined, search: q || undefined }),
+    queryKey: ['contracts', page, status, type, expiring, q, supplierId],
+    queryFn: () => contractApi.list({ page, status: status || undefined, contract_type: type || undefined, expiring_days: expiring ? 30 : undefined, search: q || undefined, supplier_id: supplierId ? Number(supplierId) : undefined }),
     placeholderData: keepPreviousData,
   })
   const refresh = () => {
@@ -48,6 +50,14 @@ export function ContractsPage() {
       <div className="section-header">
         <div className="toolbar" style={{ margin: 0 }}>
           <input type="search" placeholder="Search contract no. or title" value={search} onChange={(e) => setSearch(e.target.value)} aria-label="Search contracts" />
+          <select value={supplierId} onChange={(e) => { setSupplierId(e.target.value); setPage(1) }} aria-label="Supplier">
+            <option value="">All suppliers</option>
+            {suppliers.data?.data.map((s) => (
+              <option key={s.id} value={s.id}>
+                {s.name}
+              </option>
+            ))}
+          </select>
           <select value={status} onChange={(e) => setStatus(e.target.value)} aria-label="Status">
             <option value="">All statuses</option>
             {Object.entries(CONTRACT_STATUS).map(([k, [l]]) => (

@@ -200,9 +200,13 @@ public class TorListReports {
     // ───────────────────────── registers ─────────────────────────
 
     /** IAR monitoring: inspection and acceptance reports by inspection (else delivery) date, with the accepted amount. */
-    public TabularReport iarRegister(Period period, String entity) {
+    public TabularReport iarRegister(Period period, Long supplierId, String entity) {
         List<Object> args = new ArrayList<>();
         String when = period.on("coalesce(r.inspection_date, r.delivery_date, " + db.date("r.created_at") + ")", args);
+        if (supplierId != null) {
+            when += " and po.supplier_id = ?";
+            args.add(supplierId);
+        }
         List<Map<String, Object>> rows = jdbc.queryForList("""
                 select r.iar_number, r.delivery_date, r.inspection_date, r.status, r.acceptance_status, r.accepted_at,
                        r.total_items_received, r.total_items_accepted, r.total_items_rejected,
@@ -268,9 +272,13 @@ public class TorListReports {
     }
 
     /** Summary of purchase orders by order date: supplier, procurement mode, amount, status and what has been delivered. */
-    public TabularReport purchaseOrders(Period period, String entity) {
+    public TabularReport purchaseOrders(Period period, Long supplierId, String entity) {
         List<Object> args = new ArrayList<>();
         String when = period.on("coalesce(po.order_date, " + db.date("po.created_at") + ")", args);
+        if (supplierId != null) {
+            when += " and po.supplier_id = ?";
+            args.add(supplierId);
+        }
         List<Map<String, Object>> rows = jdbc.queryForList("""
                 select po.po_number, po.order_date, po.delivery_date, po.status, po.total_amount, po.rfq_id, po.bidding_id, po.ps_order_id,
                        s.name as supplier_name, pr.pr_number, rq.procurement_method,

@@ -1,7 +1,7 @@
 import { useState, type FormEvent } from 'react'
 import { useMutation, useQuery } from '@tanstack/react-query'
 import { ApiError } from '../../api/client'
-import { rfqApi, type RfqInput } from '../../api/endpoints'
+import { rfqApi, supplierApi, type RfqInput } from '../../api/endpoints'
 import type { Rfq } from '../../api/types'
 import { Modal } from '../../components/Modal'
 import { formatPeso, formatQty, toLocalInput } from '../../lib/format'
@@ -29,6 +29,14 @@ export function RfqFormModal({ rfq, onClose, onSaved }: Props) {
   const [days, setDays] = useState(rfq?.delivery_lead_days != null ? String(rfq.delivery_lead_days) : '')
   const [description, setDescription] = useState(rfq?.description ?? '')
   const [justification, setJustification] = useState(rfq?.justification ?? '')
+  const [ground, setGround] = useState(rfq?.negotiated_ground ?? '')
+  const [invited, setInvited] = useState<string[]>(rfq?.invited_suppliers ?? [])
+  const [otherInvited, setOtherInvited] = useState('')
+  const suppliers = useQuery({ queryKey: ['supplier-options'], queryFn: supplierApi.options })
+  const addInvited = (name: string) => {
+    const n = name.trim()
+    if (n && !invited.includes(n)) setInvited([...invited, n])
+  }
   const [picks, setPicks] = useState<Record<number, Pick>>(() =>
     Object.fromEntries((rfq?.items ?? []).map((l) => [l.purchase_request_item_id, { on: true, quantity: String(l.quantity), abc: String(l.abc_unit_cost) }])),
   )
@@ -48,6 +56,9 @@ export function RfqFormModal({ rfq, onClose, onSaved }: Props) {
     ...(pr?.lines ?? []).map((l) => ({ ...l, remaining_quantity: l.remaining_quantity + (rfq?.items?.find((x) => x.purchase_request_item_id === l.id)?.quantity ?? 0) })),
   ]
   const single = method !== '' && (opts.data?.single_source ?? []).includes(method)
+  const negotiated = method === 'Negotiated Procurement'
+  const twoFailed = negotiated && ground === 'two_failed_biddings'
+  const needsWhy = single || (negotiated && !twoFailed) || method === 'Unsolicited Offer with Bid Matching'
   const choosePr = (v: string) => {
     setPrId(v)
     const p = opts.data?.data.find((x) => String(x.id) === v)
@@ -70,6 +81,8 @@ export function RfqFormModal({ rfq, onClose, onSaved }: Props) {
         delivery_lead_days: days === '' ? null : Number(days),
         description: description || null,
         justification: justification || null,
+        negotiated_ground: negotiated ? ground : null,
+        invited_suppliers: twoFailed ? invited : [],
         items: chosen.map((l) => ({ purchase_request_item_id: l.id, quantity: Number(picks[l.id].quantity) || 0, abc_unit_cost: Number(picks[l.id].abc) || 0 })),
       }
       return editing ? rfqApi.update(rfq.id, input) : rfqApi.create(input)
@@ -131,7 +144,53 @@ export function RfqFormModal({ rfq, onClose, onSaved }: Props) {
             <label htmlFor="rq-days">Delivery within (days)</label>
             <input id="rq-days" type="number" min={0} value={days} onChange={(e) => setDays(e.target.value)} />
           </div>
-          {single && (
+          {negotiated && (
+            <div className="field span-3">
+              <label htmlFor="rq-ground">Ground for Negotiated Procurement *</label>
+              <select id="rq-ground" value={ground} onChange={(e) => setGround(e.target.value)} required>
+                <option value="">Choose</option>
+                {Object.entries(opts.data?.negotiated_grounds ?? {}).map(([k, v]) => (
+                  <option key={k} value={k}>
+                    {v}
+                  </option>
+                ))}
+              </select>
+              <span className="hint">Allowed only in these instances; an amount below a ceiling is not a ground.</span>
+            </div>
+          )}
+          {twoFailed && (
+            <div className="field span-3">
+              <label htmlFor="rq-invited">Suppliers invited to negotiate * (at least 3, including those disqualified earlier)</label>
+              <select id="rq-invited" value="" onChange={(e) => addInvited(e.target.value)}>
+                <option value="">Add a supplier…</option>
+                {suppliers.data?.data.filter((s) => !invited.includes(s.name)).map((s) => (
+                  <option key={s.id} value={s.name}>
+                    {s.name}
+                  </option>
+                ))}
+              </select>
+              <div className="toolbar" style={{ marginTop: '0.4rem' }}>
+                <input value={otherInvited} onChange={(e) => setOtherInvited(e.target.value)} placeholder="Not on the list? Type the name" aria-label="Other supplier to invite" />
+                <button type="button" className="btn btn-outline btn-sm" onClick={() => { addInvited(otherInvited); setOtherInvited('') }}>
+                  Add
+                </button>
+              </div>
+              {invited.length > 0 && (
+                <ul className="small" style={{ margin: '0.4rem 0 0', paddingLeft: '1.1rem' }}>
+                  {invited.map((n) => (
+                    <li key={n}>
+                      {n}{' '}
+                      <button type="button" className="link-btn" onClick={() => setInvited(invited.filter((x) => x !== n))}>
+                        remove
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              )}
+              <span className="hint">The ABC cannot rise more than 20% over the last failed bidding. Record each supplier's best offer as its quotation.</span>
+            </div>
+          )}
+          {needsWhy && (
             <div className="field span-3">
               <label htmlFor="rq-just">Justification for {method} *</label>
               <textarea id="rq-just" rows={2} value={justification} onChange={(e) => setJustification(e.target.value)} required placeholder="Exclusive distributorship, proprietary nature, legal ground…" />
