@@ -54,7 +54,19 @@
   display: flex;
   flex-direction: column;
   padding: 1.5rem 0 1rem;
+  /* A thin scrollbar in the sidebar's own colours, its space kept so opening a group doesn't shift the menu. */
+  scrollbar-gutter: stable;
+  scrollbar-width: thin;
+  scrollbar-color: transparent transparent;
+  transition: scrollbar-color 0.2s;
 }
+.sidebar-nav:hover,
+.sidebar-nav:focus-within { scrollbar-color: rgba(255, 255, 255, 0.22) transparent; }
+.sidebar-nav::-webkit-scrollbar { width: 6px; }
+.sidebar-nav::-webkit-scrollbar-track { background: transparent; }
+.sidebar-nav::-webkit-scrollbar-thumb { background: transparent; border-radius: 3px; }
+.sidebar-nav:hover::-webkit-scrollbar-thumb { background: rgba(255, 255, 255, 0.22); }
+.sidebar-nav::-webkit-scrollbar-thumb:hover { background: rgba(255, 255, 255, 0.35); }
 
 .nav-item {
   display: flex;
@@ -110,7 +122,7 @@
 .nav-group-header .label { flex: 1; text-align: left; }
 .nav-group-header .chevron { font-size: 0.75rem; opacity: 0.7; transition: transform 0.2s; }
 .nav-group-header .chevron.open { transform: rotate(90deg); }
-.nav-group-children { display: flex; flex-direction: column; padding-bottom: 0.25rem; }
+.nav-group-children { display: flex; flex-direction: column; padding: 0.15rem 0 0.35rem; background: rgba(0, 0, 0, 0.14); }
 
 /* ── Signed-in user, pinned to the bottom of the sidebar ── */
 .sidebar-user {
