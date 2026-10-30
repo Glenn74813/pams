@@ -22,9 +22,11 @@ public class RpcspForm {
     private static final String FONT = "Times New Roman";
 
     private final JdbcTemplate jdbc;
+    private final Signatories signatories;
 
-    public RpcspForm(JdbcTemplate jdbc) {
+    public RpcspForm(JdbcTemplate jdbc, Signatories signatories) {
         this.jdbc = jdbc;
+        this.signatories = signatories;
     }
 
     /** {@code countData}: physical count per item id, as in {@link RpciForm#generate}. */
@@ -95,7 +97,7 @@ public class RpcspForm {
         }
 
         // Signature section
-        RpciForm.countSignatures(x, row + 2);
+        RpciForm.countSignatures(x, row + 2, signatories);
 
         return x.bytes();
     }

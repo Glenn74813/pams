@@ -102,7 +102,7 @@ export const inventoryArticles: Article[] = [
       sec('expiring', 'Expiring stock', p('Set **Warn within N days** (1 to 365; starts at the Expiry warning in Settings). Two lists: "Expired — for disposal" and "Expiring within N days", each with lot count and value.')),
       statuses(p('Stock status badges are the same as in Items (Out of stock, Reorder, Over max, In stock).')),
       forms(p('Printable re-order report.')),
-      tips('Expired lots are never issued. Write them off through Disposal (stock write-off) or a Stock Adjustment.', 'Monitoring has its own re-order report, which suggests topping up to the maximum (or twice the minimum when no maximum is set).'),
+      tips('Expired lots are never issued. Write them off through Disposal (stock write-off) or a Stock Adjustment.', 'The re-order quantity here and in Monitoring is the same: top up to the maximum (or twice the minimum when no maximum is set).'),
     ],
   },
 
@@ -141,7 +141,7 @@ export const inventoryArticles: Article[] = [
         ),
         p('Stock is taken lot by lot: soonest expiry first, then oldest receipt; lots without an expiry date go last. Expired lots are never issued. You get a notice if an issued lot expires soon.'),
         p('To refuse the whole request, click **Reject request** and give a reason. The requester is notified either way.'),
-        warn('If an item has expired stock, the default issue quantity may include it and the issue will be refused. Lower the quantity to what is usable, and dispose of the expired lots through a Waste Materials Report.'),
+        p('The stock column and the default issue quantity count only usable stock; expired lots are shown apart. Dispose of expired lots through a stock write-off (Disposal).'),
       ),
       statuses(
         table(
@@ -335,7 +335,7 @@ export const inventoryArticles: Article[] = [
       ),
       statuses(p('Not applicable; the page reports on other modules.')),
       forms(p('Printable re-order report.')),
-      tips('The expiring count on this page always uses 30 days; the Warehouse **Expiring stock** tab uses the warning days you choose.'),
+      tips('The expiring count uses the expiry warning days from the settings, the same as the Warehouse **Expiring stock** tab.'),
     ],
   },
 
@@ -373,7 +373,7 @@ export const inventoryArticles: Article[] = [
       ),
       statuses(table(['Status', 'Meaning'], [['Out', 'Released and not back'], ['Overdue', 'Still out after the expected date'], ['Returned', 'Mark returned done']]), p('The list starts on **Out**; switch to Overdue, Returned or All.')),
       forms(p('**🖨** prints the Gate Pass (pass-out slip) with signature lines for Released by, Carried out by and Guard on duty.')),
-      tips('While an asset is out on a gate pass it cannot be returned, retired or disposed of.', 'A pass marked "lost" does not change the asset\'s status; report the loss with an RLSDDP in Reports.'),
+      tips('While an asset is out on a gate pass it cannot be returned, retired or disposed of.', 'A pass returned as "lost" marks the asset Lost; it stays on its custodian\'s PAR/ICS until relieved. File the RLSDDP in Reports, then record the turn-in and a disposal. **Mark found** on the asset reverses it.', 'Returned passes can be deleted by holders of delete_gate_pass; passes still out can be edited.'),
     ],
   },
 
@@ -407,7 +407,7 @@ export const inventoryArticles: Article[] = [
         'decide',
         'Approve and complete',
         steps(
-          'An approver clicks **Approve** or **Reject**.',
+          'An approver opens **Review…**, checks the attached documents (inspection report, photos, appraisal), adds **Remarks** (required to reject) and clicks **Approve** or **Reject**.',
           'After the actual disposal, click **Complete…** and enter **Date disposed**, **Proceeds (₱)** for sale modes, and **Remarks**.',
         ),
         p('Completing an asset disposal records its book value and marks it Disposed. Completing a stock write-off removes the quantity, expired lots first.'),

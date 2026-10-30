@@ -49,6 +49,11 @@ function SystemForm({ initial, editable }: { initial: SystemSettings; editable: 
           <span className="hint">8 to 64. Applies to new and changed passwords.</span>
         </div>
         <div className="field">
+          <label htmlFor="sys-pwx">Password expiry (days)</label>
+          <input id="sys-pwx" type="number" min={0} max={365} value={f.password_expiry_days} onChange={num('password_expiry_days')} disabled={!editable} />
+          <span className="hint">0 turns it off. When on, anyone whose password is older than this must change it before using the system.</span>
+        </div>
+        <div className="field">
           <label htmlFor="sys-url">App address</label>
           <input id="sys-url" type="url" placeholder={window.location.origin} value={f.app_url} onChange={(e) => setF({ ...f, app_url: e.target.value })} disabled={!editable} />
           <span className="hint">

@@ -119,7 +119,8 @@ public class ParForm {
         // Filter only non-expendable and semi-expendable items; the item's first recorded property
         // supplies the property number, acquisition date (its stock lot's received date first) and cost.
         List<Map<String, Object>> parItems = jdbc.queryForList("""
-                select ri.quantity, ri.approved_quantity, i.name, i.description, i.unit_of_measure, i.weighted_average_cost,
+                select ri.quantity, ri.approved_quantity, i.name, i.description, i.unit_of_measure,
+                       coalesce(ri.unit_cost, i.weighted_average_cost) as weighted_average_cost,
                        p.id as property_id, p.serial_number, p.tag_number, p.acquisition_cost,
                        coalesce(s.received_date, p.acquisition_date) as acquisition_date
                 from request_items ri

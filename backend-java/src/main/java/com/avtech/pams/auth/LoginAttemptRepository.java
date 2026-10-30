@@ -11,11 +11,11 @@ public interface LoginAttemptRepository extends JpaRepository<LoginAttempt, Long
 
     /** Attempts refused because the account was already locked are logged but do not extend the lock. */
     @Query("select count(a) from LoginAttempt a where lower(a.email) = lower(:email) and a.successful = false and a.createdAt >= :since"
-            + " and (a.failureReason is null or a.failureReason <> 'Account locked')")
+            + " and (a.failureReason is null or a.failureReason not in ('Account locked', 'Account deactivated'))")
     long countFailedSince(String email, LocalDateTime since);
 
     /** Failed-attempt times in the window, newest first; the lockout ends when the Nth one ages out. */
     @Query("select a.createdAt from LoginAttempt a where lower(a.email) = lower(:email) and a.successful = false and a.createdAt >= :since"
-            + " and (a.failureReason is null or a.failureReason <> 'Account locked') order by a.createdAt desc")
+            + " and (a.failureReason is null or a.failureReason not in ('Account locked', 'Account deactivated')) order by a.createdAt desc")
     List<LocalDateTime> failedTimesSince(String email, LocalDateTime since, Limit limit);
 }

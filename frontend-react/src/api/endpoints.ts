@@ -108,6 +108,20 @@ export const usersApi = {
   remove: (id: number) => api<{ message: string }>('DELETE', `/users/${id}`),
   roleOptions: () => api<{ data: RoleOption[] }>('GET', '/users/roles'),
   departments: () => api<{ data: Department[] }>('GET', '/users/departments'),
+  deactivate: (id: number) => api<{ message: string; user: User }>('POST', `/users/${id}/deactivate`),
+  activate: (id: number) => api<{ message: string; user: User }>('POST', `/users/${id}/activate`),
+  unlock: (id: number) => api<{ message: string; user: User }>('POST', `/users/${id}/unlock`),
+}
+
+export interface DepartmentRow extends Department {
+  users: number
+}
+
+export const departmentsApi = {
+  list: () => api<{ data: DepartmentRow[] }>('GET', '/departments'),
+  create: (input: { name: string; code: string }) => api<Department>('POST', '/departments', input),
+  update: (id: number, input: { name: string; code: string }) => api<Department>('PUT', `/departments/${id}`, input),
+  remove: (id: number) => api<{ message: string }>('DELETE', `/departments/${id}`),
 }
 
 export interface RoleInput {
@@ -333,7 +347,7 @@ export interface DisposalInput {
 }
 
 export const disposalApi = {
-  list: (f: { page: number; status?: string; category?: string; search?: string }) => api<Paged<Disposal>>('GET', '/disposal/requests', undefined, { params: f }),
+  list: (f: { page: number; status?: string; category?: string; search?: string; per_page?: number }) => api<Paged<Disposal>>('GET', '/disposal/requests', undefined, { params: f }),
   create: (input: DisposalInput) => api<Disposal>('POST', '/disposal/requests', input),
   update: (id: number, input: DisposalInput) => api<Disposal>('PUT', `/disposal/requests/${id}`, input),
   withdraw: (id: number) => api<{ message: string }>('DELETE', `/disposal/requests/${id}`),
@@ -351,7 +365,7 @@ export interface GatePassInput {
   date_released?: string
   expected_return_date?: string | null
   condition_on_release: string
-  remarks?: string
+  remarks?: string | null
 }
 
 export const gatePassApi = {
@@ -360,6 +374,7 @@ export const gatePassApi = {
   update: (id: number, input: GatePassInput) => api<GatePass>('PUT', `/gate-pass/${id}`, input),
   markReturned: (id: number, input: { actual_return_date?: string; condition_on_return: string; returned_by?: string; remarks?: string }) =>
     api<GatePass>('POST', `/gate-pass/${id}/return`, input),
+  remove: (id: number) => api<{ message: string }>('DELETE', `/gate-pass/${id}`),
 }
 
 export interface PlanLineInput {
@@ -766,6 +781,9 @@ export const auditApi = {
   list: (f: AuditFilter) => api<Paged<AuditEntry>>('GET', '/audit', undefined, { params: { ...f } }),
   get: (id: number) => api<AuditEntry>('GET', `/audit/${id}`),
   filters: () => api<{ actions: string[]; types: string[]; users: { id: number; name: string }[] }>('GET', '/audit/filters'),
+  /** Recomputes the seal of every entry matching the filter. */
+  verify: (f: Omit<AuditFilter, 'page' | 'per_page'>) =>
+    api<{ checked: number; intact: number; unsealed: number; altered: number[]; complete: boolean }>('GET', '/audit/verify', undefined, { params: { ...f } }),
   /** Records a print or download the server could not see (best effort). */
   event: (action: 'printed' | 'downloaded', description: string, auditable_type?: string, auditable_id?: number) =>
     api<{ message: string }>('POST', '/audit/events', { action, description, auditable_type, auditable_id }).catch(() => undefined),

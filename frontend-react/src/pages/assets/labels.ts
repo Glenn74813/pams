@@ -4,6 +4,7 @@ export const STATUS_LABEL: Record<string, [string, string]> = {
   under_repair: ['Under repair', 'st-pending'],
   retired: ['Retired', 'badge-muted'],
   disposed: ['Disposed', 'st-bad'],
+  lost: ['Lost', 'st-bad'],
 }
 
 export const CONDITIONS = ['excellent', 'good', 'fair', 'poor'] as const

@@ -310,7 +310,7 @@ public class ReportController {
         String flag = ("semi_expandable".equals(type) ? "i.is_semi_expandable" : "i.is_expandable") + " = " + db.t();
         List<Map<String, Object>> rows = jdbc.query("""
                 select c.name, i.name, p.tag_number, coalesce(p.acquisition_cost, 0), p.condition, u.name
-                from properties p join items i on i.id = p.item_id left join categories c on c.id = i.category_id left join users u on u.id = p.assigned_to""" + " where " + flag + " order by p.tag_number", (rs, n) -> {
+                from properties p join items i on i.id = p.item_id left join categories c on c.id = i.category_id left join users u on u.id = p.assigned_to""" + " where " + flag + " and p.status <> 'disposed' order by p.tag_number", (rs, n) -> {
             Map<String, Object> m = new LinkedHashMap<>();
             m.put("article", rs.getString(1));
             m.put("description", rs.getString(2));
@@ -476,12 +476,12 @@ public class ReportController {
     public Map<String, Object> previewIirup(@RequestParam(name = "disposal_ids", required = false) List<Long> ids) {
         List<Map<String, Object>> rows = disposals(ids).stream().map(d -> {
             Map<String, Object> m = new LinkedHashMap<>();
-            Object assigned = d.get("assigned_date");
-            m.put("date_acquired", assigned == null ? "" : ((Date) assigned).toLocalDate().format(java.time.format.DateTimeFormatter.ofPattern("MM/dd/yyyy")));
+            Object acquired = d.get("acquisition_date") != null ? d.get("acquisition_date") : d.get("assigned_date");
+            m.put("date_acquired", acquired == null ? "" : ((Date) acquired).toLocalDate().format(java.time.format.DateTimeFormatter.ofPattern("MM/dd/yyyy")));
             m.put("property_no", d.get("tag_number") == null ? "" : d.get("tag_number"));
             m.put("description", d.get("item_name") == null ? "N/A" : d.get("item_name"));
             m.put("unit_cost", d.get("acquisition_cost") == null ? BigDecimal.ZERO : d.get("acquisition_cost"));
-            m.put("condition", ucfirst((String) d.get("disposal_type")));
+            m.put("disposal", ucfirst(((String) d.get("disposal_type")).replace('_', ' ')));
             String reason = (String) d.get("reason");
             m.put("remarks", reason == null ? "" : reason.length() > 40 ? reason.substring(0, 40) : reason);
             return m;
@@ -514,7 +514,7 @@ public class ReportController {
         if (ids == null || ids.isEmpty()) return List.of();
         String in = String.join(",", ids.stream().map(x -> "?").toList());
         return jdbc.queryForList("""
-                select d.*, p.tag_number, p.assigned_date, p.acquisition_cost, coalesce(pi.name, di.name) item_name,
+                select d.*, p.tag_number, p.assigned_date, p.acquisition_date, p.acquisition_cost, coalesce(pi.name, di.name) item_name,
                        coalesce(pi.unit_of_measure, di.unit_of_measure) unit
                 from disposal_requests d left join properties p on p.id = d.property_id left join items pi on pi.id = p.item_id
                 left join items di on di.id = d.item_id where d.id in (""" + in + ") order by d.id", ids.toArray());

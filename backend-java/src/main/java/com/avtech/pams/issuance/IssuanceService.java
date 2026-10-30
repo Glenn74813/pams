@@ -188,9 +188,10 @@ public class IssuanceService {
                         throw ApiException.validation("items", "Cannot issue more of \"" + item.getName() + "\" than was requested ("
                                 + line.getQuantity() + ").");
                     }
-                    if (qty > item.getCurrentStock()) {
+                    int usable = ledger.usable(item.getId());
+                    if (qty > usable) {
                         throw ApiException.validation("items", "Cannot issue " + qty + " of \"" + item.getName() + "\": only "
-                                + item.getCurrentStock() + " in stock.");
+                                + usable + " usable in stock" + (usable < item.getCurrentStock() ? " (the rest is in expired lots)." : "."));
                     }
                 }
             }
@@ -224,6 +225,8 @@ public class IssuanceService {
             }
             Item item = locked.get(line.getItemId());
             int before = item.getCurrentStock();
+            // The slip prints the cost at issue (moving average before this issue), not whatever the average is later.
+            line.setUnitCost(item.getWeightedAverageCost());
             warnings.addAll(ledger.issue(item, qty).warnings());
             line.issue(qty);
             ledger.log(item, me.getId(), "item_issued", qty, before, REQUEST_TYPE, r.getId(),
@@ -293,8 +296,10 @@ public class IssuanceService {
             if (l.quantity() == null || l.quantity() < 1) throw ApiException.validation("items", "Quantities must be at least 1.");
             if (!seen.add(l.itemId())) throw ApiException.validation("items", "Each item can only appear once; combine the quantities.");
             Item item = items.findById(l.itemId()).orElseThrow(() -> ApiException.validation("items", "One of the items no longer exists."));
-            if (!item.isAvailable()) {
-                throw ApiException.validation("items", "\"" + item.getName() + "\" is out of stock and cannot be requested.");
+            // Only stock that can actually be issued counts: expired lots are not released, and PPE comes from stock like anything else.
+            if (ledger.usable(item.getId()) <= 0) {
+                throw ApiException.validation("items", "\"" + item.getName() + "\" has no usable stock and cannot be requested"
+                        + (item.isPpe() ? "; raise a purchase request to procure it." : "."));
             }
             r.addItem(new RequestItem(l.itemId(), l.quantity()));
         }

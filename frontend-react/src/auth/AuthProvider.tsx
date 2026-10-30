@@ -120,12 +120,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   }, [user, logout])
 
+  const refresh = useCallback(async () => {
+    setUser(await authApi.me())
+  }, [])
+
   const value = useMemo<AuthState>(() => {
     const can = (...permissions: string[]) =>
       !!user && (user.is_super_admin || permissions.some((p) => user.permissions.includes(p)))
     const canOpen = (module: string) => !!user && user.accessible_modules.includes(module)
-    return { user, loading, login, logout, can, canOpen }
-  }, [user, loading, login, logout])
+    return { user, loading, login, logout, refresh, can, canOpen }
+  }, [user, loading, login, logout, refresh])
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>
 }

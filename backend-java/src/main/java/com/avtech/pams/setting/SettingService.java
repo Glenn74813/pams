@@ -17,6 +17,8 @@ public class SettingService {
     public static final String FEFO_WARNING_DAYS = "fefo_expiry_warning_days";
     public static final String IDLE_TIMEOUT_MINUTES = "idle_timeout_minutes";
     public static final String PASSWORD_MIN_LENGTH = "password_min_length";
+    /** Days before a password must be changed; 0 turns expiry off. */
+    public static final String PASSWORD_EXPIRY_DAYS = "password_expiry_days";
     /** Address people open the app at; QR labels link here. Empty = the pams.app-url setting. */
     public static final String APP_URL = "app_url";
 
@@ -24,7 +26,8 @@ public class SettingService {
             CAPITALIZATION_THRESHOLD, "50000",
             FEFO_WARNING_DAYS, "30",
             IDLE_TIMEOUT_MINUTES, "30",
-            PASSWORD_MIN_LENGTH, "8");
+            PASSWORD_MIN_LENGTH, "8",
+            PASSWORD_EXPIRY_DAYS, "0");
 
     private final JdbcTemplate jdbc;
 
@@ -63,6 +66,10 @@ public class SettingService {
 
     public int passwordMinLength() {
         return Math.max(8, parse(get(PASSWORD_MIN_LENGTH), 8));
+    }
+
+    public int passwordExpiryDays() {
+        return Math.max(0, parse(get(PASSWORD_EXPIRY_DAYS), 0));
     }
 
     private static int parse(String v, int fallback) {

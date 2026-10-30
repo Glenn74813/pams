@@ -1,11 +1,13 @@
 import type { InventoryConfig, PurchaseRequest } from '../../api/types'
 import { formatDate, formatPeso, formatQty } from '../../lib/format'
+import { SlipLogos } from '../../components/SlipLogos'
 
 /** GPPB / COA Purchase Request form (Appendix 60). */
 export function PrSlip({ pr, config }: { pr: PurchaseRequest; config?: InventoryConfig }) {
   const signer = (perm: string) => pr.approvals?.find((a) => a.required_permission === perm && a.status === 'approved')?.actor?.name ?? ''
   return (
     <div className="slip print-area">
+      <SlipLogos edge="top" />
       <p className="slip-appendix">Appendix 60</p>
       <h2 className="slip-title">PURCHASE REQUEST</h2>
       <div className="slip-head">
@@ -80,6 +82,7 @@ export function PrSlip({ pr, config }: { pr: PurchaseRequest; config?: Inventory
           </div>
         ))}
       </div>
+      <SlipLogos edge="bottom" />
     </div>
   )
 }

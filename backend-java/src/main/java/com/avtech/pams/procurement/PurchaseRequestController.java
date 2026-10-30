@@ -393,11 +393,22 @@ public class PurchaseRequestController {
         PurchaseRequestApproval step = pr.currentApproval();
         if (step == null) throw ApiException.of(HttpStatus.CONFLICT, "This purchase request is not awaiting approval.");
         User me = current.user();
-        if (!me.isSuperAdmin() && !me.hasPermission(step.getRequiredPermission())) {
-            throw ApiException.forbidden("You are not authorized to act on the '" + step.getLabel() + "' step.");
+        if (!maySign(me, pr, step)) {
+            throw ApiException.forbidden(me.hasPermission(ALTERNATE)
+                    ? "You already signed another step of this purchase request; the '" + step.getLabel() + "' step needs a different signatory."
+                    : "You are not authorized to act on the '" + step.getLabel() + "' step.");
         }
         notRequester(pr, "sign");
         return step;
+    }
+
+    /** "Approve Purchase Requests": an alternate signatory for any step (e.g. an officer-in-charge), never for two steps of one PR. */
+    private static final String ALTERNATE = "approve_procurement";
+
+    private static boolean maySign(User me, PurchaseRequest pr, PurchaseRequestApproval step) {
+        if (me.isSuperAdmin() || me.hasPermission(step.getRequiredPermission())) return true;
+        return me.hasPermission(ALTERNATE) && pr.getApprovals().stream()
+                .noneMatch(a -> a != step && "approved".equals(a.getStatus()) && me.getId().equals(a.getActedBy()));
     }
 
     private void notRequester(PurchaseRequest pr, String what) {
@@ -447,7 +458,7 @@ public class PurchaseRequestController {
             boolean mine = me.getId().equals(p.getRequestedBy()) && !me.isSuperAdmin();
             boolean owner = owns(p);
             PurchaseRequestApproval step = p.currentApproval();
-            boolean canAct = step != null && !mine && (me.isSuperAdmin() || me.hasPermission(step.getRequiredPermission()));
+            boolean canAct = step != null && !mine && maySign(me, p, step);
             AppPlan a = p.getAppId() == null ? null : byApp.get(p.getAppId());
             List<LineView> items = !withItems ? null : p.getItems().stream().map(i -> new LineView(i.getId(), i.getAppItemId(), i.getGeneralDescription(),
                     i.getUnit(), i.getQuantity(), i.getEstimatedUnitCost(), i.getEstimatedTotal(), i.getSpecifications(), i.getProcurementMode(),

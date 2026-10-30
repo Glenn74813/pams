@@ -81,7 +81,7 @@ export function DashboardPage() {
                 <Kpi label="Low stock" value={d.inventory.low_stock} tone={warnIf(d.inventory.low_stock)} />
                 <Kpi label="Out of stock" value={d.inventory.out_of_stock} tone={warnIf(d.inventory.out_of_stock, 'bad')} />
                 <Kpi label="Requests pending" value={d.inventory.pending_requests} tone={warnIf(d.inventory.pending_requests)} />
-                <Kpi label="Lots expiring in 30 days" value={d.inventory.expiring_lots} tone={warnIf(d.inventory.expiring_lots)} />
+                <Kpi label={`Lots expiring in ${d.inventory.expiry_warning_days ?? 30} days`} value={d.inventory.expiring_lots} tone={warnIf(d.inventory.expiring_lots)} />
                 <Kpi label="Expired lots on hand" value={d.inventory.expired_lots} tone={warnIf(d.inventory.expired_lots, 'bad')} />
               </div>
               <div className="dash-grid">

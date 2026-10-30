@@ -21,8 +21,10 @@ public class RpcppeForm {
     private static final String FONT = "Times New Roman";
 
     private final JdbcTemplate jdbc;
+    private final Signatories signatories;
 
-    public RpcppeForm(JdbcTemplate jdbc) {
+    public RpcppeForm(JdbcTemplate jdbc, Signatories signatories) {
+        this.signatories = signatories;
         this.jdbc = jdbc;
     }
 
@@ -34,12 +36,12 @@ public class RpcppeForm {
         // Get PPE properties (items that are expandable/PPE)
         String where = "semi_expandable".equals(ppeType) ? "i.is_semi_expandable = ?" : "i.is_expandable = ?";
         List<Map<String, Object>> properties = jdbc.queryForList("""
-                select p.id, p.tag_number, p.condition, p.status,
+                select p.id, p.tag_number, p.condition, p.status, p.acquisition_cost,
                        i.name as item_name, i.unit_of_measure, i.weighted_average_cost, c.name as category_name
                 from properties p
                 join items i on i.id = p.item_id
                 left join categories c on c.id = i.category_id
-                where %s
+                where %s and p.status <> 'disposed'
                 order by p.tag_number, p.id
                 """.formatted(where), true);
 
@@ -128,7 +130,9 @@ public class RpcppeForm {
             Object onHandQty = "";
             Object shortageQty = "";
             Object shortageVal = "";
-            double wac = property.get("weighted_average_cost") == null ? 0 : ((Number) property.get("weighted_average_cost")).doubleValue();
+            // Each asset at its own acquisition cost; disposed assets are no longer counted.
+            Object cost = property.get("acquisition_cost") != null ? property.get("acquisition_cost") : property.get("weighted_average_cost");
+            double wac = cost == null ? 0 : ((Number) cost).doubleValue();
 
             Long id = ((Number) property.get("id")).longValue();
             if (countData != null && !countData.isEmpty() && countData.get(id) != null) {
@@ -177,7 +181,18 @@ public class RpcppeForm {
         row += 2;
         x.merge("G" + row + ":I" + row);
         x.merge("K" + row + ":L" + row);
-        x.set("K" + row, "_______________________________");
+        // Names from Settings → Signatories on the signature lines; unset ones keep the blank line.
+        String chair = signatories.resolve("inventory_committee_chair").name();
+        if (chair != null) {
+            x.set("D" + row, chair.toUpperCase(java.util.Locale.ROOT));
+            x.style("D" + row).bold();
+        }
+        String head = signatories.resolve("head_of_agency").name();
+        if (head != null) {
+            x.set("G" + row, head.toUpperCase(java.util.Locale.ROOT));
+            x.style("G" + row).bold().center();
+        }
+        x.set("K" + row, RpciForm.nameOr(signatories.resolve("coa_representative"), "_______________________________"));
         x.style("K" + row).center();
         row++;
         x.set("D" + row, "Signature over Printed Name of Inventory Committee Chair and Members");

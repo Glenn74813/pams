@@ -98,7 +98,7 @@ function Logos({ editable }: { editable: boolean }) {
   return (
     <section className="settings-card">
       <h2>Document logos</h2>
-      <p className="small muted">Shown on generated documents such as the NOA, NTP and contracts.</p>
+      <p className="small muted">Printed along the top or bottom of the PR, PO, IAR, RIS / ICS / PAR, gate pass and property slips. The COA Excel forms keep their prescribed layout without logos.</p>
       {error && <div className="alert alert-error">{error}</div>}
       <div className="logo-list">
         {q.data?.logos.map((l) => (

@@ -55,7 +55,7 @@ public class RsmiForm {
         // One row per request line, in request order (Request::with('department', 'items.item.category')).
         List<Map<String, Object>> lines = jdbc.queryForList("""
                 select r.ris_number, r.request_number, d.name as department_name, ri.approved_quantity,
-                       i.id as item_id, i.code, i.name, i.unit_of_measure, i.weighted_average_cost
+                       i.id as item_id, i.code, i.name, i.unit_of_measure, coalesce(ri.unit_cost, i.weighted_average_cost) as weighted_average_cost
                 from requests r
                 left join departments d on d.id = r.department_id
                 join request_items ri on ri.request_id = r.id

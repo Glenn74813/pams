@@ -26,6 +26,8 @@ public class Property extends Timestamped {
     public static final String UNDER_REPAIR = "under_repair";
     public static final String RETIRED = "retired";
     public static final String DISPOSED = "disposed";
+    /** Reported lost (e.g. not returned from a gate pass); stays with its custodian until relieved through disposal. */
+    public static final String LOST = "lost";
     public static final Set<String> CONDITIONS = Set.of("excellent", "good", "fair", "poor");
 
     @Id

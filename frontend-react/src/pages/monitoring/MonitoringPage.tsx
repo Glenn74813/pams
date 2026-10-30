@@ -105,7 +105,7 @@ function StockTab({ reorderOnly }: { reorderOnly: boolean }) {
         <div className={'kpi' + (d.summary.expired_lots ? ' kpi-bad' : '')}>
           <span className="kpi-value">{d.summary.expired_lots}</span>
           <span className="kpi-label">
-            Expired lots · <Link to="/warehouse">{d.summary.expiring_lots} expiring in 30 days</Link>
+            Expired lots · <Link to="/warehouse">{d.summary.expiring_lots} expiring in {d.summary.expiry_warning_days ?? 30} days</Link>
           </span>
         </div>
         <div className="kpi">

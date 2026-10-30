@@ -20,6 +20,8 @@ export interface AuthUser {
   two_factor_enabled: boolean
   has_signature: boolean
   signature_image?: string
+  /** The password is older than the configured expiry; only changing it is allowed. */
+  password_expired?: boolean
 }
 
 export interface LoginResponse {
@@ -45,6 +47,9 @@ export interface User {
   password_changed_at: string | null
   created_at: string | null
   updated_at: string | null
+  is_active: boolean
+  /** Set while failed sign-ins keep the account locked. */
+  locked_until: string | null
 }
 
 export interface Pagination {
@@ -140,6 +145,8 @@ export interface Item {
   is_available: boolean
   stock_status: StockLevel
   total_value: number
+  /** Same rule as Monitoring: top up to the maximum (or twice the minimum) once at or below the minimum. */
+  suggested_order: number
   stocks?: StockLot[]
   created_at: string | null
   updated_at: string | null
@@ -166,6 +173,7 @@ export interface ExpiringStock {
     expired_qty: number
     expired_value: number
     expiring_lots: number
+    expiry_warning_days?: number
     expiring_qty: number
     expiring_value: number
   }
@@ -196,6 +204,9 @@ export interface RequestLine {
   unit_of_measure: string | null
   classification: Classification | null
   current_stock: number
+  /** On hand outside expired lots; what can actually be issued now. */
+  usable_stock: number
+  /** The cost when issued; before that, the item's current average. */
   unit_cost: number | null
   quantity: number
   approved_quantity: number
@@ -225,6 +236,7 @@ export interface SupplyRequest {
   can_edit: boolean
   can_delete: boolean
   can_process: boolean
+  can_reject: boolean
   created_at: string | null
 }
 
@@ -267,7 +279,7 @@ export interface SemiExpendableIssue {
 
 // ── Assets, disposal, gate pass ──
 
-export type AssetStatus = 'assigned' | 'available' | 'under_repair' | 'retired' | 'disposed'
+export type AssetStatus = 'assigned' | 'available' | 'under_repair' | 'retired' | 'disposed' | 'lost'
 
 export interface Asset {
   id: number
@@ -333,6 +345,8 @@ export interface Disposal {
   status: 'draft' | 'submitted' | 'approved' | 'rejected' | 'completed'
   reason: string
   remarks: string | null
+  /** The approver's remarks on approval or rejection. */
+  approval_remarks: string | null
   request_date: string
   requester: { id: number; name: string }
   approver: { id: number; name: string } | null
@@ -1210,6 +1224,7 @@ export interface SystemSettings {
   capitalization_threshold: number
   idle_timeout_minutes: number
   password_min_length: number
+  password_expiry_days: number
   app_url: string
 }
 
@@ -1333,6 +1348,7 @@ export interface DashboardData {
     pending_requests: number
     requests_today: number
     expiring_lots: number
+    expiry_warning_days?: number
     expired_lots: number
     top_items: Ranked[]
     by_department: Ranked[]
@@ -1382,6 +1398,7 @@ export interface StockMonitor {
     reorder_value: number
     expired_lots: number
     expiring_lots: number
+    expiry_warning_days?: number
   }
   levels: Record<MonitorLevel, number>
   movement: Record<Movement, number>

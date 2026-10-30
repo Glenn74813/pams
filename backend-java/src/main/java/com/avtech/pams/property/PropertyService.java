@@ -288,8 +288,8 @@ public class PropertyService {
 
     /**
      * repair: in use or available → under repair; in_service: back from repair; retire: a returned
-     * asset taken out of service; reinstate: a retired asset back to available. Disposal goes through
-     * a disposal request.
+     * asset taken out of service; reinstate: a retired asset back to available; found: a lost asset
+     * recovered. Disposal goes through a disposal request.
      */
     @Transactional
     public Property changeStatus(Long id, StatusInput in) {
@@ -310,6 +310,10 @@ public class PropertyService {
                 if (!Set.of(Property.AVAILABLE, Property.UNDER_REPAIR).contains(before)) throw conflict(p, "retired");
                 requireOnSite(p);
                 p.setStatus(Property.RETIRED);
+            }
+            case "found" -> {
+                if (!Property.LOST.equals(before)) throw conflict(p, "marked found");
+                p.setStatus(p.getAssignedTo() == null ? Property.AVAILABLE : Property.ASSIGNED);
             }
             case "reinstate" -> {
                 if (!Property.RETIRED.equals(before)) throw conflict(p, "reinstated");

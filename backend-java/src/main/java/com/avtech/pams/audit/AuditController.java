@@ -122,6 +122,48 @@ public class AuditController {
         return new PageResponse<>(rows, new PageResponse.Pagination(t, size, p, (int) Math.max(1, (t + size - 1) / size)));
     }
 
+    public record Verification(long checked, long intact, long unsealed, List<Long> altered, boolean complete) {
+    }
+
+    /**
+     * Recomputes every row's seal within the filter. Rows written before sealing began are counted
+     * as unsealed; a row whose seal does not match was changed outside PAMS. The table itself only
+     * accepts inserts, so a deleted row shows as a gap only to the database administrator.
+     */
+    @GetMapping("/verify")
+    @PreAuthorize("@perm.any('view_audit_trail')")
+    public Verification verify(@RequestParam(name = "user_id", required = false) Long userId,
+                               @RequestParam(required = false) String action,
+                               @RequestParam(name = "auditable_type", required = false) String type,
+                               @RequestParam(required = false) String search,
+                               @RequestParam(name = "start_date", required = false) String start,
+                               @RequestParam(name = "end_date", required = false) String end) {
+        Filter f = filter(userId, action, type, search, start, end);
+        List<Object> args = new ArrayList<>();
+        String where = f.where(args);
+        long[] n = new long[3];
+        List<Long> altered = new ArrayList<>();
+        jdbc.query("""
+                select a.id, a.user_name, a.user_role, a.action, a.auditable_type, a.auditable_id, a.description, a.old_values, a.new_values,
+                       a.ip_address, a.user_agent, a.url, a.method, a.created_at, a.seal
+                from audit_trails a""" + where + " order by a.id", rs -> {
+            n[0]++;
+            String seal = rs.getString(15);
+            if (seal == null) {
+                n[2]++;
+                return;
+            }
+            var created = rs.getTimestamp(14);
+            AuditService.Row row = new AuditService.Row(rs.getString(2), rs.getString(3), rs.getString(4), rs.getString(5), rs.getObject(6, Long.class),
+                    rs.getString(7), rs.getString(8), rs.getString(9), rs.getString(10), rs.getString(11), rs.getString(12), rs.getString(13),
+                    created == null ? java.time.LocalDateTime.MIN : created.toLocalDateTime());
+            if (created != null && seal.equals(audit.seal(row))) n[1]++;
+            else if (altered.size() < 200) altered.add(rs.getLong(1));
+        }, args.toArray());
+        long alteredCount = n[0] - n[1] - n[2];
+        return new Verification(n[0], n[1], n[2], altered, alteredCount == altered.size());
+    }
+
     @GetMapping("/{id}")
     @PreAuthorize("@perm.any('view_audit_trail')")
     public Entry show(@PathVariable Long id) {

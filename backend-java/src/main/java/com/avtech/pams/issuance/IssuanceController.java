@@ -51,9 +51,12 @@ public class IssuanceController {
     private final DepartmentRepository departments;
     private final UserRepository users;
     private final CurrentUser current;
+    private final com.avtech.pams.inventory.StockLedger ledger;
 
     public IssuanceController(IssuanceService service, InventoryRequestRepository requests, ItemRepository items,
-                              DepartmentRepository departments, UserRepository users, CurrentUser current) {
+                              DepartmentRepository departments, UserRepository users, CurrentUser current,
+                              com.avtech.pams.inventory.StockLedger ledger) {
+        this.ledger = ledger;
         this.service = service;
         this.requests = requests;
         this.items = items;
@@ -68,14 +71,14 @@ public class IssuanceController {
     }
 
     public record LineView(Long id, Long itemId, String code, String name, String unitOfMeasure, Classification classification,
-                           int currentStock, BigDecimal unitCost, int quantity, int approvedQuantity, String status) {
+                           int currentStock, int usableStock, BigDecimal unitCost, int quantity, int approvedQuantity, String status) {
     }
 
     public record RequestView(Long id, String requestNumber, String status, String priority, String purpose, LocalDate requestDate,
                               Ref department, Ref requester, String custodianName, String risNumber, LocalDate risDate,
                               String icsNumber, LocalDate icsDate, String parNumber, LocalDate parDate, String remarks,
                               List<LineView> items, int totalRequested, int totalIssued,
-                              boolean canEdit, boolean canDelete, boolean canProcess,
+                              boolean canEdit, boolean canDelete, boolean canProcess, boolean canReject,
                               OffsetDateTime createdAt, OffsetDateTime updatedAt) {
     }
 
@@ -159,7 +162,7 @@ public class IssuanceController {
     /** null = all requests; otherwise only this requester's. */
     private Long scope(boolean mine) {
         User me = current.user();
-        if (!mine && current.any("view_requests")) return null;
+        if (!mine && current.any("view_requests", "view_reports", "generate_reports")) return null;
         if (mine || current.any("view_own_requests", "create_requests")) return me.getId();
         throw ApiException.forbidden("You do not have access to requests.");
     }
@@ -180,6 +183,7 @@ public class IssuanceController {
         boolean editOwn = current.any("edit_own_requests");
         boolean deleteOwn = current.any("delete_own_requests");
         boolean approver = current.any("approve_requests");
+        boolean rejecter = current.any("approve_requests", "reject_requests");
 
         Map<InventoryRequest, RequestView> out = new java.util.LinkedHashMap<>();
         for (InventoryRequest r : list) {
@@ -189,7 +193,8 @@ public class IssuanceController {
                 Item i = itemById.get(l.getItemId());
                 return new LineView(l.getId(), l.getItemId(), i == null ? null : i.getCode(), i == null ? "(deleted item)" : i.getName(),
                         i == null ? null : i.getUnitOfMeasure(), i == null ? null : i.classification(),
-                        i == null ? 0 : i.getCurrentStock(), i == null ? null : i.getWeightedAverageCost(),
+                        i == null ? 0 : i.getCurrentStock(), i == null || !pending ? 0 : ledger.usable(i.getId()),
+                        l.getUnitCost() != null ? l.getUnitCost() : i == null ? null : i.getWeightedAverageCost(),
                         l.getQuantity(), l.getApprovedQuantity(), l.getStatus());
             }).toList();
             out.put(r, new RequestView(r.getId(), r.getRequestNumber(), r.getStatus(), r.getPriority(), r.getPurpose(), r.getRequestDate(),
@@ -201,6 +206,7 @@ public class IssuanceController {
                     pending && (editAny || (own && editOwn)),
                     pending && (me.isSuperAdmin() || (own && deleteOwn)),
                     pending && approver && (!own || me.isSuperAdmin()),
+                    pending && rejecter && (!own || me.isSuperAdmin()),
                     Times.toOffset(r.getCreatedAt()), Times.toOffset(r.getUpdatedAt())));
         }
         return out;

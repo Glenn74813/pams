@@ -44,7 +44,7 @@ public final class Permissions {
                 "view_procurement", "View Procurement",
                 "create_procurement", "Create Purchase Requests/Orders",
                 "edit_procurement", "Edit Purchase Requests/Orders",
-                "approve_procurement", "Approve Purchase Requests"));
+                "approve_procurement", "Approve Purchase Requests (alternate signatory for any PR step)"));
         c.put("Purchase Request Workflow", group(
                 "pr_approve_department", "PR Approval — Department Head",
                 "pr_approve_budget", "PR Approval — Budget Officer",

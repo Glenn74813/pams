@@ -394,6 +394,11 @@ public class PlanningController {
                 if (l.estimatedBudget() == null || l.estimatedBudget().signum() < 0 || l.estimatedBudget().scale() > 2) {
                     throw ApiException.validation(f + "estimated_budget", "Line " + (i + 1) + ": enter the budget in pesos.");
                 }
+                BigDecimal committed = usage.of(used, it.getId()).committed();
+                if (l.estimatedBudget().compareTo(committed) < 0) {
+                    throw ApiException.validation(f + "estimated_budget", "Line " + (i + 1) + ": approved purchase requests already commit ₱"
+                            + committed.setScale(2, RoundingMode.HALF_UP).toPlainString() + "; the budget cannot go below that.");
+                }
                 String mode = ProcurementRules.text(l.procurementMode());
                 if (mode != null && !ProcurementRules.MODES.contains(mode)) throw ApiException.validation(f + "procurement_mode", "Line " + (i + 1) + ": unknown mode.");
                 String cat = ProcurementRules.text(l.procurementCategory());
@@ -635,6 +640,14 @@ public class PlanningController {
         }
         boolean manager = current.any("manage_app");
         User me = current.user();
+        // Delete is refused while any purchase request line, even a cancelled one, still points at the APP.
+        java.util.Set<Long> referenced = new java.util.HashSet<>();
+        if (!list.isEmpty()) {
+            String in = String.join(",", list.stream().map(x -> "?").toList());
+            referenced.addAll(jdbc.queryForList("select distinct ai.app_id from purchase_request_items pri join app_items ai on ai.id = pri.app_item_id"
+                    + " join purchase_requests pr on pr.id = pri.purchase_request_id where pr.deleted_at is null and ai.app_id in (" + in + ")",
+                    Long.class, list.stream().map(AppPlan::getId).toArray()));
+        }
         Map<AppPlan, AppView> out = new LinkedHashMap<>();
         for (AppPlan a : list) {
             BigDecimal requested = BigDecimal.ZERO, utilized = BigDecimal.ZERO;
@@ -664,7 +677,7 @@ public class PlanningController {
             out.put(a, new AppView(a.getId(), a.getAppNumber(), a.getFiscalYear(), a.getTitle(), a.getStatus(), a.getTotalBudget(),
                     ref(a.getPreparedBy(), names), ref(a.getApprovedBy(), names), Times.toOffset(a.getApprovedAt()), a.getRemarks(),
                     a.getItems().size(), ppmpCount, requested, utilized, hasPr, !a.getItems().isEmpty() && !anyLeft, pending, items,
-                    manager && !a.isApproved(), manager && !a.isApproved() && !own, manager && !a.isApproved() && !hasPr,
+                    manager && !a.isApproved(), manager && !a.isApproved() && !own, manager && !a.isApproved() && !referenced.contains(a.getId()),
                     Times.toOffset(a.getCreatedAt())));
         }
         return out;

@@ -80,6 +80,7 @@ public class SupplierController {
 
     /** Supplier names for pickers. */
     @GetMapping("/options")
+    @PreAuthorize("@perm.any('view_suppliers', 'create_inventory', 'edit_inventory', 'add_stock', 'manage_warehouse', 'create_rfq', 'manage_bidding', 'conduct_bid_evaluation', 'create_receiving')")
     public Map<String, Object> options() {
         return Map.of("data", jdbc.queryForList("select id, name from suppliers where is_active = " + db.t() + " order by name"));
     }

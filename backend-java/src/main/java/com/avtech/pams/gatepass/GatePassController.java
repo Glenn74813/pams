@@ -18,6 +18,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -58,9 +59,12 @@ public class GatePassController {
     private final DocumentNumbers numbers;
     private final AuditService audit;
     private final CurrentUser current;
+    private final com.avtech.pams.notification.NotificationService notifications;
 
     public GatePassController(GatePassRepository passes, PropertyRepository properties, ItemRepository items, UserRepository users,
-                              StockLedger ledger, DocumentNumbers numbers, AuditService audit, CurrentUser current) {
+                              StockLedger ledger, DocumentNumbers numbers, AuditService audit, CurrentUser current,
+                              com.avtech.pams.notification.NotificationService notifications) {
+        this.notifications = notifications;
         this.passes = passes;
         this.properties = properties;
         this.items = items;
@@ -119,7 +123,7 @@ public class GatePassController {
     public ResponseEntity<GatePassView> create(@RequestBody GatePassInput in) {
         if (in.propertyId() == null) throw ApiException.validation("property_id", "Choose the asset.");
         Property p = properties.lockById(in.propertyId()).orElseThrow(() -> ApiException.validation("property_id", "That asset no longer exists."));
-        if (Set.of(Property.DISPOSED, Property.RETIRED).contains(p.getStatus())) {
+        if (Set.of(Property.DISPOSED, Property.RETIRED, Property.LOST).contains(p.getStatus())) {
             throw ApiException.validation("property_id", "Asset " + p.getTagNumber() + " is " + p.getStatus() + " and cannot leave on a gate pass.");
         }
         if (passes.outFor(p.getId())) throw ApiException.validation("property_id", "Asset " + p.getTagNumber() + " is already out on another gate pass.");
@@ -171,12 +175,32 @@ public class GatePassController {
         Property p = properties.lockById(g.getPropertyId()).orElseThrow();
         if (Set.of("good", "fair", "poor").contains(in.conditionOnReturn())) p.setCondition(in.conditionOnReturn());
         else if ("damaged".equals(in.conditionOnReturn())) p.setCondition("poor");
+        else if ("lost".equals(in.conditionOnReturn())) {
+            // Not back: the custodian stays accountable until relieved (RLSDDP, then turn-in and disposal).
+            p.setStatus(Property.LOST);
+            notifications.notifyPermission(List.of("edit_properties", "approve_disposal"), current.user().getId(), "asset_lost",
+                    "Asset reported lost", "Asset " + p.getTagNumber() + " did not come back on gate pass " + g.getGatePassNumber()
+                            + ". File the RLSDDP (Reports) and relieve the custodian through turn-in and disposal.", "App\\Models\\Property", p.getId());
+        }
         passes.flush();
         ledger.event(p.getItemId(), current.user().getId(), "gate_pass_returned", TYPE, g.getId(),
                 "Gate pass " + g.getGatePassNumber() + " returned for asset " + p.getTagNumber() + " — condition " + in.conditionOnReturn());
         audit.record("updated", TYPE, g.getId(), "Returned gate pass " + g.getGatePassNumber(), Map.of("status", "released"),
                 Map.of("status", "returned", "condition_on_return", in.conditionOnReturn()));
         return views(List.of(g)).get(g);
+    }
+
+    /** Removes a returned gate pass from the lists (kept in the database); one still out must be returned first. */
+    @DeleteMapping("/{id}")
+    @PreAuthorize("@perm.any('delete_gate_pass')")
+    @Transactional
+    public Map<String, String> destroy(@PathVariable Long id) {
+        GatePass g = passes.lockById(id).filter(x -> x.getDeletedAt() == null).orElseThrow(() -> ApiException.notFound("Gate pass"));
+        if (g.isOut()) throw ApiException.of(HttpStatus.CONFLICT, "Gate pass " + g.getGatePassNumber() + " is still out. Record the return first.");
+        g.setDeletedAt(Times.now());
+        passes.flush();
+        audit.record("deleted", TYPE, g.getId(), "Deleted gate pass " + g.getGatePassNumber(), Map.of("gate_pass_number", g.getGatePassNumber()), null);
+        return Map.of("message", "Gate pass deleted.");
     }
 
     private void apply(GatePass g, GatePassInput in) {

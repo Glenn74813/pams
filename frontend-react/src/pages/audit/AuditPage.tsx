@@ -36,6 +36,7 @@ export function AuditPage() {
   const [viewing, setViewing] = useState<number | null>(null)
   const [printing, setPrinting] = useState(false)
   const [exporting, setExporting] = useState(false)
+  const [verifying, setVerifying] = useState(false)
   const q = useDebounced(search.trim())
   const key = JSON.stringify([f, q])
   const [shown, setShown] = useState(key)
@@ -56,6 +57,23 @@ export function AuditPage() {
       toast(err instanceof ApiError ? err.message : 'Export failed.', 'error')
     } finally {
       setExporting(false)
+    }
+  }
+  const verify = async () => {
+    setVerifying(true)
+    try {
+      const r = await auditApi.verify({ ...f, search: q || undefined })
+      if (r.checked === 0) {
+        toast('No entries match the filter, so there is nothing to check.', 'success')
+      } else if (r.altered.length) {
+        toast(`${r.altered.length}${r.complete ? '' : '+'} of ${r.checked} entries were changed outside PAMS (IDs ${r.altered.slice(0, 10).join(', ')}${r.altered.length > 10 ? ', …' : ''}).`, 'error')
+      } else {
+        toast(`All ${r.intact} sealed entries are intact${r.unsealed ? `; ${r.unsealed} older entries predate sealing` : ''}.`, 'success')
+      }
+    } catch (err) {
+      toast(err instanceof ApiError ? err.message : 'Could not check the audit trail.', 'error')
+    } finally {
+      setVerifying(false)
     }
   }
   return (
@@ -92,6 +110,9 @@ export function AuditPage() {
           <input type="date" value={f.end_date ?? ''} onChange={(e) => set({ end_date: e.target.value || undefined })} aria-label="To" />
         </div>
         <div className="workflow-actions">
+          <button className="btn btn-secondary" onClick={() => void verify()} disabled={verifying} title="Recompute each entry's seal to detect changes made outside PAMS">
+            {verifying ? 'Checking…' : 'Check integrity'}
+          </button>
           <button className="btn btn-secondary" onClick={() => setPrinting(true)}>
             🖨 Print
           </button>

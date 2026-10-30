@@ -1,10 +1,12 @@
 import type { InventoryConfig, PurchaseOrder } from '../../api/types'
 import { formatDate, formatPeso, formatQty } from '../../lib/format'
+import { SlipLogos } from '../../components/SlipLogos'
 
 /** Purchase Order (COA Appendix 61). */
 export function PoSlip({ po, config }: { po: PurchaseOrder; config?: InventoryConfig }) {
   return (
     <div className="slip print-area">
+      <SlipLogos edge="top" />
       <p className="slip-appendix">Appendix 61</p>
       <h2 className="slip-title">PURCHASE ORDER</h2>
       <div className="slip-head">
@@ -90,6 +92,7 @@ export function PoSlip({ po, config }: { po: PurchaseOrder; config?: InventoryCo
           </div>
         ))}
       </div>
+      <SlipLogos edge="bottom" />
     </div>
   )
 }

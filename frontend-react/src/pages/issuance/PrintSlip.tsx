@@ -1,5 +1,6 @@
 import type { InventoryConfig, SupplyRequest } from '../../api/types'
 import { formatDate, formatPeso, formatQty } from '../../lib/format'
+import { SlipLogos } from '../../components/SlipLogos'
 
 export type SlipKind = 'ris' | 'ics' | 'par'
 
@@ -12,7 +13,7 @@ const APPENDIX: Record<SlipKind, string> = { ris: 'Appendix 63', ics: 'Appendix 
 
 /**
  * Printable COA slip for an issued request. RIS lists every line; ICS only semi-expendable lines;
- * PAR only PPE lines. Unit costs are the item's current weighted average cost.
+ * PAR only PPE lines. Unit costs are those at the time of issue.
  */
 export function PrintSlip({ request: r, kind, config }: { request: SupplyRequest; kind: SlipKind; config?: InventoryConfig }) {
   const lines = r.items.filter((l) =>
@@ -24,6 +25,7 @@ export function PrintSlip({ request: r, kind, config }: { request: SupplyRequest
 
   return (
     <div className="slip print-area">
+      <SlipLogos edge="top" />
       <p className="slip-appendix">{APPENDIX[kind]}</p>
       <h2 className="slip-title">{TITLE[kind]}</h2>
       <div className="slip-head">
@@ -128,6 +130,7 @@ export function PrintSlip({ request: r, kind, config }: { request: SupplyRequest
           </div>
         ))}
       </div>
+      <SlipLogos edge="bottom" />
     </div>
   )
 }

@@ -1,10 +1,12 @@
 import type { InspectionReport, InventoryConfig } from '../../api/types'
 import { formatDate, formatQty } from '../../lib/format'
+import { SlipLogos } from '../../components/SlipLogos'
 
 /** Inspection and Acceptance Report (COA Appendix 62). */
 export function IarSlip({ r, config }: { r: InspectionReport; config?: InventoryConfig }) {
   return (
     <div className="slip print-area">
+      <SlipLogos edge="top" />
       <p className="slip-appendix">Appendix 62</p>
       <h2 className="slip-title">INSPECTION AND ACCEPTANCE REPORT</h2>
       <div className="slip-head">
@@ -64,6 +66,7 @@ export function IarSlip({ r, config }: { r: InspectionReport; config?: Inventory
           <span className="sig-caption">Supply and/or Property Custodian</span>
         </div>
       </div>
+      <SlipLogos edge="bottom" />
     </div>
   )
 }

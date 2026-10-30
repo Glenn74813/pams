@@ -103,7 +103,7 @@ public class AuthController {
     @GetMapping("/me")
     public AuthUserView me() {
         User u = current.user();
-        return AuthUserView.of(u, signatures.dataUri(u.getSignaturePath()));
+        return AuthUserView.of(u, signatures.dataUri(u.getSignaturePath()), passwordPolicy.expired(u));
     }
 
     public record ChangePasswordRequest(@NotBlank(message = "Enter your current password.") String currentPassword, String password, String passwordConfirmation) {
@@ -117,6 +117,9 @@ public class AuthController {
             throw ApiException.validation("current_password", "Current password is incorrect.");
         }
         passwordPolicy.check("password", body.password(), body.passwordConfirmation(), u.getEmail());
+        if (passwordEncoder.matches(body.password(), u.getPasswordHash())) {
+            throw ApiException.validation("password", "Choose a new password, different from the current one.");
+        }
         u.setPasswordHash(passwordEncoder.encode(body.password()));
         u.setPasswordChangedAt(Times.now());
         audit.record("password_changed", USER, u.getId(), u.getName() + " changed their password", null, null);
@@ -210,7 +213,7 @@ public class AuthController {
         res.put("access_token", token.token());
         res.put("token_type", "bearer");
         res.put("expires_in", token.expiresInSeconds());
-        res.put("user", AuthUserView.of(user, null));
+        res.put("user", AuthUserView.of(user, null, passwordPolicy.expired(user)));
         return res;
     }
 }

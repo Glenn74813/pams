@@ -254,6 +254,9 @@ public class PurchaseOrderController {
         }
         applyTerms(po, in, src);
         orders.saveAndFlush(po);
+        // A contract drafted before this PO rests on the same award: link it, so delivery checks and damages use the PO.
+        jdbc.update("update contracts set purchase_order_id = ?, updated_at = ? where purchase_order_id is null and deleted_at is null and "
+                + ("rfq".equals(src.type()) ? "rfq_id" : "bidding_id") + " = ?", po.getId(), java.sql.Timestamp.valueOf(Times.now()), src.id());
         audit.record("created", TYPE, po.getId(), "Purchase order " + po.getPoNumber() + " drafted on " + src.number() + " (" + src.supplier().name() + ", ₱"
                 + ProcurementRules.peso(po.getTotalAmount()) + ")", null, snapshot(po));
         return ResponseEntity.status(HttpStatus.CREATED).body(view(po));
@@ -326,6 +329,8 @@ public class PurchaseOrderController {
         po.setStatus(PurchaseOrder.CANCELLED);
         if (why != null) po.setRemarks(why);
         orders.flush();
+        // The award is free for a new PO; its contract follows the replacement.
+        jdbc.update("update contracts set purchase_order_id = null, updated_at = ? where purchase_order_id = ?", java.sql.Timestamp.valueOf(Times.now()), po.getId());
         audit.record("cancelled", TYPE, po.getId(), "Purchase order " + po.getPoNumber() + " cancelled" + (why == null ? "" : ": " + why), Map.of("status", was), Map.of("status", "cancelled"));
         return view(po);
     }
@@ -337,6 +342,7 @@ public class PurchaseOrderController {
         PurchaseOrder po = lock(id);
         if (!PurchaseOrder.DRAFT.equals(po.getStatus())) throw ApiException.of(HttpStatus.CONFLICT, "Only a draft purchase order can be deleted; cancel it instead.");
         po.setDeletedAt(Times.now());
+        jdbc.update("update contracts set purchase_order_id = null, updated_at = ? where purchase_order_id = ?", java.sql.Timestamp.valueOf(Times.now()), po.getId());
         audit.record("deleted", TYPE, po.getId(), "Deleted purchase order " + po.getPoNumber(), snapshot(po), null);
         return Map.of("message", po.getPoNumber() + " deleted.");
     }

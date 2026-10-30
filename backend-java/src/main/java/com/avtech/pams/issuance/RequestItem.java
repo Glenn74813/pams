@@ -41,6 +41,18 @@ public class RequestItem extends Timestamped {
     @Column(nullable = false)
     private String status = PENDING;
 
+    /** Unit cost when issued; null until then. */
+    @Column(name = "unit_cost")
+    private java.math.BigDecimal unitCost;
+
+    public java.math.BigDecimal getUnitCost() {
+        return unitCost;
+    }
+
+    public void setUnitCost(java.math.BigDecimal unitCost) {
+        this.unitCost = unitCost;
+    }
+
     protected RequestItem() {
     }
 

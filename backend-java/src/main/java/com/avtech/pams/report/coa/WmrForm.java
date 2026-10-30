@@ -106,7 +106,8 @@ public class WmrForm {
             boolean hasProperty = disposal.get("property_id") != null;
 
             x.set("A" + row, itemNum);
-            x.set("B" + row, 1); // Each disposal is 1 property
+            // One unit per asset; an inventory write-off carries its own quantity.
+            x.set("B" + row, hasProperty || disposal.get("quantity") == null ? 1 : ((Number) disposal.get("quantity")).intValue());
             x.set("C" + row, disposal.get("unit_of_measure") != null ? disposal.get("unit_of_measure") : "unit");
             x.set("D" + row, (disposal.get("item_name") != null ? disposal.get("item_name") : "N/A")
                     + (hasProperty ? " (Tag: " + disposal.get("tag_number") + ")" : ""));
@@ -197,12 +198,12 @@ public class WmrForm {
     static List<Map<String, Object>> disposals(JdbcTemplate jdbc, List<Long> disposalIds) {
         if (disposalIds == null || disposalIds.isEmpty()) return List.of();
         return new NamedParameterJdbcTemplate(jdbc).queryForList("""
-                select d.id, d.disposal_type, d.reason, d.property_id,
-                       p.tag_number, p.assigned_date,
+                select d.id, d.disposal_type, d.reason, d.property_id, d.quantity, d.unit_cost,
+                       p.tag_number, p.assigned_date, p.acquisition_date, p.acquisition_cost,
                        i.name as item_name, i.unit_of_measure, i.weighted_average_cost, c.name as category_name
                 from disposal_requests d
                 left join properties p on p.id = d.property_id
-                left join items i on i.id = p.item_id
+                left join items i on i.id = coalesce(p.item_id, d.item_id)
                 left join categories c on c.id = i.category_id
                 where d.id in (:ids) and d.deleted_at is null
                 order by d.id

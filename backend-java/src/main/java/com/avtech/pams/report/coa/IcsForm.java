@@ -95,7 +95,8 @@ public class IcsForm {
 
         // Semi-expendable lines only.
         List<Map<String, Object>> lines = jdbc.queryForList("""
-                select ri.quantity, ri.approved_quantity, i.name, i.description, i.unit_of_measure, i.weighted_average_cost, i.code
+                select ri.quantity, ri.approved_quantity, i.name, i.description, i.unit_of_measure,
+                       coalesce(ri.unit_cost, i.weighted_average_cost) as weighted_average_cost, i.code
                 from request_items ri
                 join items i on i.id = ri.item_id
                 where ri.request_id = ? and i.is_semi_expandable = ?

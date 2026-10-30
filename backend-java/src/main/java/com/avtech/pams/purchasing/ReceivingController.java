@@ -60,7 +60,7 @@ import java.util.stream.Stream;
 public class ReceivingController {
 
     private static final String TYPE = "App\\Models\\InspectionAcceptanceReport";
-    private static final String READ = "@perm.any('view_receiving', 'create_receiving', 'accept_delivery', 'view_procurement')";
+    private static final String READ = "@perm.any('view_receiving', 'create_receiving', 'accept_delivery', 'view_procurement', 'view_reports', 'generate_reports')";
 
     private final InspectionReportRepository reports;
     private final PurchaseOrderRepository orders;

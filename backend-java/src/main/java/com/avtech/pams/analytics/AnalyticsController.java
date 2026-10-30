@@ -35,8 +35,10 @@ public class AnalyticsController {
     private final CurrentUser current;
     private final ProcurementWatch watch;
     private final Db db;
+    private final com.avtech.pams.setting.SettingService settings;
 
-    public AnalyticsController(JdbcTemplate jdbc, CurrentUser current, ProcurementWatch watch, Db db) {
+    public AnalyticsController(JdbcTemplate jdbc, CurrentUser current, ProcurementWatch watch, Db db, com.avtech.pams.setting.SettingService settings) {
+        this.settings = settings;
         this.jdbc = jdbc;
         this.db = db;
         this.current = current;
@@ -58,12 +60,13 @@ public class AnalyticsController {
         out.put("fiscal_year", year);
         out.put("me", mine(me));
         out.put("todo", todo(me));
-        if (current.any("view_monitoring", "manage_warehouse", "view_warehouse", "view_reports")) out.put("inventory", inventory());
-        if (current.any("view_properties")) out.put("assets", assets());
-        if (current.any("view_procurement", "view_procurement_planning", "manage_app", "view_bidding", "view_rfq", "view_contracts")) {
+        // view_analytics opens every section, for management who follow the figures without working in the modules.
+        if (current.any("view_analytics", "view_monitoring", "manage_warehouse", "view_warehouse", "view_reports")) out.put("inventory", inventory());
+        if (current.any("view_analytics", "view_properties")) out.put("assets", assets());
+        if (current.any("view_analytics", "view_procurement", "view_procurement_planning", "manage_app", "view_bidding", "view_rfq", "view_contracts")) {
             out.put("procurement", procurement(year));
         }
-        if (current.any("view_suppliers")) out.put("suppliers", suppliers(year));
+        if (current.any("view_analytics", "view_suppliers")) out.put("suppliers", suppliers(year));
         return out;
     }
 
@@ -78,7 +81,7 @@ public class AnalyticsController {
 
     private List<Todo> todo(User me) {
         List<Todo> t = new ArrayList<>();
-        List<String> steps = me.isSuperAdmin() ? PR_STEPS : PR_STEPS.stream().filter(me::hasPermission).toList();
+        List<String> steps = me.isSuperAdmin() || me.hasPermission("approve_procurement") ? PR_STEPS : PR_STEPS.stream().filter(me::hasPermission).toList();
         if (!steps.isEmpty()) {
             String in = String.join(",", steps.stream().map(s -> "?").toList());
             List<Object> args = new ArrayList<>(steps);
@@ -108,7 +111,8 @@ public class AnalyticsController {
         m.put("total_value", money("select coalesce(sum(case when current_stock > 0 then current_stock else 0 end * coalesce(weighted_average_cost, 0)), 0) from items"));
         m.put("pending_requests", count("select count(*) from requests where status = 'pending'"));
         m.put("requests_today", count("select count(*) from requests where request_date = ?", Date.valueOf(today)));
-        m.put("expiring_lots", count("select count(*) from stocks where quantity > 0 and expiration_date between ? and ?", Date.valueOf(today), Date.valueOf(today.plusDays(30))));
+        m.put("expiry_warning_days", settings.fefoWarningDays());
+        m.put("expiring_lots", count("select count(*) from stocks where quantity > 0 and expiration_date between ? and ?", Date.valueOf(today), Date.valueOf(today.plusDays(settings.fefoWarningDays()))));
         m.put("expired_lots", count("select count(*) from stocks where quantity > 0 and expiration_date < ?", Date.valueOf(today)));
         m.put("top_items", jdbc.query("""
                 select i.name, i.code, sum(abs(l.quantity)) qty, sum(abs(l.quantity) * coalesce(i.weighted_average_cost, 0)) amt

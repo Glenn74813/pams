@@ -1,6 +1,7 @@
 package com.avtech.pams.user;
 
 import com.avtech.pams.audit.AuditService;
+import com.avtech.pams.auth.AuthService;
 import com.avtech.pams.auth.CurrentUser;
 import com.avtech.pams.auth.PasswordPolicy;
 import com.avtech.pams.common.ApiException;
@@ -51,11 +52,13 @@ public class UserController {
     private final JdbcTemplate jdbc;
 
     private final PasswordPolicy passwordPolicy;
+    private final AuthService auth;
 
     public UserController(UserRepository users, RoleRepository roles, DepartmentRepository departments,
                           PasswordEncoder passwordEncoder, CurrentUser current,
-                          AuditService audit, JdbcTemplate jdbc, PasswordPolicy passwordPolicy) {
+                          AuditService audit, JdbcTemplate jdbc, PasswordPolicy passwordPolicy, AuthService auth) {
         this.passwordPolicy = passwordPolicy;
+        this.auth = auth;
         this.users = users;
         this.roles = roles;
         this.departments = departments;
@@ -73,7 +76,7 @@ public class UserController {
                                         @RequestParam(name = "role_id", required = false) Long roleId) {
         String q = search == null || search.isBlank() ? null : search.trim();
         var pageable = PageRequest.of(Math.max(0, page - 1), PER_PAGE, Sort.by("name"));
-        return PageResponse.of(users.search(q, roleId, pageable), UserView::of);
+        return PageResponse.of(users.search(q, roleId, pageable), u -> UserView.of(u, auth.lockedUntil(u)));
     }
 
     /** Names for pickers (assignees, signatories). Any signed-in user; no roles or other details. */
@@ -106,7 +109,8 @@ public class UserController {
     @PreAuthorize("@perm.any('view_users')")
     @Transactional(readOnly = true)
     public Map<String, Object> show(@PathVariable Long id) {
-        return Map.of("data", UserView.of(find(id)));
+        User u = find(id);
+        return Map.of("data", UserView.of(u, auth.lockedUntil(u)));
     }
 
     public record CreateUserRequest(
@@ -232,6 +236,56 @@ public class UserController {
         users.flush();
         audit.record("deleted", AuditService.USER, id, "Deleted User " + name, before, null);
         return Map.of("message", "User '" + name + "' deleted successfully");
+    }
+
+    /** Deactivation keeps the account and everything it recorded; the person can no longer sign in. */
+    @PostMapping("/{id}/deactivate")
+    @PreAuthorize("@perm.any('edit_users')")
+    @Transactional
+    public Map<String, Object> deactivate(@PathVariable Long id) {
+        User u = guarded(id, "deactivate");
+        if (!u.isActive()) throw ApiException.of(HttpStatus.CONFLICT, u.getName() + " is already deactivated.");
+        if (u.isSuperAdmin()) {
+            long others = users.findAll().stream().filter(x -> x.isActive() && x.isSuperAdmin() && !x.getId().equals(id)).count();
+            if (others == 0) throw ApiException.of(HttpStatus.CONFLICT, "This is the only active Super Admin; activate another first.");
+        }
+        u.setActive(false);
+        users.flush();
+        audit.record("deactivated", AuditService.USER, id, "Deactivated user " + u.getName(), Map.of("is_active", true), Map.of("is_active", false));
+        return Map.of("message", u.getName() + " can no longer sign in.", "user", UserView.of(u));
+    }
+
+    @PostMapping("/{id}/activate")
+    @PreAuthorize("@perm.any('edit_users')")
+    @Transactional
+    public Map<String, Object> activate(@PathVariable Long id) {
+        User u = guarded(id, "activate");
+        if (u.isActive()) throw ApiException.of(HttpStatus.CONFLICT, u.getName() + " is already active.");
+        u.setActive(true);
+        users.flush();
+        audit.record("activated", AuditService.USER, id, "Reactivated user " + u.getName(), Map.of("is_active", false), Map.of("is_active", true));
+        return Map.of("message", u.getName() + " can sign in again.", "user", UserView.of(u));
+    }
+
+    /** Ends a lockout from failed sign-ins before it times out. */
+    @PostMapping("/{id}/unlock")
+    @PreAuthorize("@perm.any('edit_users')")
+    @Transactional
+    public Map<String, Object> unlock(@PathVariable Long id) {
+        User u = guarded(id, "unlock");
+        if (auth.lockedUntil(u) == null) throw ApiException.of(HttpStatus.CONFLICT, u.getName() + " is not locked out.");
+        // Stored to the second: round up so failures earlier in this second no longer count.
+        u.setLockoutClearedAt(Times.now().withNano(0).plusSeconds(1));
+        users.flush();
+        audit.record("unlocked", AuditService.USER, id, "Cleared the sign-in lockout of " + u.getName(), null, null);
+        return Map.of("message", u.getName() + " can try signing in again.", "user", UserView.of(u, null));
+    }
+
+    private User guarded(Long id, String what) {
+        if (current.user().getId().equals(id)) throw ApiException.forbidden("You cannot " + what + " your own account.");
+        User u = find(id);
+        if (u.isSuperAdmin() && !current.superAdmin()) throw ApiException.forbidden("Only Super Admin can " + what + " Super Admin users.");
+        return u;
     }
 
     private static Map<String, Object> snapshot(User u) {

@@ -46,7 +46,7 @@ Windows Server deployment (SQL Server, HTTPS, Windows service): see `../docs/dep
 | Module | Endpoints |
 |---|---|
 | Auth | `POST /api/auth/login`, `logout`, `refresh`, `GET me`, `change-password`, `signature`, `2fa/*` |
-| Users | `GET/POST /api/users`, `GET/PUT/DELETE /api/users/{id}`, `all`, `roles`, `departments` |
+| Users | `GET/POST /api/users`, `GET/PUT/DELETE /api/users/{id}`, `all`, `roles`, `departments`, `POST {id}/deactivate`, `activate`, `unlock` |
 | Roles | `GET/POST /api/roles`, `GET/PUT/DELETE /api/roles/{id}`, `permissions-list` |
 | Categories | `GET/POST /api/inventory/categories`, `PUT/DELETE /api/inventory/categories/{id}` (create/edit/delete is new) |
 | Items | `GET/POST /api/inventory/items`, `GET/PUT/DELETE /api/inventory/items/{id}`, `items/options`, `items/available`, `items/{id}/lots`, `config`, `locations` |
@@ -69,7 +69,8 @@ Windows Server deployment (SQL Server, HTTPS, Windows service): see `../docs/dep
 | Suppliers | `GET /api/suppliers/options`, `GET/POST /api/suppliers`, `GET/PUT/DELETE {id}`, `POST {id}/eligibility`, `compliance`, `blacklist`, `evaluations`, `PUT/DELETE compliance/{id}`, `PUT blacklist/{id}/lift`, `DELETE evaluations/{id}` |
 | Physical count | `GET/POST /api/physical-inventory/counts`, `GET options`, `GET/PUT/DELETE {id}`, `POST {id}/start`, `record`, `scan`, `complete`, `return`, `verify`, `POST/DELETE {id}/properties/{lineId}` |
 | Settings | `GET/PUT /api/settings`, `GET/PUT settings/mis`, `GET/PUT settings/signatories`, `GET settings/signatory/{role}`, `GET/POST settings/document-logos`, `PUT/DELETE settings/document-logos/{id}` |
-| Audit trail | `GET /api/audit`, `GET {id}`, `GET filters`, `GET export` (CSV), `POST events` (prints/downloads) |
+| Audit trail | `GET /api/audit`, `GET {id}`, `GET filters`, `GET verify` (recompute seals), `GET export` (CSV), `POST events` (prints/downloads) |
+| Offices | `GET/POST /api/departments`, `PUT/DELETE {id}` |
 | Log trails | `GET /api/logs/inventory`, `GET inventory/actions`, `GET login-attempts`, `GET active-users` |
 | BAC | `GET/POST /api/bac/members`, `PUT/DELETE members/{id}`, `GET/POST meetings`, `GET/PUT/DELETE meetings/{id}`, `POST meetings/{id}/attendance`, `GET/POST resolutions`, `GET/PUT/DELETE resolutions/{id}`, `POST resolutions/{id}/submit`, `return`, `approve`, `archive` |
 
@@ -79,6 +80,13 @@ one password policy everywhere, Super Admin powers checked by what a role grants
 changes, inventory reads need an inventory/warehouse permission, stock changes lock the item row, users with recorded
 stock movements can't be deleted (that would erase them from stock cards), and items can't be deleted while stock is on
 hand. User, role, category, item, stock and transfer changes are written to `audit_trails` in Laravel's format.
+
+Since V21 every audit row carries an HMAC seal (`seal`, keyed by `pams.audit.seal-key`, default derived from the JWT
+secret) and the table is append-only: a trigger refuses UPDATE and DELETE, except clearing `user_id` when a user is
+deleted. `GET /api/audit/verify` recomputes the seals; a failed audit write fails the change it records. Accounts
+can be deactivated (`POST /api/users/{id}/deactivate`, `activate`) and lockouts cleared (`unlock`); a password older
+than `password_expiry_days` (Settings → System, 0 = off) allows only `/auth/me`, `change-password`, `logout` and
+`refresh` until it is changed. The test wipe must disable the `audit_trails_append_only` trigger to clear audit rows.
 
 Issuance assigns RIS numbers (plus ICS for semi-expendable and PAR for PPE) when stock goes out; both "approve all" and
 per-line approval issue first-expired-first-out and write the stock card. Requesters can't approve their own requests and

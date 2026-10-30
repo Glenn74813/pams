@@ -31,7 +31,15 @@ public class JwtAuthFilter extends OncePerRequestFilter {
     private final UserRepository users;
     private final JdbcTemplate jdbc;
 
-    public JwtAuthFilter(JwtService jwtService, RevokedTokenRepository revokedTokens, UserRepository users, JdbcTemplate jdbc) {
+    /** What a user whose password has expired may still do: see who they are, change it, or sign out. */
+    private static final java.util.Set<String> EXPIRED_ALLOWED = java.util.Set.of("/api/auth/me", "/api/auth/change-password", "/api/auth/logout",
+            "/api/auth/refresh");
+
+    private final com.avtech.pams.setting.SettingService settings;
+
+    public JwtAuthFilter(JwtService jwtService, RevokedTokenRepository revokedTokens, UserRepository users, JdbcTemplate jdbc,
+                         com.avtech.pams.setting.SettingService settings) {
+        this.settings = settings;
         this.jdbc = jdbc;
         this.jwtService = jwtService;
         this.revokedTokens = revokedTokens;
@@ -61,6 +69,18 @@ public class JwtAuthFilter extends OncePerRequestFilter {
         Optional<User> user = users.findWithRoleById(claims.userId());
         if (user.isEmpty()) {
             reject(response, "User no longer exists");
+            return;
+        }
+        if (!user.get().isActive()) {
+            reject(response, "Account deactivated");
+            return;
+        }
+        boolean allowed = EXPIRED_ALLOWED.contains(request.getRequestURI())
+                || ("GET".equals(request.getMethod()) && "/api/settings".equals(request.getRequestURI()));
+        if (!allowed && user.get().passwordExpired(settings.passwordExpiryDays())) {
+            response.setStatus(HttpServletResponse.SC_FORBIDDEN);
+            response.setContentType(MediaType.APPLICATION_JSON_VALUE);
+            response.getWriter().write("{\"message\":\"Your password has expired. Change it to continue.\",\"password_expired\":true}");
             return;
         }
 

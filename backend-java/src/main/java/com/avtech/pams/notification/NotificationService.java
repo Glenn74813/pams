@@ -49,7 +49,7 @@ public class NotificationService {
                                  String relatedType, Long relatedId) {
         try {
             List<Long> users = new ArrayList<>();
-            for (Map<String, Object> r : jdbc.queryForList("select u.id, r.name, r.permissions from users u join roles r on r.id = u.role_id order by u.id")) {
+            for (Map<String, Object> r : jdbc.queryForList("select u.id, r.name, r.permissions from users u join roles r on r.id = u.role_id where u.is_active = ? order by u.id", true)) {
                 if ("Super Admin".equals(r.get("name")) || grants(r.get("permissions") == null ? null : r.get("permissions").toString(), permissions)) {
                     users.add(((Number) r.get("id")).longValue());
                 }

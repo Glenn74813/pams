@@ -38,8 +38,10 @@ public class MonitoringController {
     private final ProcurementWatch watch;
     private final AlertJobs alerts;
     private final Db db;
+    private final com.avtech.pams.setting.SettingService settings;
 
-    public MonitoringController(JdbcTemplate jdbc, ProcurementWatch watch, AlertJobs alerts, Db db) {
+    public MonitoringController(JdbcTemplate jdbc, ProcurementWatch watch, AlertJobs alerts, Db db, com.avtech.pams.setting.SettingService settings) {
+        this.settings = settings;
         this.jdbc = jdbc;
         this.db = db;
         this.watch = watch;
@@ -82,8 +84,7 @@ public class MonitoringController {
             String level = min == 0 && max == 0 ? "untracked" : cur <= 0 ? "out" : min > 0 && cur <= min ? "low" : max > 0 && cur > max ? "over" : "normal";
             BigDecimal monthly = BigDecimal.valueOf(issued * 30L).divide(BigDecimal.valueOf(USAGE_DAYS), 2, RoundingMode.HALF_UP);
             BigDecimal cover = monthly.signum() == 0 ? null : BigDecimal.valueOf(Math.max(cur, 0)).divide(monthly, 1, RoundingMode.HALF_UP);
-            int target = max > 0 ? max : min * 2;
-            int suggested = min > 0 && ("out".equals(level) || "low".equals(level)) ? Math.max(target - cur, min - cur + 1) : 0;
+            int suggested = com.avtech.pams.inventory.Item.suggestedOrder(cur, min, max, false);
             BigDecimal cost = rs.getBigDecimal("cost");
             Long cid = (Long) rs.getObject("cid");
             return new StockRow(rs.getLong("id"), rs.getString("code"), rs.getString("name"), cid == null ? null : new Category(cid, rs.getString("cname")),
@@ -128,7 +129,8 @@ public class MonitoringController {
         LocalDate today = LocalDate.now(Times.ZONE);
         summary.put("expired_lots", jdbc.queryForObject("select count(*) from stocks where quantity > 0 and expiration_date < ?", Long.class, Date.valueOf(today)));
         summary.put("expiring_lots", jdbc.queryForObject("select count(*) from stocks where quantity > 0 and expiration_date between ? and ?", Long.class,
-                Date.valueOf(today), Date.valueOf(today.plusDays(30))));
+                Date.valueOf(today), Date.valueOf(today.plusDays(settings.fefoWarningDays()))));
+        summary.put("expiry_warning_days", settings.fefoWarningDays());
 
         Map<String, Object> out = new LinkedHashMap<>();
         out.put("usage_days", USAGE_DAYS);

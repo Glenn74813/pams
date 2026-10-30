@@ -33,7 +33,8 @@ public interface UserRepository extends JpaRepository<User, Long> {
             """)
     Page<User> search(@Param("search") String search, @Param("roleId") Long roleId, Pageable pageable);
 
-    @Query("select u.id as id, u.name as name, u.email as email from User u order by u.name")
+    /** Pickers offer active accounts only. */
+    @Query("select u.id as id, u.name as name, u.email as email from User u where u.active = true order by u.name")
     List<UserOption> findAllOptions();
 
     interface UserOption {

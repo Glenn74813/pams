@@ -52,6 +52,9 @@ public class DisposalRequest extends Timestamped {
 
     private String reason;
     private String remarks;
+    /** What the approver wrote when approving or rejecting; the requester's remarks are kept apart. */
+    @jakarta.persistence.Column(name = "approval_remarks")
+    private String approvalRemarks;
 
     @Column(name = "requested_by", nullable = false)
     private Long requestedBy;
@@ -109,6 +112,8 @@ public class DisposalRequest extends Timestamped {
     public void setReason(String reason) { this.reason = reason; }
     public String getRemarks() { return remarks; }
     public void setRemarks(String remarks) { this.remarks = remarks; }
+    public String getApprovalRemarks() { return approvalRemarks; }
+    public void setApprovalRemarks(String approvalRemarks) { this.approvalRemarks = approvalRemarks; }
     public Long getRequestedBy() { return requestedBy; }
     public LocalDate getRequestDate() { return requestDate; }
     public Long getApprovedBy() { return approvedBy; }

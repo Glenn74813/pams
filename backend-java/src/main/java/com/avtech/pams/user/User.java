@@ -53,6 +53,37 @@ public class User extends Timestamped {
     @Column(name = "signature_path")
     private String signaturePath;
 
+    /** A deactivated account cannot sign in and its tokens stop working; its records stay. */
+    @Column(name = "is_active", nullable = false)
+    private boolean active = true;
+
+    /** Failed sign-ins before this moment no longer count towards a lockout (an administrator unlocked it). */
+    @Column(name = "lockout_cleared_at")
+    private LocalDateTime lockoutClearedAt;
+
+    public boolean isActive() {
+        return active;
+    }
+
+    public void setActive(boolean active) {
+        this.active = active;
+    }
+
+    public LocalDateTime getLockoutClearedAt() {
+        return lockoutClearedAt;
+    }
+
+    public void setLockoutClearedAt(LocalDateTime lockoutClearedAt) {
+        this.lockoutClearedAt = lockoutClearedAt;
+    }
+
+    /** True when password expiry is on and the password is older than the limit (accounts never changed count from creation). */
+    public boolean passwordExpired(int expiryDays) {
+        if (expiryDays <= 0) return false;
+        LocalDateTime since = passwordChangedAt != null ? passwordChangedAt : getCreatedAt();
+        return since != null && since.isBefore(com.avtech.pams.common.Times.now().minusDays(expiryDays));
+    }
+
     public boolean isSuperAdmin() {
         return role != null && role.isSuperAdmin();
     }

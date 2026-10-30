@@ -79,6 +79,20 @@ public class Item extends Timestamped {
         return currentStock > 0 || ppe;
     }
 
+    /**
+     * The re-order quantity Warehouse and Monitoring both show: when stock is at or below the minimum,
+     * top up to the maximum (or to twice the minimum when no maximum is set). PPE is tracked per asset.
+     */
+    public static int suggestedOrder(int current, int min, int max, boolean ppe) {
+        if (ppe || min <= 0 || current > min) return 0;
+        int target = max > 0 ? max : min * 2;
+        return Math.max(0, Math.max(target - current, min - current + 1));
+    }
+
+    public int suggestedOrder() {
+        return suggestedOrder(currentStock, minStock, maxStock == null ? 0 : maxStock, ppe);
+    }
+
     public StockStatus stockStatus() {
         if (currentStock <= 0) return StockStatus.OUT;
         if (currentStock <= minStock) return StockStatus.LOW;

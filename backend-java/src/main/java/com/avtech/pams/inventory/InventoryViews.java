@@ -52,6 +52,7 @@ public final class InventoryViews {
             boolean isAvailable,
             StockStatus stockStatus,
             BigDecimal totalValue,
+            int suggestedOrder,
             @JsonInclude(JsonInclude.Include.NON_NULL) List<StockView> stocks,
             OffsetDateTime createdAt,
             OffsetDateTime updatedAt) {
@@ -69,7 +70,7 @@ public final class InventoryViews {
                     i.isAvailable(), i.stockStatus(),
                     i.getWeightedAverageCost().multiply(BigDecimal.valueOf(Math.max(0, i.getCurrentStock())))
                             .setScale(2, RoundingMode.HALF_UP),
-                    stocks, Times.toOffset(i.getCreatedAt()), Times.toOffset(i.getUpdatedAt()));
+                    i.suggestedOrder(), stocks, Times.toOffset(i.getCreatedAt()), Times.toOffset(i.getUpdatedAt()));
         }
     }
 

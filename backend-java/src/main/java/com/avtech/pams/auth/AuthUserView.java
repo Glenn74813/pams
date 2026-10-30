@@ -22,12 +22,13 @@ public record AuthUserView(
         boolean isSuperAdmin,
         boolean twoFactorEnabled,
         boolean hasSignature,
-        String signatureImage) {
+        String signatureImage,
+        boolean passwordExpired) {
 
     public record RoleRef(Long id, String name, String description) {
     }
 
-    public static AuthUserView of(User u, String signatureImage) {
+    public static AuthUserView of(User u, String signatureImage, boolean passwordExpired) {
         var role = u.getRole();
         return new AuthUserView(u.getId(), u.getName(), u.getEmail(),
                 role.getId(), u.getDepartment().getId(),
@@ -36,6 +37,6 @@ public record AuthUserView(
                 List.copyOf(role.getPermissions()),
                 Permissions.accessibleModules(role),
                 u.isSuperAdmin(), u.isTwoFactorEnabled(), u.getSignaturePath() != null,
-                signatureImage);
+                signatureImage, passwordExpired);
     }
 }

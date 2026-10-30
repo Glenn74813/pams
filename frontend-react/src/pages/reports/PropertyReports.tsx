@@ -155,7 +155,7 @@ export function RpcspReport() {
 }
 
 function CompletedDisposals({ value, onChange, category }: { value: number[]; onChange: (ids: number[]) => void; category?: string }) {
-  const q = useQuery({ queryKey: ['report-disposals', category], queryFn: () => disposalApi.list({ page: 1, status: 'completed', category }) })
+  const q = useQuery({ queryKey: ['report-disposals', category], queryFn: () => disposalApi.list({ page: 1, status: 'completed', category, per_page: 200 }) })
   return (
     <select
       multiple
@@ -245,7 +245,7 @@ export function IirupReport() {
           { key: 'property_no', label: 'Property No.' },
           { key: 'description', label: 'Description' },
           { key: 'unit_cost', label: 'Unit Cost', type: 'money' },
-          { key: 'condition', label: 'Condition' },
+          { key: 'disposal', label: 'Mode of disposal' },
           { key: 'remarks', label: 'Remarks' },
         ]}
         rows={ids.length ? q.data?.rows : undefined}

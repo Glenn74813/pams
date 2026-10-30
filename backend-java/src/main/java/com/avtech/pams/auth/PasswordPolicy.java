@@ -31,6 +31,11 @@ public class PasswordPolicy {
         this.settings = settings;
     }
 
+    /** The user's password is older than the configured expiry (Settings → System). */
+    public boolean expired(com.avtech.pams.user.User user) {
+        return user.passwordExpired(settings.passwordExpiryDays());
+    }
+
     public void check(String field, String password, String confirmation) {
         check(field, password, confirmation, null);
     }

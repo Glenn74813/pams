@@ -148,9 +148,12 @@ public class IirupForm {
         // Data rows
         int row = 15;
         for (Map<String, Object> disposal : disposals) {
-            double unitCost = disposal.get("weighted_average_cost") == null ? 0 : ((Number) disposal.get("weighted_average_cost")).doubleValue();
+            // The asset's own cost and acquisition date (the old export used the item's average cost and the issue date).
+            Object cost = disposal.get("acquisition_cost") != null ? disposal.get("acquisition_cost") : disposal.get("weighted_average_cost");
+            double unitCost = cost == null ? 0 : ((Number) cost).doubleValue();
+            Object acquired = disposal.get("acquisition_date") != null ? disposal.get("acquisition_date") : disposal.get("assigned_date");
 
-            x.set("B" + row, disposal.get("assigned_date") != null ? PropertyCardForm.mdy(disposal.get("assigned_date")) : "");
+            x.set("B" + row, acquired != null ? PropertyCardForm.mdy(acquired) : "");
             x.set("C" + row, disposal.get("item_name") != null ? disposal.get("item_name") : "N/A");
             x.set("D" + row, disposal.get("tag_number") != null ? disposal.get("tag_number") : "");
             x.set("E" + row, 1);

@@ -48,7 +48,7 @@ export function RequestDetailModal({ requestId, onClose, onChanged }: Props) {
 
 function Details({ r, onSlip, onChanged }: { r: SupplyRequest; onSlip: (k: SlipKind) => void; onChanged: Props['onChanged'] }) {
   const [qty, setQty] = useState<Record<number, string>>(() =>
-    Object.fromEntries(r.items.map((l) => [l.id, String(Math.min(l.quantity, Math.max(0, l.current_stock)))])),
+    Object.fromEntries(r.items.map((l) => [l.id, String(Math.min(l.quantity, Math.max(0, l.usable_stock)))])),
   )
   const [rejecting, setRejecting] = useState(false)
   const [reason, setReason] = useState('')
@@ -145,14 +145,17 @@ function Details({ r, onSlip, onChanged }: { r: SupplyRequest; onSlip: (k: SlipK
                 <td className="num">
                   {formatQty(l.quantity)} <span className="muted">{l.unit_of_measure}</span>
                 </td>
-                <td className={'num' + (l.current_stock < l.quantity ? ' short' : '')}>{formatQty(l.current_stock)}</td>
+                <td className={'num' + (l.usable_stock < l.quantity ? ' short' : '')}>
+                  {formatQty(r.can_process ? l.usable_stock : l.current_stock)}
+                  {r.can_process && l.usable_stock < l.current_stock && <div className="muted small">{formatQty(l.current_stock - l.usable_stock)} expired</div>}
+                </td>
                 <td className="num">
                   {r.can_process ? (
                     <input
                       className="qty-input"
                       type="number"
                       min={0}
-                      max={Math.min(l.quantity, l.current_stock)}
+                      max={Math.min(l.quantity, l.usable_stock)}
                       value={qty[l.id]}
                       aria-label={`Quantity of ${l.name} to issue`}
                       onChange={(e) => setQty((q) => ({ ...q, [l.id]: e.target.value }))}
@@ -171,15 +174,24 @@ function Details({ r, onSlip, onChanged }: { r: SupplyRequest; onSlip: (k: SlipK
       {r.can_process && !rejecting && (
         <div className="modal-footer">
           <span className="muted footer-note">Lines set to 0 are not issued. Stock is taken first-expired-first-out.</span>
-          <button className="btn btn-danger" onClick={() => setRejecting(true)}>
-            Reject request
-          </button>
+          {r.can_reject && (
+            <button className="btn btn-danger" onClick={() => setRejecting(true)}>
+              Reject request
+            </button>
+          )}
           <button className="btn btn-primary" onClick={() => process.mutate()} disabled={process.isPending}>
             {process.isPending ? 'Issuing…' : 'Approve & issue'}
           </button>
         </div>
       )}
-      {r.can_process && rejecting && (
+      {!r.can_process && r.can_reject && !rejecting && (
+        <div className="modal-footer">
+          <button className="btn btn-danger" onClick={() => setRejecting(true)}>
+            Reject request
+          </button>
+        </div>
+      )}
+      {r.can_reject && rejecting && (
         <div className="reject-box">
           <div className="field">
             <label htmlFor="rj-reason">Reason for rejecting *</label>

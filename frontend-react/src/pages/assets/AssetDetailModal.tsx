@@ -104,6 +104,11 @@ export function AssetDetailModal({ assetId, onClose, onChanged }: Props) {
             <button className="btn btn-outline btn-sm" onClick={() => setQrOpen(true)}>
               ▦ QR sticker
             </button>
+            {a.can_edit && a.status === 'lost' && (
+              <button className="btn btn-outline btn-sm" onClick={() => status.mutate('found')}>
+                Mark found
+              </button>
+            )}
             {a.can_edit && a.status === 'retired' && (
               <button className="btn btn-outline btn-sm" onClick={() => status.mutate('reinstate')}>
                 Reinstate

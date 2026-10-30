@@ -4,7 +4,7 @@ import { ApiError } from '../../api/client'
 import { gatePassApi, inventoryApi, qrApi } from '../../api/endpoints'
 import type { Asset, GatePass } from '../../api/types'
 import { useAuth } from '../../auth/AuthContext'
-import { Modal } from '../../components/Modal'
+import { ConfirmDialog, Modal } from '../../components/Modal'
 import { Pager } from '../../components/Pager'
 import { useToast } from '../../components/toast-context'
 import { formatDate, today } from '../../lib/format'
@@ -25,6 +25,8 @@ export function GatePassPage() {
   const [status, setStatus] = useState('released')
   const [search, setSearch] = useState(() => new URLSearchParams(window.location.search).get('search') ?? '')
   const [creating, setCreating] = useState(false)
+  const [editing, setEditing] = useState<GatePass | null>(null)
+  const [deleting, setDeleting] = useState<GatePass | null>(null)
   const [returning, setReturning] = useState<GatePass | null>(null)
   const [printing, setPrinting] = useState<GatePass | null>(null)
   const q = useDebounced(search.trim())
@@ -33,6 +35,18 @@ export function GatePassPage() {
   const refresh = () => {
     for (const k of ['gate-passes', 'asset', 'asset-gates', 'assets']) void queryClient.invalidateQueries({ queryKey: [k] })
   }
+  const remove = useMutation({
+    mutationFn: (g: GatePass) => gatePassApi.remove(g.id),
+    onSuccess: (r) => {
+      toast(r.message, 'success')
+      setDeleting(null)
+      refresh()
+    },
+    onError: (err) => {
+      toast(err instanceof ApiError ? err.message : 'Could not delete the gate pass.', 'error')
+      setDeleting(null)
+    },
+  })
 
   return (
     <div className="page page-wide">
@@ -87,9 +101,19 @@ export function GatePassPage() {
                     <button className="btn btn-outline btn-sm" onClick={() => setPrinting(g)}>
                       🖨
                     </button>
+                    {g.can_edit && (
+                      <button className="icon-btn edit" title={`Edit ${g.gate_pass_number}`} onClick={() => setEditing(g)}>
+                        ✎
+                      </button>
+                    )}
                     {g.can_return && (
                       <button className="btn btn-primary btn-sm" onClick={() => setReturning(g)}>
                         Mark returned
+                      </button>
+                    )}
+                    {g.status === 'returned' && can('delete_gate_pass') && (
+                      <button className="icon-btn delete" title={`Delete ${g.gate_pass_number}`} onClick={() => setDeleting(g)}>
+                        🗑
                       </button>
                     )}
                   </div>
@@ -109,6 +133,17 @@ export function GatePassPage() {
       <Pager pagination={list.data?.pagination} onPage={setPage} />
 
       {creating && <CreateForm onClose={() => setCreating(false)} onSaved={(g) => { toast(`${g.gate_pass_number} issued.`, 'success'); setCreating(false); refresh(); setPrinting(g) }} />}
+      {editing && <CreateForm pass={editing} onClose={() => setEditing(null)} onSaved={(g) => { toast(`${g.gate_pass_number} updated.`, 'success'); setEditing(null); refresh() }} />}
+      {deleting && (
+        <ConfirmDialog
+          title="Delete gate pass"
+          message={`Remove ${deleting.gate_pass_number} from the gate pass lists? It stays in the audit trail and the asset's history.`}
+          confirmLabel="Delete"
+          busy={remove.isPending}
+          onConfirm={() => remove.mutate(deleting)}
+          onCancel={() => setDeleting(null)}
+        />
+      )}
       {returning && <ReturnForm pass={returning} onClose={() => setReturning(null)} onSaved={(m) => { toast(m, 'success'); setReturning(null); refresh() }} />}
       {printing && (
         <Modal title={`Gate pass ${printing.gate_pass_number}`} onClose={() => setPrinting(null)} width={820}>
@@ -126,32 +161,42 @@ export function GatePassPage() {
   )
 }
 
-function CreateForm({ onClose, onSaved }: { onClose: () => void; onSaved: (g: GatePass) => void }) {
+/** Issues a gate pass, or corrects one that is still out (the asset cannot change). */
+function CreateForm({ pass, onClose, onSaved }: { pass?: GatePass; onClose: () => void; onSaved: (g: GatePass) => void }) {
   const [asset, setAsset] = useState<Asset | null>(null)
-  const [by, setBy] = useState('')
-  const [purpose, setPurpose] = useState('')
-  const [released, setReleased] = useState(today())
-  const [due, setDue] = useState('')
-  const [cond, setCond] = useState('good')
+  const [by, setBy] = useState(pass?.received_by ?? '')
+  const [purpose, setPurpose] = useState(pass?.purpose ?? '')
+  const [released, setReleased] = useState(pass?.date_released ?? today())
+  const [due, setDue] = useState(pass?.expected_return_date ?? '')
+  const [cond, setCond] = useState(pass?.condition_on_release ?? 'good')
   const [error, setError] = useState<string | null>(null)
   const save = useMutation({
-    mutationFn: () => gatePassApi.create({ property_id: asset!.id, received_by: by, purpose, date_released: released, expected_return_date: due || null, condition_on_release: cond }),
+    mutationFn: () => {
+      const input = { property_id: pass ? pass.property_id : asset!.id, received_by: by, purpose, date_released: released, expected_return_date: due || null, condition_on_release: cond, remarks: pass?.remarks ?? null }
+      return pass ? gatePassApi.update(pass.id, input) : gatePassApi.create(input)
+    },
     onSuccess: onSaved,
-    onError: (err) => setError(err instanceof ApiError ? err.message : 'Could not issue the gate pass.'),
+    onError: (err) => setError(err instanceof ApiError ? err.message : pass ? 'Could not save the gate pass.' : 'Could not issue the gate pass.'),
   })
   const submit = (e: FormEvent) => {
     e.preventDefault()
     setError(null)
-    if (!asset) return setError('Choose the asset.')
+    if (!pass && !asset) return setError('Choose the asset.')
     save.mutate()
   }
   return (
-    <Modal title="New Gate Pass" onClose={onClose} width={620}>
+    <Modal title={pass ? `Edit ${pass.gate_pass_number}` : 'New Gate Pass'} onClose={onClose} width={620}>
       <form onSubmit={submit}>
         {error && <div className="alert alert-error">{error}</div>}
         <div className="field" style={{ marginBottom: '1rem' }}>
           <label htmlFor="gp-asset">Asset *</label>
-          {asset ? (
+          {pass ? (
+            <div className="chosen">
+              <span>
+                <span className="mono">{pass.tag_number}</span> {pass.item_name}
+              </span>
+            </div>
+          ) : asset ? (
             <div className="chosen">
               <span>
                 <span className="mono">{asset.tag_number}</span> {asset.item?.name} · {asset.holder?.name ?? 'property office'}
@@ -205,7 +250,7 @@ function CreateForm({ onClose, onSaved }: { onClose: () => void; onSaved: (g: Ga
             Cancel
           </button>
           <button type="submit" className="btn btn-primary" disabled={save.isPending}>
-            {save.isPending ? 'Issuing…' : 'Issue gate pass'}
+            {save.isPending ? 'Saving…' : pass ? 'Save changes' : 'Issue gate pass'}
           </button>
         </div>
       </form>
@@ -221,7 +266,7 @@ function ReturnForm({ pass, onClose, onSaved }: { pass: GatePass; onClose: () =>
   const [error, setError] = useState<string | null>(null)
   const save = useMutation({
     mutationFn: () => gatePassApi.markReturned(pass.id, { actual_return_date: date, condition_on_return: cond, returned_by: by, remarks }),
-    onSuccess: () => onSaved(`${pass.tag_number} is back (${pass.gate_pass_number}).`),
+    onSuccess: () => onSaved(cond === 'lost' ? `${pass.tag_number} is recorded as lost.` : `${pass.tag_number} is back (${pass.gate_pass_number}).`),
     onError: (err) => setError(err instanceof ApiError ? err.message : 'Could not record the return.'),
   })
   return (
@@ -243,6 +288,12 @@ function ReturnForm({ pass, onClose, onSaved }: { pass: GatePass; onClose: () =>
               ))}
             </select>
           </div>
+          {cond === 'lost' && (
+            <div className="alert alert-warning span-2">
+              The asset will be marked lost and stay on its custodian's PAR/ICS until relieved: file the RLSDDP (Reports), then record the turn-in
+              and a disposal. Use “Mark found” on the asset if it turns up.
+            </div>
+          )}
           <div className="field span-2">
             <label htmlFor="gr-by">Returned by</label>
             <input id="gr-by" value={by} onChange={(e) => setBy(e.target.value)} />

@@ -506,6 +506,10 @@ public class RfqController {
                 }, in.purchaseRequestId());
         if (in.items() == null || in.items().isEmpty()) throw ApiException.validation("items", "Add at least one line from the purchase request.");
         Map<Long, Integer> taken = usage.taken(in.purchaseRequestId(), r.getId(), null);
+        // RA 12009: after two failed biddings, the bidding lines may go to Negotiated Procurement.
+        Integer failedBiddings = jdbc.queryForObject("select count(*) from biddings where purchase_request_id = ? and status = 'failed' and deleted_at is null",
+                Integer.class, in.purchaseRequestId());
+        boolean twoFailed = failedBiddings != null && failedBiddings >= 2;
         Set<Long> seen = new HashSet<>();
         List<RfqItem> lines = new ArrayList<>();
         for (int i = 0; i < in.items().size(); i++) {
@@ -514,8 +518,10 @@ public class RfqController {
             PrLine p = it == null || it.purchaseRequestItemId() == null ? null : prLines.get(it.purchaseRequestItemId());
             if (p == null) throw ApiException.validation(f + "purchase_request_item_id", "Line " + (i + 1) + " is not on the purchase request.");
             if (!seen.add(p.id())) throw ApiException.validation(f + "purchase_request_item_id", "\"" + p.description() + "\" is listed twice.");
-            if (p.mode() != null && !p.mode().equals(method)) {
-                throw ApiException.validation("procurement_method", "\"" + p.description() + "\" was planned under " + p.mode() + "; the RFQ method must match the approved mode (RA 12009).");
+            boolean afterFailure = twoFailed && "Competitive Bidding".equals(p.mode()) && "Negotiated Procurement".equals(method);
+            if (p.mode() != null && !p.mode().equals(method) && !afterFailure) {
+                throw ApiException.validation("procurement_method", "\"" + p.description() + "\" was planned under " + p.mode() + "; the RFQ method must match the approved mode (RA 12009)"
+                        + ("Competitive Bidding".equals(p.mode()) && "Negotiated Procurement".equals(method) ? ", or the PR must have two failed biddings." : "."));
             }
             int qty = it.quantity() == null ? p.quantity() - taken.getOrDefault(p.id(), 0) : it.quantity();
             int left = p.quantity() - taken.getOrDefault(p.id(), 0);

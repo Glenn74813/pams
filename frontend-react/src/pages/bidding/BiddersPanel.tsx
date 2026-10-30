@@ -168,6 +168,7 @@ function BidForm({ b, onCancel, onSaved, onError }: { b: Bidding; onCancel: () =
   const [amount, setAmount] = useState('')
   const [form, setForm] = useState('bid_securing_declaration')
   const [secAmount, setSecAmount] = useState('')
+  const [posted, setPosted] = useState(true)
   const save = useMutation({
     mutationFn: () =>
       biddingApi.addBidder(b.id, {
@@ -176,7 +177,7 @@ function BidForm({ b, onCancel, onSaved, onError }: { b: Bidding; onCancel: () =
         bid_amount: amount === '' ? null : Number(amount),
         bid_security_form: form,
         bid_security_amount: secAmount === '' ? null : Number(secAmount),
-        bid_security_posted: true,
+        bid_security_posted: posted,
       }),
     onSuccess: onSaved,
     onError: (err) => onError(err instanceof ApiError ? err.message : 'Could not record the bid.'),
@@ -217,6 +218,12 @@ function BidForm({ b, onCancel, onSaved, onError }: { b: Bidding; onCancel: () =
               </option>
             ))}
           </select>
+        </div>
+        <div className="field">
+          <label className="checkbox-line">
+            <input type="checkbox" checked={posted} onChange={(e) => setPosted(e.target.checked)} /> Bid security submitted with the bid
+          </label>
+          {!posted && <span className="hint">Without it the bid fails eligibility.</span>}
         </div>
         {rate > 0 && (
           <div className="field">

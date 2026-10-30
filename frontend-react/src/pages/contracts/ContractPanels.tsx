@@ -134,9 +134,12 @@ export function SecuritiesPanel({ c, manage, edit, onChanged, onError }: Props) 
                 <td>
                   {edit && s.status === 'posted' && (
                     <div className="workflow-actions">
-                      <button className="btn btn-outline btn-sm" onClick={() => set.mutate({ id: s.id, status: 'returned' })}>
-                        Return
-                      </button>
+                      {/* The performance security stays with the agency until the contract is completed. */}
+                      {!(s.security_type === 'Performance Security' && c.status === 'active') && (
+                        <button className="btn btn-outline btn-sm" onClick={() => set.mutate({ id: s.id, status: 'returned' })}>
+                          Return
+                        </button>
+                      )}
                       <button className="btn btn-outline btn-sm" onClick={() => { setWhy(''); setForfeiting(s.id) }}>
                         Forfeit
                       </button>

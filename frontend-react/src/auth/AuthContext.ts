@@ -12,6 +12,8 @@ export interface AuthState {
   loading: boolean
   login: (email: string, password: string, otp?: string) => Promise<LoginOutcome>
   logout: (reason?: 'idle') => Promise<void>
+  /** Reloads the signed-in user, e.g. after a forced password change. */
+  refresh: () => Promise<void>
   /** Super Admin passes every check. */
   can: (...permissions: string[]) => boolean
   canOpen: (module: string) => boolean

@@ -29,13 +29,13 @@ export const adminArticles: Article[] = [
         'reset-password',
         'Reset a password',
         steps('Click **✎** on the user.', 'Type a **New password** and confirm it (leave blank to keep the current one).', 'Save.'),
-        p('There is no "forgot password" email; users are told to contact the administrator. A locked account unlocks by itself after 15 minutes.'),
+        p('There is no "forgot password" email; users are told to contact the administrator. A locked account unlocks by itself after 15 minutes; an administrator can clear it sooner with **Unlock** on the Users list.'),
       ),
       sec(
         'delete-user',
         'Delete a user',
         p('Click **🗑**. You cannot delete yourself. A user who has recorded inventory transactions cannot be deleted, because that would remove them from the stock cards; change their role or password instead.'),
-        tip('There is no "deactivate" switch. To stop someone signing in, set a new password they do not know, and move them to a role with as few permissions as possible.'),
+        tip('To stop someone signing in, click **Deactivate** on the Users list: they are signed out at once and cannot sign in, and their records stay. **Activate** reverses it. Password expiry is set in Settings → System.'),
       ),
       sec(
         'roles',
@@ -50,7 +50,7 @@ export const adminArticles: Article[] = [
       ),
       statuses(p('Not applicable. The users list shows whether each user has two-factor sign-in On or Off.')),
       forms(p('None. Every user and role change is recorded in the audit trail with before and after values.')),
-      tips('See "Roles and permissions" for what each permission opens.', 'Departments cannot be added from the app yet; ask your system administrator.'),
+      tips('See "Roles and permissions" for what each permission opens.', 'Offices (departments) are added, renamed and deleted on the **Offices** tab; one still used by users or records cannot be deleted.'),
     ],
   },
 

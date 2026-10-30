@@ -19,12 +19,18 @@ public record UserView(
         OffsetDateTime emailVerifiedAt,
         OffsetDateTime passwordChangedAt,
         OffsetDateTime createdAt,
-        OffsetDateTime updatedAt) {
+        OffsetDateTime updatedAt,
+        boolean isActive,
+        OffsetDateTime lockedUntil) {
 
     public record RoleSummary(Long id, String name, boolean isSuperAdmin) {
     }
 
     public static UserView of(User u) {
+        return of(u, null);
+    }
+
+    public static UserView of(User u, OffsetDateTime lockedUntil) {
         var role = u.getRole();
         return new UserView(u.getId(), u.getName(), u.getEmail(),
                 role == null ? null : role.getId(),
@@ -33,6 +39,6 @@ public record UserView(
                 DepartmentView.of(u.getDepartment()),
                 u.isTwoFactorEnabled(), u.getSignaturePath() != null,
                 Times.toOffset(u.getEmailVerifiedAt()), Times.toOffset(u.getPasswordChangedAt()),
-                Times.toOffset(u.getCreatedAt()), Times.toOffset(u.getUpdatedAt()));
+                Times.toOffset(u.getCreatedAt()), Times.toOffset(u.getUpdatedAt()), u.isActive(), lockedUntil);
     }
 }

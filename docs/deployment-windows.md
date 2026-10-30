@@ -65,7 +65,9 @@ Edit `C:\PAMS\.env` (see the comments in it):
 
 - `MSSQL_URL`, `MSSQL_USERNAME`, `MSSQL_PASSWORD` — the database above.
 - `PAMS_JWT_SECRET` — a long random value. Changing it signs everyone out and invalidates printed QR
-  labels, so set it once.
+  labels, so set it once. It also keys the audit-trail seals unless `PAMS_AUDIT_SEAL_KEY` is set; after a
+  change, older entries show as altered in Audit Trail → Check integrity. Set `PAMS_AUDIT_SEAL_KEY` once to
+  keep the two apart.
 - `SERVER_SSL_*` — the `.pfx` and its password. PAMS then listens on 443, redirects plain HTTP
   requests to HTTPS and sends HSTS.
 - `PAMS_FRONTEND_DIR=C:/PAMS/web`, `PAMS_STORAGE_DIR=C:/PAMS/storage/public` (signatures, logos,

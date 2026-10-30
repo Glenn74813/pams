@@ -56,7 +56,7 @@ function Overview() {
   const all = useQuery({ queryKey: ['items', 'all-count'], queryFn: () => inventoryApi.items({ page: 1 }) })
   const expiring = useQuery({ queryKey: ['expiring', undefined], queryFn: () => inventoryApi.expiring() })
 
-  const reorderQty = (i: Item) => (i.max_stock ? Math.max(0, i.max_stock - i.current_stock) : null)
+  const reorderQty = (i: Item) => (i.suggested_order > 0 ? i.suggested_order : null)
 
   return (
     <>

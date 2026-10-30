@@ -159,7 +159,7 @@ public class CoaExportController {
     public ResponseEntity<byte[]> wmr(@RequestParam(name = "disposal_ids") List<Long> ids, @RequestParam(name = "entity_name", required = false) String entity,
                                       @RequestParam(name = "fund_cluster", required = false) String fund,
                                       @RequestParam(name = "storage_place", required = false) String storage) {
-        checkDisposals(ids);
+        checkDisposals(ids, null);
         return file(wmr.generate(ids, entity(entity), fund(fund), storage == null || storage.isBlank() ? null : storage.trim()), "WMR_" + stamp() + ".xlsx", "WMR", null, null);
     }
 
@@ -170,7 +170,7 @@ public class CoaExportController {
                                         @RequestParam(name = "fund_cluster", required = false) String fund,
                                         @RequestParam(name = "accountable_officer", required = false) String officer,
                                         @RequestParam(required = false) String designation, @RequestParam(required = false) String station) {
-        checkDisposals(ids);
+        checkDisposals(ids, "property");
         return file(iirup.generate(ids, entity(entity), fund(fund), blank(officer), blank(designation), blank(station)), "IIRUP_" + stamp() + ".xlsx", "IIRUP", null, null);
     }
 
@@ -197,11 +197,19 @@ public class CoaExportController {
                 "RLSDDP_" + stamp() + ".xlsx", "RLSDDP (" + status + ")", "App\\Models\\Property", propertyId);
     }
 
-    private void checkDisposals(List<Long> ids) {
+    /** The forms report what was actually disposed of: completed requests only, and for the IIRUP, assets only. */
+    private void checkDisposals(List<Long> ids, String category) {
         if (ids == null || ids.isEmpty()) throw ApiException.validation("disposal_ids", "Choose at least one disposal.");
         String in = String.join(",", ids.stream().map(x -> "?").toList());
-        Long n = jdbc.queryForObject("select count(*) from disposal_requests where id in (" + in + ")", Long.class, ids.toArray());
+        Long n = jdbc.queryForObject("select count(*) from disposal_requests where deleted_at is null and id in (" + in + ")", Long.class, ids.toArray());
         if (n == null || n != ids.stream().distinct().count()) throw ApiException.validation("disposal_ids", "One of the disposals does not exist.");
+        List<String> open = jdbc.queryForList("select disposal_number from disposal_requests where status <> 'completed' and id in (" + in + ")", String.class, ids.toArray());
+        if (!open.isEmpty()) throw ApiException.validation("disposal_ids", "Only completed disposals can be reported; not yet completed: " + String.join(", ", open) + ".");
+        if (category != null) {
+            List<String> other = jdbc.queryForList("select disposal_number from disposal_requests where disposal_category <> ? and id in (" + in + ")", String.class,
+                    java.util.stream.Stream.concat(java.util.stream.Stream.of((Object) category), ids.stream()).toArray());
+            if (!other.isEmpty()) throw ApiException.validation("disposal_ids", "The IIRUP covers property (assets) only; not property: " + String.join(", ", other) + ".");
+        }
     }
 
     private static String blank(String s) {

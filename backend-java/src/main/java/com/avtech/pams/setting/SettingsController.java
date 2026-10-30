@@ -88,11 +88,13 @@ public class SettingsController {
         m.put("capitalization_threshold", settings.capitalizationThreshold());
         m.put("idle_timeout_minutes", settings.idleTimeoutMinutes());
         m.put("password_min_length", settings.passwordMinLength());
+        m.put("password_expiry_days", settings.passwordExpiryDays());
         m.put("app_url", settings.get(SettingService.APP_URL, ""));
         return m;
     }
 
-    public record SystemInput(BigDecimal capitalizationThreshold, Integer idleTimeoutMinutes, Integer passwordMinLength, String appUrl) {
+    public record SystemInput(BigDecimal capitalizationThreshold, Integer idleTimeoutMinutes, Integer passwordMinLength, String appUrl,
+                              Integer passwordExpiryDays) {
     }
 
     @PutMapping
@@ -108,6 +110,9 @@ public class SettingsController {
         if (in.passwordMinLength() != null && (in.passwordMinLength() < 8 || in.passwordMinLength() > 64)) {
             throw ApiException.validation("password_min_length", "Minimum password length must be between 8 and 64.");
         }
+        if (in.passwordExpiryDays() != null && (in.passwordExpiryDays() < 0 || in.passwordExpiryDays() > 365)) {
+            throw ApiException.validation("password_expiry_days", "Password expiry must be between 1 and 365 days, or 0 to turn it off.");
+        }
         String appUrl = in.appUrl() == null ? null : in.appUrl().trim().replaceAll("/+$", "");
         if (appUrl != null && !appUrl.isEmpty() && !appUrl.matches("https?://[^\\s/?#]+(:\\d+)?(/[^\\s?#]*)?")) {
             throw ApiException.validation("app_url", "Enter the address people open the app at, e.g. https://pams.agency.gov.ph.");
@@ -117,6 +122,7 @@ public class SettingsController {
         settings.put(SettingService.CAPITALIZATION_THRESHOLD, in.capitalizationThreshold().stripTrailingZeros().toPlainString());
         if (in.idleTimeoutMinutes() != null) settings.put(SettingService.IDLE_TIMEOUT_MINUTES, String.valueOf(in.idleTimeoutMinutes()));
         if (in.passwordMinLength() != null) settings.put(SettingService.PASSWORD_MIN_LENGTH, String.valueOf(in.passwordMinLength()));
+        if (in.passwordExpiryDays() != null) settings.put(SettingService.PASSWORD_EXPIRY_DAYS, String.valueOf(in.passwordExpiryDays()));
         Map<String, Object> after = system();
         changed("Updated system settings", before, after);
         Map<String, Object> out = new LinkedHashMap<>(after);

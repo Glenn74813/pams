@@ -11,6 +11,7 @@ import { useToast } from '../../components/toast-context'
 import { formatDate, formatPeso, formatQty, today } from '../../lib/format'
 import { DISPOSAL_MODES, DISPOSAL_STATUS, SALE_MODES } from './labels'
 import { AssetPicker, Badge } from './pickers'
+import { AttachmentsPanel } from '../documents/AttachmentsPanel'
 import '../inventory/inventory.css'
 import '../issuance/issuance.css'
 import './assets.css'
@@ -25,15 +26,14 @@ export function DisposalPage() {
   const [status, setStatus] = useState(can('approve_disposal') ? 'submitted' : '')
   const [editing, setEditing] = useState<Disposal | 'new' | null>(null)
   const [completing, setCompleting] = useState<Disposal | null>(null)
+  const [viewing, setViewing] = useState<Disposal | null>(null)
   const list = useQuery({ queryKey: ['disposals', page, status], queryFn: () => disposalApi.list({ page, status: status || undefined }), placeholderData: keepPreviousData })
   const refresh = () => {
     for (const k of ['disposals', 'assets', 'asset', 'items', 'item', 'stock-card']) void queryClient.invalidateQueries({ queryKey: [k] })
   }
   const act = useMutation({
-    mutationFn: async ({ d, action }: { d: Disposal; action: 'submit' | 'approve' | 'reject' | 'withdraw' }) => {
+    mutationFn: async ({ d, action }: { d: Disposal; action: 'submit' | 'withdraw' }) => {
       if (action === 'submit') await disposalApi.submit(d.id)
-      else if (action === 'approve') await disposalApi.approve(d.id)
-      else if (action === 'reject') await disposalApi.reject(d.id)
       else await disposalApi.withdraw(d.id)
     },
     onSuccess: (_, { d, action }) => {
@@ -126,16 +126,9 @@ export function DisposalPage() {
                         Withdraw
                       </button>
                     )}
-                    {d.can_decide && (
-                      <>
-                        <button className="btn btn-primary btn-sm" onClick={() => act.mutate({ d, action: 'approve' })}>
-                          Approve
-                        </button>
-                        <button className="btn btn-danger btn-sm" onClick={() => act.mutate({ d, action: 'reject' })}>
-                          Reject
-                        </button>
-                      </>
-                    )}
+                    <button className={`btn btn-sm ${d.can_decide ? 'btn-primary' : 'btn-outline'}`} onClick={() => setViewing(d)}>
+                      {d.can_decide ? 'Review…' : 'Details'}
+                    </button>
                     {d.can_complete && (
                       <button className="btn btn-primary btn-sm" onClick={() => setCompleting(d)}>
                         Complete…
@@ -164,6 +157,17 @@ export function DisposalPage() {
           onSaved={(m) => {
             toast(m, 'success')
             setEditing(null)
+            refresh()
+          }}
+        />
+      )}
+      {viewing && (
+        <DisposalDetail
+          disposal={viewing}
+          onClose={() => setViewing(null)}
+          onDecided={(m) => {
+            toast(m, 'success')
+            setViewing(null)
             refresh()
           }}
         />
@@ -294,6 +298,88 @@ function DisposalForm({ disposal, onClose, onSaved }: { disposal: Disposal | nul
           </button>
         </div>
       </form>
+    </Modal>
+  )
+}
+
+/** The request with its supporting documents (inspection report, photos, appraisal), and the approver's decision. */
+function DisposalDetail({ disposal: d, onClose, onDecided }: { disposal: Disposal; onClose: () => void; onDecided: (m: string) => void }) {
+  const [remarks, setRemarks] = useState('')
+  const [error, setError] = useState<string | null>(null)
+  const decide = useMutation({
+    mutationFn: (approve: boolean) => (approve ? disposalApi.approve(d.id, remarks || undefined) : disposalApi.reject(d.id, remarks || undefined)),
+    onSuccess: (r) => onDecided(`${r.disposal_number}: ${r.status}.`),
+    onError: (err) => setError(err instanceof ApiError ? err.message : 'Could not record the decision.'),
+  })
+  const reject = () => {
+    setError(null)
+    if (!remarks.trim()) return setError('Give the reason for rejecting the disposal.')
+    decide.mutate(false)
+  }
+  return (
+    <Modal title={`Disposal ${d.disposal_number}`} onClose={onClose} width={760}>
+      <dl className="detail-grid">
+        <dt>Status</dt>
+        <dd>
+          <Badge map={DISPOSAL_STATUS} value={d.status} />
+        </dd>
+        <dt>What</dt>
+        <dd>
+          {d.category === 'property' ? (
+            <>
+              <span className="mono">{d.tag_number}</span> {d.item_name}
+            </>
+          ) : (
+            <>
+              {formatQty(d.quantity)} {d.unit_of_measure} {d.item_name}
+            </>
+          )}
+        </dd>
+        <dt>Mode</dt>
+        <dd>{modeLabel(d.disposal_type)}</dd>
+        <dt>Value</dt>
+        <dd>{formatPeso(d.status === 'completed' ? d.book_value : d.value)}</dd>
+        <dt>Requested</dt>
+        <dd>
+          {d.requester.name}, {formatDate(d.request_date)}
+        </dd>
+        <dt>Reason</dt>
+        <dd>{d.reason}</dd>
+        {d.remarks && (
+          <>
+            <dt>Requester's remarks</dt>
+            <dd>{d.remarks}</dd>
+          </>
+        )}
+        {d.approver && (
+          <>
+            <dt>{d.status === 'rejected' ? 'Rejected by' : 'Approved by'}</dt>
+            <dd>
+              {d.approver.name}
+              {d.approval_date ? `, ${formatDate(d.approval_date)}` : ''}
+              {d.approval_remarks && <div className="muted">“{d.approval_remarks}”</div>}
+            </dd>
+          </>
+        )}
+      </dl>
+      <AttachmentsPanel type="DisposalRequest" id={d.id} label={d.disposal_number} docType="OTHER" />
+      {d.can_decide && (
+        <div style={{ marginTop: '1rem' }}>
+          {error && <div className="alert alert-error">{error}</div>}
+          <div className="field">
+            <label htmlFor="dd-rem">Remarks</label>
+            <textarea id="dd-rem" rows={2} maxLength={1000} value={remarks} onChange={(e) => setRemarks(e.target.value)} placeholder="Required when rejecting" />
+          </div>
+          <div className="modal-footer">
+            <button type="button" className="btn btn-danger" disabled={decide.isPending} onClick={reject}>
+              Reject
+            </button>
+            <button type="button" className="btn btn-primary" disabled={decide.isPending} onClick={() => { setError(null); decide.mutate(true) }}>
+              Approve
+            </button>
+          </div>
+        </div>
+      )}
     </Modal>
   )
 }

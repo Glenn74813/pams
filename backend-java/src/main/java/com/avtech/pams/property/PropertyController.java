@@ -45,7 +45,7 @@ import java.util.stream.Stream;
 @RequestMapping("/api")
 public class PropertyController {
 
-    private static final Set<String> STATUSES = Set.of("assigned", "available", "under_repair", "retired", "disposed");
+    private static final Set<String> STATUSES = Set.of("assigned", "available", "under_repair", "retired", "disposed", "lost");
 
     private final PropertyService service;
     private final PropertyRepository properties;
@@ -187,7 +187,7 @@ public class PropertyController {
     }
 
     @GetMapping("/properties/transfers/all")
-    @PreAuthorize("@perm.any('view_properties', 'transfer_properties')")
+    @PreAuthorize("@perm.any('view_properties', 'transfer_properties', 'view_reports', 'generate_reports')")
     @Transactional(readOnly = true)
     public PageResponse<TransferView> allTransfers(@RequestParam(defaultValue = "1") int page,
                                                    @RequestParam(required = false) String type,
@@ -261,7 +261,8 @@ public class PropertyController {
 
     /** null = all; otherwise only this person's assets. */
     private Long scope(boolean mine) {
-        if (!mine && current.any("view_properties")) return null;
+        // Report viewers pick assets for the COA forms (Property Card, RLSDDP) without managing them.
+        if (!mine && current.any("view_properties", "view_reports", "generate_reports")) return null;
         return current.user().getId();
     }
 

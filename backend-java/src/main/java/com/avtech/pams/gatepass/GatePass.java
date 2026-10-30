@@ -106,4 +106,5 @@ public class GatePass extends Timestamped {
     public Long getReceivedBackBy() { return receivedBackBy; }
     public void setReceivedBackBy(Long id) { this.receivedBackBy = id; }
     public LocalDateTime getDeletedAt() { return deletedAt; }
+    public void setDeletedAt(LocalDateTime deletedAt) { this.deletedAt = deletedAt; }
 }

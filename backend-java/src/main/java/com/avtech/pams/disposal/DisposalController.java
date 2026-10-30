@@ -90,7 +90,7 @@ public class DisposalController {
     }
 
     public record DisposalView(Long id, String disposalNumber, String category, String disposalType, String status, String reason,
-                               String remarks, LocalDate requestDate, Ref requester, Ref approver, LocalDate approvalDate,
+                               String remarks, String approvalRemarks, LocalDate requestDate, Ref requester, Ref approver, LocalDate approvalDate,
                                LocalDate disposalDate, Long propertyId, String tagNumber, String serialNumber, Long itemId,
                                String itemCode, String itemName, String unitOfMeasure, Integer quantity, BigDecimal unitCost,
                                BigDecimal value, BigDecimal bookValue, BigDecimal proceeds,
@@ -100,14 +100,15 @@ public class DisposalController {
     @GetMapping
     @Transactional(readOnly = true)
     public PageResponse<DisposalView> index(@RequestParam(defaultValue = "1") int page, @RequestParam(required = false) String status,
-                                            @RequestParam(required = false) String category, @RequestParam(required = false) String search) {
+                                            @RequestParam(required = false) String category, @RequestParam(required = false) String search,
+                                            @RequestParam(name = "per_page", defaultValue = "20") int perPage) {
         // Reviewers see every request; people who can only file them see their own.
         Long only = null;
-        if (!current.any("view_disposal", "approve_disposal")) {
+        if (!current.any("view_disposal", "approve_disposal", "view_reports", "generate_reports")) {
             if (!current.any("create_disposal")) throw ApiException.forbidden("You do not have access to disposals.");
             only = current.user().getId();
         }
-        Page<DisposalRequest> result = disposals.search(only, blank(status), blank(category), blank(search), PageRequest.of(Math.max(0, page - 1), 20));
+        Page<DisposalRequest> result = disposals.search(only, blank(status), blank(category), blank(search), PageRequest.of(Math.max(0, page - 1), Math.clamp(perPage, 1, 200)));
         Map<DisposalRequest, DisposalView> v = views(result.getContent());
         return PageResponse.of(result, v::get);
     }
@@ -250,14 +251,18 @@ public class DisposalController {
         if (!DisposalRequest.SUBMITTED.equals(d.getStatus())) throw ApiException.of(HttpStatus.CONFLICT, "Only submitted disposals can be approved or rejected.");
         User me = current.user();
         if (me.getId().equals(d.getRequestedBy()) && !me.isSuperAdmin()) throw ApiException.forbidden("You requested this disposal, so someone else has to decide on it.");
+        String remarks = in == null || in.remarks() == null || in.remarks().isBlank() ? null : in.remarks().trim();
+        if (remarks == null && !DisposalRequest.APPROVED.equals(outcome)) throw ApiException.validation("remarks", "Give the reason for rejecting the disposal.");
+        if (remarks != null && remarks.length() > 1000) throw ApiException.validation("remarks", "Keep the remarks under 1,000 characters.");
         d.setStatus(outcome);
         d.setApprovedBy(me.getId());
         d.setApprovalDate(LocalDate.now(Times.ZONE));
-        if (in != null && in.remarks() != null && !in.remarks().isBlank()) d.setRemarks(in.remarks().trim());
+        d.setApprovalRemarks(remarks);
         disposals.flush();
         audit.record("updated", TYPE, d.getId(), (outcome.equals(DisposalRequest.APPROVED) ? "Approved" : "Rejected") + " disposal " + d.getDisposalNumber(),
                 Map.of("status", "submitted"), Map.of("status", outcome));
-        notifications.notifyUser(d.getRequestedBy(), "disposal", "Disposal " + outcome, d.getDisposalNumber() + " was " + outcome + ".", TYPE, d.getId());
+        notifications.notifyUser(d.getRequestedBy(), "disposal", "Disposal " + outcome,
+                d.getDisposalNumber() + " was " + outcome + (remarks == null ? "." : ": " + remarks), TYPE, d.getId());
         return views(List.of(d)).get(d);
     }
 
@@ -321,7 +326,7 @@ public class DisposalController {
             BigDecimal value = d.getUnitCost() == null || d.getQuantity() == null ? null
                     : d.getUnitCost().multiply(BigDecimal.valueOf(d.getQuantity())).setScale(2, RoundingMode.HALF_UP);
             out.put(d, new DisposalView(d.getId(), d.getDisposalNumber(), d.getCategory(), d.getDisposalType(), d.getStatus(), d.getReason(),
-                    d.getRemarks(), d.getRequestDate(), new Ref(d.getRequestedBy(), names.get(d.getRequestedBy())),
+                    d.getRemarks(), d.getApprovalRemarks(), d.getRequestDate(), new Ref(d.getRequestedBy(), names.get(d.getRequestedBy())),
                     d.getApprovedBy() == null ? null : new Ref(d.getApprovedBy(), names.get(d.getApprovedBy())), d.getApprovalDate(),
                     d.getDisposalDate(), d.getPropertyId(), p == null ? null : p.getTagNumber(), p == null ? null : p.getSerialNumber(),
                     d.getItemId(), i == null ? null : i.getCode(), i == null ? null : i.getName(), i == null ? null : i.getUnitOfMeasure(),

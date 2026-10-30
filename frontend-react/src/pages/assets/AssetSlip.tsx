@@ -1,5 +1,6 @@
 import type { Asset, AssetMove, GatePass, InventoryConfig } from '../../api/types'
 import { formatDate, formatPeso } from '../../lib/format'
+import { SlipLogos } from '../../components/SlipLogos'
 
 export type AssetSlipKind = 'accountability' | 'move' | 'gate'
 
@@ -15,6 +16,7 @@ interface Props {
 export function AssetSlip({ kind, asset, move, gate, config }: Props) {
   const head = (title: string, appendix: string, no: string | null | undefined, date: string | null | undefined) => (
     <>
+      <SlipLogos edge="top" />
       <p className="slip-appendix">{appendix}</p>
       <h2 className="slip-title">{title}</h2>
       <div className="slip-head">

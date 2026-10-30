@@ -55,18 +55,15 @@ public class AuthService {
 
     /** Not transactional on purpose: every attempt row must be kept even when the login is refused. */
     public LoginResult login(String email, String password, String otp, String ip, String userAgent) {
-        LocalDateTime windowStart = Times.now().minusMinutes(lockoutMinutes);
+        Optional<User> found = users.findByEmailIgnoreCase(email);
+        LocalDateTime windowStart = windowStart(found.orElse(null));
 
         if (attempts.countFailedSince(email, windowStart) >= maxAttempts) {
             record(email, ip, userAgent, false, "Account locked");
-            List<LocalDateTime> recent = attempts.failedTimesSince(email, windowStart, Limit.of(maxAttempts));
-            OffsetDateTime lockedUntil = recent.size() >= maxAttempts
-                    ? Times.toOffset(recent.get(maxAttempts - 1).plusMinutes(lockoutMinutes)) : null;
             throw ApiException.of(HttpStatus.TOO_MANY_REQUESTS, "Too many failed login attempts. Please try again later.")
-                    .with("locked_until", lockedUntil);
+                    .with("locked_until", lockedUntil(email, windowStart));
         }
 
-        Optional<User> found = users.findByEmailIgnoreCase(email);
         boolean passwordOk = passwordEncoder.matches(password, found.map(User::getPasswordHash).orElse(dummyHash));
         if (found.isEmpty() || !passwordOk) {
             record(email, ip, userAgent, false, "Invalid credentials");
@@ -76,6 +73,10 @@ public class AuthService {
         }
 
         User user = found.get();
+        if (!user.isActive()) {
+            record(email, ip, userAgent, false, "Account deactivated");
+            throw ApiException.of(HttpStatus.FORBIDDEN, "This account has been deactivated. Ask your system administrator.");
+        }
         if (user.isTwoFactorEnabled()) {
             if (otp == null || otp.isBlank()) {
                 return new LoginResult.TwoFactorRequired();
@@ -88,6 +89,23 @@ public class AuthService {
 
         record(email, ip, userAgent, true, null);
         return new LoginResult.Success(user, jwtService.issue(user.getId()));
+    }
+
+    /** When the user's lockout ends, or null when they are not locked out. */
+    public OffsetDateTime lockedUntil(User user) {
+        LocalDateTime start = windowStart(user);
+        return attempts.countFailedSince(user.getEmail(), start) >= maxAttempts ? lockedUntil(user.getEmail(), start) : null;
+    }
+
+    private OffsetDateTime lockedUntil(String email, LocalDateTime windowStart) {
+        List<LocalDateTime> recent = attempts.failedTimesSince(email, windowStart, Limit.of(maxAttempts));
+        return recent.size() >= maxAttempts ? Times.toOffset(recent.get(maxAttempts - 1).plusMinutes(lockoutMinutes)) : null;
+    }
+
+    /** Failures count from the lockout window, or from the moment an administrator last unlocked the account. */
+    private LocalDateTime windowStart(User user) {
+        LocalDateTime start = Times.now().minusMinutes(lockoutMinutes);
+        return user != null && user.getLockoutClearedAt() != null && user.getLockoutClearedAt().isAfter(start) ? user.getLockoutClearedAt() : start;
     }
 
     public void revoke(AuthPrincipal principal) {

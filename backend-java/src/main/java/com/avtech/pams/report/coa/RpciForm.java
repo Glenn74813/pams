@@ -24,8 +24,10 @@ public class RpciForm {
     static final DateTimeFormatter LONG_DATE = DateTimeFormatter.ofPattern("MMMM dd, yyyy", Locale.ENGLISH);
 
     private final JdbcTemplate jdbc;
+    private final Signatories signatories;
 
-    public RpciForm(JdbcTemplate jdbc) {
+    public RpciForm(JdbcTemplate jdbc, Signatories signatories) {
+        this.signatories = signatories;
         this.jdbc = jdbc;
     }
 
@@ -129,7 +131,7 @@ public class RpciForm {
         }
 
         // Signature section
-        countSignatures(x, row + 2);
+        countSignatures(x, row + 2, signatories);
 
         return x.bytes();
     }
@@ -193,14 +195,23 @@ public class RpciForm {
         x.style("D" + row + ":J" + row).center();
     }
 
-    /** The certification block, starting {@code row} (two rows below the table). */
-    static void countSignatures(Xlsx x, int row) {
+    /**
+     * The certification block, starting {@code row} (two rows below the table). The names set in
+     * Settings → Signatories go on the signature lines; an unset one leaves the blank line.
+     */
+    static void countSignatures(Xlsx x, int row, Signatories signatories) {
         x.set("B" + row, "Certified Correct by:");
         x.set("F" + row, "Approved by:");
         x.set("K" + row, "Verified by:");
         row += 2;
-        x.set("C" + row, "________________________________");
-        x.set("K" + row, "_______________________________");
+        x.set("C" + row, nameOr(signatories.resolve("inventory_committee_chair"), "________________________________"));
+        x.set("K" + row, nameOr(signatories.resolve("coa_representative"), "_______________________________"));
+        String head = signatories.resolve("head_of_agency").name();
+        if (head != null) {
+            x.merge("G" + row + ":I" + row);
+            x.set("G" + row, head.toUpperCase(java.util.Locale.ROOT));
+            x.style("G" + row).bold().center();
+        }
         x.style("C" + row).center();
         x.style("K" + row).center();
         row++;
@@ -214,6 +225,10 @@ public class RpciForm {
         x.set("K" + row, "Signature over Printed Name of COA Representative");
         x.style("K" + row).size(8).italic();
         x.style("K" + row).center().wrap();
+    }
+
+    static String nameOr(Signatories.Signatory s, String blank) {
+        return s.name() == null ? blank : s.name().toUpperCase(java.util.Locale.ROOT);
     }
 
     private static boolean isIntegral(Number n) {

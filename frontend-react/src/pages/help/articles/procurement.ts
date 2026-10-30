@@ -144,6 +144,7 @@ export const procurementArticles: Article[] = [
       forms(p('**🖨 PR form** prints the Purchase Request (Appendix 60) in any status, drafts included. "Requested by" is the requester and "Approved by" is whoever signed the Department Head step.')),
       tips(
         'You cannot sign or certify funds for a PR you raised yourself.',
+        'approve_procurement makes you an alternate signatory for any step (e.g. an officer-in-charge), but not for two steps of the same PR.',
         'If you start typing a return reason and then decide to sign instead, clear the text box first: the text is sent with the signature as remarks.',
         'The office of a PR is fixed when it is created. To change it, cancel the PR and raise a new one.',
       ),
@@ -217,7 +218,7 @@ export const procurementArticles: Article[] = [
       tips(
         'Check the supplier is eligible before you award. Ineligible suppliers appear in the award list but the award is refused.',
         'The person who prepared the RFQ cannot award it.',
-        'After two failed biddings, Negotiated Procurement needs the PR lines planned with that mode; re-plan the lines (new PR) if they were planned as Competitive Bidding.',
+        'After two failed biddings of a PR, its Competitive Bidding lines can go to an RFQ under Negotiated Procurement directly.',
       ),
     ],
   },
@@ -264,7 +265,7 @@ export const procurementArticles: Article[] = [
             ['Bid Securing Declaration', 'None'],
           ],
         ),
-        warn('Record every bid, with its amount, before you evaluate anything. The first Pass/Fail or score moves the bidding to Evaluation, and after that bids can no longer be added, removed or corrected.'),
+        warn('Record every bid read at the opening. A bid entered late can still be added during evaluation until post-qualification starts, and a bid can be corrected until it has been evaluated; striking out a bid is only possible before evaluation.'),
       ),
       sec(
         'evaluate',

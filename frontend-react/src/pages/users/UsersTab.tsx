@@ -18,6 +18,7 @@ export function UsersTab() {
   const [roleId, setRoleId] = useState<number | undefined>()
   const [editing, setEditing] = useState<User | 'new' | null>(null)
   const [deleting, setDeleting] = useState<User | null>(null)
+  const [deactivating, setDeactivating] = useState<User | null>(null)
   const q = useDebounced(search.trim(), 300)
   const [filterKey, setFilterKey] = useState(`${q}|${roleId}`)
 
@@ -44,6 +45,19 @@ export function UsersTab() {
     onError: (err) => {
       toast(err instanceof ApiError ? err.message : 'Could not delete the user.', 'error')
       setDeleting(null)
+    },
+  })
+
+  const account = useMutation({
+    mutationFn: ({ u, action }: { u: User; action: 'deactivate' | 'activate' | 'unlock' }) => usersApi[action](u.id),
+    onSuccess: (res) => {
+      toast(res.message, 'success')
+      setDeactivating(null)
+      void queryClient.invalidateQueries({ queryKey: ['users'] })
+    },
+    onError: (err) => {
+      toast(err instanceof ApiError ? err.message : 'Could not change the account.', 'error')
+      setDeactivating(null)
     },
   })
 
@@ -96,19 +110,20 @@ export function UsersTab() {
               <th>Role</th>
               <th>Department</th>
               <th>2FA</th>
+              <th>Status</th>
               {(canEdit || canDelete) && <th>Actions</th>}
             </tr>
           </thead>
           <tbody>
             {users.isPending && (
               <tr>
-                <td colSpan={6} className="empty">
+                <td colSpan={7} className="empty">
                   Loading users…
                 </td>
               </tr>
             )}
             {users.data?.data.map((u) => (
-              <tr key={u.id}>
+              <tr key={u.id} className={u.is_active ? undefined : 'muted'}>
                 <td>{u.name}</td>
                 <td>{u.email}</td>
                 <td>
@@ -116,6 +131,17 @@ export function UsersTab() {
                 </td>
                 <td>{u.department?.name ?? '—'}</td>
                 <td>{u.two_factor_enabled ? 'On' : <span className="muted">Off</span>}</td>
+                <td>
+                  {!u.is_active ? (
+                    <span className="badge badge-muted">Deactivated</span>
+                  ) : u.locked_until ? (
+                    <span className="badge st-bad" title={`Locked until ${new Date(u.locked_until).toLocaleTimeString()}`}>
+                      Locked
+                    </span>
+                  ) : (
+                    <span className="badge st-ok">Active</span>
+                  )}
+                </td>
                 {(canEdit || canDelete) && (
                   <td>
                     <div className="actions">
@@ -124,6 +150,20 @@ export function UsersTab() {
                           ✎
                         </button>
                       )}
+                      {canEdit && u.id !== me?.id && u.is_active && u.locked_until && (
+                        <button className="btn btn-outline btn-sm" disabled={account.isPending} onClick={() => account.mutate({ u, action: 'unlock' })}>
+                          Unlock
+                        </button>
+                      )}
+                      {canEdit && u.id !== me?.id && (u.is_active ? (
+                        <button className="btn btn-outline btn-sm" onClick={() => setDeactivating(u)}>
+                          Deactivate
+                        </button>
+                      ) : (
+                        <button className="btn btn-outline btn-sm" disabled={account.isPending} onClick={() => account.mutate({ u, action: 'activate' })}>
+                          Activate
+                        </button>
+                      ))}
                       {canDelete && u.id !== me?.id && (
                         <button className="icon-btn delete" title={`Delete ${u.name}`} onClick={() => setDeleting(u)}>
                           🗑
@@ -136,7 +176,7 @@ export function UsersTab() {
             ))}
             {users.data && users.data.data.length === 0 && (
               <tr>
-                <td colSpan={6} className="empty">
+                <td colSpan={7} className="empty">
                   {q || roleId ? 'No users match this search.' : 'No users yet.'}
                 </td>
               </tr>
@@ -168,6 +208,17 @@ export function UsersTab() {
             setEditing(null)
             void queryClient.invalidateQueries({ queryKey: ['users'] })
           }}
+        />
+      )}
+
+      {deactivating && (
+        <ConfirmDialog
+          title="Deactivate user"
+          message={`${deactivating.name} will be signed out and unable to sign in. Their records, approvals and assets stay as they are; you can activate the account again later.`}
+          confirmLabel="Deactivate"
+          busy={account.isPending}
+          onConfirm={() => account.mutate({ u: deactivating, action: 'deactivate' })}
+          onCancel={() => setDeactivating(null)}
         />
       )}
 

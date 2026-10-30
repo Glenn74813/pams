@@ -386,7 +386,9 @@ public class BiddingController {
     @Transactional
     public ResponseEntity<BiddingView> addBidder(@PathVariable Long id, @RequestBody BidderInput in) {
         Bidding b = lock(id);
-        if (!Bidding.BID_OPENING.equals(b.getStatus())) throw ApiException.of(HttpStatus.CONFLICT, "Bids are recorded at the bid opening.");
+        // A bid read at the opening but entered late can still be added while evaluation is under way, until post-qualification.
+        if (!Bidding.BID_OPENING.equals(b.getStatus()) && !Bidding.EVALUATION.equals(b.getStatus())) throw ApiException.of(HttpStatus.CONFLICT, "Bids are recorded at the bid opening.");
+        if (postQualStarted(b)) throw ApiException.of(HttpStatus.CONFLICT, "Post-qualification has started; no more bids can be recorded.");
         Long supplierId = awards.supplier(in.supplierId(), in.supplierName());
         if (b.getBidders().stream().anyMatch(x -> x.getSupplierId().equals(supplierId))) throw ApiException.validation("supplier_id", "This supplier has already bid.");
         BiddingBidder x = new BiddingBidder(b, supplierId);
@@ -414,7 +416,13 @@ public class BiddingController {
         Bidding b = lock(biddings.biddingOfBidder(bidderId).orElseThrow(() -> ApiException.notFound("Bidder")));
         BiddingBidder x = b.getBidders().stream().filter(y -> y.getId().equals(bidderId)).findFirst().orElseThrow();
         if (in.bidAmount() != null || in.bidSecurityForm() != null || in.bidSecurityAmount() != null || in.bidSecurityPosted() != null) {
-            if (!Bidding.BID_OPENING.equals(b.getStatus())) throw ApiException.of(HttpStatus.CONFLICT, "Bids and bid securities are recorded at the opening, before evaluation starts.");
+            if (!Bidding.BID_OPENING.equals(b.getStatus()) && !Bidding.EVALUATION.equals(b.getStatus())) {
+                throw ApiException.of(HttpStatus.CONFLICT, "Bids and bid securities are recorded at the opening.");
+            }
+            // A correction is allowed until this bid has been evaluated; after that its results would rest on the old figures.
+            if (BiddingBidder.STAGES.stream().anyMatch(st -> !"pending".equals(x.result(st)))) {
+                throw ApiException.of(HttpStatus.CONFLICT, "This bid has already been evaluated; set its results back to pending before correcting the bid.");
+            }
             applyBid(b, x, new BidderInput(null, null, in.bidAmount() != null ? in.bidAmount() : x.getBidAmount(),
                     in.bidSecurityAmount() != null ? in.bidSecurityAmount() : x.getBidSecurityAmount(),
                     in.bidSecurityForm() != null ? in.bidSecurityForm() : x.getBidSecurityForm(),
@@ -995,7 +1003,7 @@ public class BiddingController {
                     bidders, protests, observers, ev == null ? null : ev.recommended(), ev == null ? null : ev.postQualTurn(), open,
                     (int) b.getObservers().stream().filter(BidObserver::isInvited).count(), full ? timeline(b) : null,
                     manager && b.isPlanning(), manager && b.isPlanning(), manager && Bidding.INVITATION.equals(b.getStatus()) && deadlinePassed,
-                    manager && Bidding.BID_OPENING.equals(b.getStatus()), evaluator && inEval,
+                    manager && inEval && !postQualStarted(b), evaluator && inEval,
                     awarder && !own && Bidding.EVALUATION.equals(b.getStatus()) && ev != null && ev.recommended() != null && open == 0,
                     awarder && Bidding.AWARDED.equals(b.getStatus()) && b.getNoaNumber() == null, awarder && b.getNoaNumber() != null && b.getNtpNumber() == null,
                     manager && !b.isOver() && !b.isPlanning(), manager && !b.isOver(), manager && Bidding.DRAFT.equals(b.getStatus()),
