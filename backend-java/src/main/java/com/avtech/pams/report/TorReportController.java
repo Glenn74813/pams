@@ -280,7 +280,10 @@ public class TorReportController {
     }
 
     /** Master lists: assets, items, suppliers, users, available-supplies; from/to filter on acquisition/creation date. */
-    /** The reports of TOR 1.6.4 for any dates (the UI offers a month or a year too). */
+    /**
+     * The reports of TOR 1.6.4 for any dates (the UI offers a month or a year too). {@code report} is par, ics, property-transactions,
+     * stock-movements, physical-counts, wmr, iirup, rlsddp, gate-passes, transfers or reorder-point.
+     */
     @GetMapping("/registers/{report}/export")
     @PreAuthorize(REPORTS)
     public ResponseEntity<byte[]> periodRegister(@PathVariable String report, @RequestParam(required = false) LocalDate from,
@@ -307,6 +310,7 @@ public class TorReportController {
         };
     }
 
+    /** {@code list} is assets, items, suppliers, users or available-supplies. */
     @GetMapping("/master-lists/{list}/export")
     @PreAuthorize(REPORTS)
     public ResponseEntity<byte[]> masterList(@PathVariable String list, @RequestParam(required = false) LocalDate from,

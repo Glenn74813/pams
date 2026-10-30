@@ -49,6 +49,17 @@ public class GlobalExceptionHandler {
         return error(HttpStatus.BAD_REQUEST, "Malformed request body.");
     }
 
+    /** A required query parameter or upload was left out; these come before the permission check, so they must not look like a server fault. */
+    @ExceptionHandler({org.springframework.web.bind.MissingServletRequestParameterException.class, org.springframework.web.multipart.support.MissingServletRequestPartException.class})
+    public ResponseEntity<Map<String, Object>> missing(Exception e) {
+        String name = e instanceof org.springframework.web.bind.MissingServletRequestParameterException m ? m.getParameterName()
+                : ((org.springframework.web.multipart.support.MissingServletRequestPartException) e).getRequestPartName();
+        Map<String, Object> body = new LinkedHashMap<>();
+        body.put("message", "Validation failed");
+        body.put("errors", Map.of(name, List.of("The " + name.replace('_', ' ') + " is required.")));
+        return ResponseEntity.status(HttpStatus.UNPROCESSABLE_CONTENT).body(body);
+    }
+
     @ExceptionHandler(MethodArgumentTypeMismatchException.class)
     ResponseEntity<Map<String, Object>> typeMismatch(MethodArgumentTypeMismatchException e) {
         return error(HttpStatus.BAD_REQUEST, "Invalid value for '" + e.getName() + "'.");

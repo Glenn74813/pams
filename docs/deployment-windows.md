@@ -114,8 +114,9 @@ it on demand). On SQL Server it issues `BACKUP DATABASE … TO DISK` into
 folder (or point `PAMS_BACKUP_DIR` at a folder it can write). Copy backups off the server as well,
 or schedule SQL Server Agent full/log backups to your backup system.
 
-Back up `C:\PAMS\storage\public` with the database: it holds the signature images, logos and
-uploaded documents the database refers to.
+Back up `C:\PAMS\storage\public` and `C:\PAMS\storage\signing` with the database: they hold the
+signature images, logos, uploaded documents, asset photos and documents sent for signing that the
+database refers to. To restore, and for routine checks, see the [operations manual](operations-manual.md).
 
 ## 7. Upgrading
 
