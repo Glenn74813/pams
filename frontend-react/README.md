@@ -13,6 +13,13 @@ Opens on **5190** and proxies `/api` to the Spring Boot backend on 8095 (`PAMS_A
 For a release, `npm run build` writes `dist/`; the Spring Boot service serves it when `PAMS_FRONTEND_DIR` points
 there (see `../docs/deployment-windows.md`).
 
+To try it from phones and other computers on the same network (QR scanning needs the camera, which phone browsers
+allow only on HTTPS pages), run `npm run dev:lan`. It listens on all interfaces over HTTPS with the self-signed
+certificate in `.certs/` (not committed; create one for your address with
+`openssl req -x509 -newkey rsa:2048 -nodes -days 825 -keyout .certs/lan-key.pem -out .certs/lan-cert.pem -subj "/CN=PAMS dev" -addext "subjectAltName=IP:<your-ip>"`).
+Open `https://<your-ip>:5190` and accept the certificate warning once. Set Settings → System → App address to the
+same URL so printed QR labels open there.
+
 ## Adding a page
 
 1. Add its endpoints in `backend-java`.

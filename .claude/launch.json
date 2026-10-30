@@ -20,6 +20,18 @@
         "dev"
       ],
       "port": 5190
+    },
+    {
+      "name": "frontend-react-lan",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": [
+        "--prefix",
+        "frontend-react",
+        "run",
+        "dev:lan"
+      ],
+      "port": 5190,
+      "url": "https://localhost:5190"
     }
   ]
 }

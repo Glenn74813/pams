@@ -22,3 +22,6 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+# Local HTTPS certificate for testing on the LAN (npm run dev:lan)
+.certs
