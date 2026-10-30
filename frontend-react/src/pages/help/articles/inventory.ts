@@ -342,7 +342,7 @@ export const inventoryArticles: Article[] = [
   {
     slug: 'gate-pass',
     title: 'Gate Pass',
-    area: 'inventory',
+    area: 'assets',
     route: '/gate-pass',
     keywords: ['pass-out slip', 'GP', 'overdue', 'released', 'returned', 'guard'],
     summary: 'Record an asset leaving the premises with a printed gate pass, and its return.',

@@ -573,7 +573,7 @@ export const procurementArticles: Article[] = [
   {
     slug: 'receiving',
     title: 'Receiving and Inspection (IAR)',
-    area: 'procurement',
+    area: 'inventory',
     route: '/receiving',
     keywords: ['IAR', 'inspection and acceptance report', 'appendix 62', 'delivery', 'accept', 'reject', 'lot', 'expiry'],
     summary: 'Record deliveries against confirmed POs, inspect them, and accept them into stock with the Inspection and Acceptance Report.',
