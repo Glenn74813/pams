@@ -71,7 +71,7 @@
 .nav-item {
   display: flex;
   align-items: center;
-  gap: 1rem;
+  gap: 0.7rem;
   padding: 0.9rem 1.5rem;
   color: var(--sidebar-text);
   text-decoration: none;
@@ -84,10 +84,10 @@
   color: #ffffff;
   border-left-color: var(--sidebar-accent);
 }
-.nav-item .icon { font-size: 1.4rem; min-width: 1.4rem; }
+.nav-item .icon { font-size: 0.7rem; min-width: 0.9rem; text-align: center; }
 .nav-item .label { font-weight: 500; flex: 1; }
 .nav-item.child { padding: 0.75rem 1rem 0.75rem 2.75rem; font-size: 0.92rem; }
-.nav-item.child .icon { font-size: 1.15rem; min-width: 1.15rem; }
+.nav-item.child .icon { font-size: 0.58rem; min-width: 0.9rem; text-align: center; }
 .nav-item .soon {
   font-size: 0.62rem;
   font-weight: 700;
@@ -103,7 +103,7 @@
 .nav-group-header {
   display: flex;
   align-items: center;
-  gap: 0.75rem;
+  gap: 0.6rem;
   width: 100%;
   padding: 0.85rem 1.25rem;
   margin-top: 0.35rem;
@@ -118,7 +118,7 @@
 }
 .nav-group-header:hover { color: #ffffff; }
 .nav-group-header.has-active { color: var(--sidebar-accent); }
-.nav-group-header .icon { font-size: 1.15rem; min-width: 1.15rem; }
+.nav-group-header .icon { font-size: 0.58rem; min-width: 0.9rem; text-align: center; }
 .nav-group-header .label { flex: 1; text-align: left; }
 .nav-group-header .chevron { font-size: 0.75rem; opacity: 0.7; transition: transform 0.2s; }
 .nav-group-header .chevron.open { transform: rotate(90deg); }
