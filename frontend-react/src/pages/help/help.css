@@ -1,4 +1,4 @@
-.help-page { max-width: 1200px; }
+.help-page { width: 100%; }
 
 .help-sr-only {
   position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px;
@@ -109,3 +109,5 @@
   .help-table tr, .help-note, .help-steps li { break-inside: avoid; }
   .help-page a { color: inherit; text-decoration: none; }
 }
+/* Text keeps a readable line length even when the page is wide. */
+.help-layout article p, .help-layout article li { max-width: 85ch; }

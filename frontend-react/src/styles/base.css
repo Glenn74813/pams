@@ -15,7 +15,8 @@ button, input, select, textarea { font: inherit; }
 .page-loading { padding: 3rem; text-align: center; color: var(--text-light); }
 
 /* ── Page frame ── */
-.page { max-width: 1200px; }
+/* Pages use the full width of the window; padding grows and shrinks with the screen. */
+.page { width: 100%; }
 .page-title { font-size: 1.6rem; margin-bottom: 1.25rem; }
 .section-header { display: flex; justify-content: space-between; align-items: center; gap: 1rem; margin-bottom: 1.25rem; flex-wrap: wrap; }
 .section-header h2 { font-size: 1.2rem; }

@@ -1,4 +1,4 @@
-.page-wide { max-width: 1400px; }
+.page-wide { width: 100%; }
 
 .num { text-align: right !important; white-space: nowrap; font-variant-numeric: tabular-nums; }
 .mono { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 0.85em; white-space: nowrap; }
