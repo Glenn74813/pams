@@ -55,6 +55,7 @@ public class TorReportController {
     private final SettingService settings;
     private final AuditService audit;
     private final TorListReports lists;
+    private final TorPeriodReports periods;
     private final PpeLedgerCardForm ppeLedger;
     private final SuppliesLedgerCardForm suppliesLedger;
     private final SemiExpendableCardForm semiCard;
@@ -65,7 +66,7 @@ public class TorReportController {
     private final CnasForm cnas;
     private final CosUndertakingForm undertaking;
 
-    public TorReportController(JdbcTemplate jdbc, Db db, SettingService settings, AuditService audit, TorListReports lists, PpeLedgerCardForm ppeLedger,
+    public TorReportController(JdbcTemplate jdbc, Db db, SettingService settings, AuditService audit, TorListReports lists, TorPeriodReports periods, PpeLedgerCardForm ppeLedger,
                                SuppliesLedgerCardForm suppliesLedger, SemiExpendableCardForm semiCard, RegspiForm regspi, RspiForm rspi, ItrForm itr,
                                IrpForm irp, CnasForm cnas, CosUndertakingForm undertaking) {
         this.jdbc = jdbc;
@@ -73,6 +74,7 @@ public class TorReportController {
         this.settings = settings;
         this.audit = audit;
         this.lists = lists;
+        this.periods = periods;
         this.ppeLedger = ppeLedger;
         this.suppliesLedger = suppliesLedger;
         this.semiCard = semiCard;
@@ -278,6 +280,33 @@ public class TorReportController {
     }
 
     /** Master lists: assets, items, suppliers, users, available-supplies; from/to filter on acquisition/creation date. */
+    /** The reports of TOR 1.6.4 for any dates (the UI offers a month or a year too). */
+    @GetMapping("/registers/{report}/export")
+    @PreAuthorize(REPORTS)
+    public ResponseEntity<byte[]> periodRegister(@PathVariable String report, @RequestParam(required = false) LocalDate from,
+                                                 @RequestParam(required = false) LocalDate to, @RequestParam(required = false) String format,
+                                                 @RequestParam(name = "item_id", required = false) Long itemId,
+                                                 @RequestParam(name = "count_type", required = false) String countType,
+                                                 @RequestParam(name = "entity_name", required = false) String entity) {
+        String e = entity(entity);
+        String type = blank(countType);
+        if (type != null && !List.of("supplies", "ppe", "semi_expendable").contains(type)) throw ApiException.validation("count_type", "Choose supplies, ppe or semi_expendable.");
+        return switch (report) {
+            case "par" -> period(from, to, format, "PAR_Register", "PAR register", p -> periods.par(p, e));
+            case "ics" -> period(from, to, format, "ICS_Register", "ICS register", p -> periods.ics(p, e));
+            case "property-transactions" -> period(from, to, format, "Property_Transactions", "Property card transactions", p -> periods.propertyTransactions(p, e));
+            case "stock-movements" -> period(from, to, format, "Stock_Movements", "Stock card movements", p -> periods.stockMovements(p, itemId, e));
+            case "physical-counts" -> period(from, to, format, "Physical_Counts", "Physical counts", p -> periods.physicalCounts(p, type, e));
+            case "wmr" -> period(from, to, format, "WMR_Register", "Waste materials register", p -> periods.disposals(p, false, e));
+            case "iirup" -> period(from, to, format, "IIRUP_Register", "Unserviceable property register", p -> periods.disposals(p, true, e));
+            case "rlsddp" -> period(from, to, format, "RLSDDP_Register", "Lost or damaged property register", p -> periods.lostDamaged(p, e));
+            case "gate-passes" -> period(from, to, format, "Gate_Passes", "Gate pass register", p -> periods.gatePasses(p, e));
+            case "transfers" -> period(from, to, format, "RTA_Register", "Transfers of accountability", p -> periods.transfers(p, e));
+            case "reorder-point" -> period(from, to, format, "Reordering_Point", "Reordering point", p -> periods.reorderPoint(p, e));
+            default -> throw ApiException.notFound("Report");
+        };
+    }
+
     @GetMapping("/master-lists/{list}/export")
     @PreAuthorize(REPORTS)
     public ResponseEntity<byte[]> masterList(@PathVariable String list, @RequestParam(required = false) LocalDate from,
@@ -339,7 +368,7 @@ public class TorReportController {
 
     /** As CoaExportController.file, with the content type of the format. */
     private ResponseEntity<byte[]> file(byte[] bytes, String filename, String contentType, String what, String type, Long id) {
-        audit.record("downloaded", type, id, "Downloaded " + what + " (" + filename + ")", null, Map.of("file", filename));
+        audit.record("downloaded", type, id, "Downloaded " + what + " (" + PdfFormAdvice.fileName(filename) + ")", null, Map.of("file", PdfFormAdvice.fileName(filename)));
         return ResponseEntity.ok()
                 .contentType(MediaType.parseMediaType(contentType))
                 .header(HttpHeaders.CONTENT_DISPOSITION, ContentDisposition.attachment().filename(filename.replaceAll("[\\\\/:*?\"<>|]", "-"), StandardCharsets.UTF_8).build().toString())

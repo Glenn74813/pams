@@ -53,20 +53,30 @@ export function ExportButton({ path, params, name, label = 'Export to Excel', di
   disabled?: boolean
 }) {
   const toast = useToast()
-  const [busy, setBusy] = useState(false)
-  const run = async () => {
-    setBusy(true)
+  const [busy, setBusy] = useState<'file' | 'pdf' | null>(null)
+  const run = async (kind: 'file' | 'pdf') => {
+    setBusy(kind)
     try {
-      await reportsApi.exportFile(path, params, name)
+      if (kind === 'pdf') await reportsApi.exportFile(path, { ...params, format: 'pdf' }, name.replace(/\.xlsx$/, '.pdf'))
+      else await reportsApi.exportFile(path, params, name)
     } catch (e) {
       toast(e instanceof ApiError ? e.message : 'The file could not be generated.', 'error')
     } finally {
-      setBusy(false)
+      setBusy(null)
     }
   }
+  // Excel forms can also be saved as PDF; list reports choose their format in their own field.
+  const offerPdf = name.endsWith('.xlsx') && !params?.format
   return (
-    <button className="btn btn-primary" disabled={busy || disabled} onClick={() => void run()}>
-      {busy ? 'Generating…' : `⬇ ${label}`}
-    </button>
+    <>
+      <button className="btn btn-primary" disabled={!!busy || disabled} onClick={() => void run('file')}>
+        {busy === 'file' ? 'Generating…' : `⬇ ${label}`}
+      </button>
+      {offerPdf && (
+        <button className="btn btn-outline" disabled={!!busy || disabled} onClick={() => void run('pdf')}>
+          {busy === 'pdf' ? 'Generating…' : '⬇ PDF'}
+        </button>
+      )}
+    </>
   )
 }

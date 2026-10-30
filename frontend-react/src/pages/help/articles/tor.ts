@@ -118,7 +118,7 @@ export const torArticles: Article[] = [
     summary: 'Ledger cards, semi-expendable registers, ITR, IRP, CNAS, the depreciation lapsing schedule, monitoring registers and master lists, in Excel, CSV or PDF for any dates.',
     sections: [
       who('Reports → **Ledgers, Registers & Master Lists**: view_reports or generate_reports (some per-record forms also open for the module\'s own viewers).'),
-      purpose(p('The rest of the forms and lists in the IMS Terms of Reference, beside the COA forms on the other tabs. The COA forms keep their prescribed layouts; the lists can be saved as Excel, CSV or PDF.')),
+      purpose(p('The rest of the forms and lists in the IMS Terms of Reference, beside the COA forms on the other tabs. The COA forms keep their prescribed layouts. For each list, choose **Monthly**, **Annual** or **Any dates**, then Excel, CSV or PDF.')),
       sec(
         'forms',
         'What is there',
@@ -136,10 +136,13 @@ export const torArticles: Article[] = [
             ['Depreciation Lapsing Schedule', 'By category, as at a date'],
             ['Property Inventory Form (PIF)', 'Per accountable officer or all'],
             ['IAR, RIS and PO registers', 'Monitoring registers for any date range; the PO register is the Summary of Purchase Orders'],
+            ['PAR, ICS, Property Card, Stock Card, physical count, IIRUP, WMR, RLSDDP, RTA and gate pass lists', 'What each covered in a month, a year or any dates'],
+            ['Reordering Point', 'Items at or below their reorder point, with what was issued in the period and what to order'],
             ['Master lists', 'Assets, items, suppliers, users, and available common-use supplies'],
           ],
         ),
       ),
+      sec('pdf', 'PDF copies of the COA forms', p('Every COA form with an Excel button also has a **PDF** button: the same form, the same layout, ready to print or attach. On the lists, choose Excel, CSV or PDF in the **Format** field.')),
       statuses(p('Not applicable.')),
       forms(p('As listed above.')),
       tips('CSV files open in Excel with Filipino characters intact (UTF-8).', 'Leave the dates empty on a master list to get everything.'),

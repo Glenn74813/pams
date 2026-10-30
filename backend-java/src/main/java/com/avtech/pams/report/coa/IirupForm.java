@@ -171,6 +171,8 @@ public class IirupForm {
             else x.set("O" + row, "✓");
 
             x.style("B" + row + ":S" + row).border(Edge.ALL, Line.THIN).vcenter();
+            x.style("C" + row + ":D" + row).wrap();
+            x.style("K" + row).wrap();
             x.style("D" + row + ":S" + row).center();
 
             row++;

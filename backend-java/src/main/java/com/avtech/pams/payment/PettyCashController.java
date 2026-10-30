@@ -332,7 +332,7 @@ public class PettyCashController {
         byte[] bytes = form.voucher(new PettyCashVoucherForm.Voucher(given(entity, "agency_name"), f.fundCluster() != null ? f.fundCluster() : settings.get("fund_cluster", ""),
                 f.name(), v.number(), v.date(), v.payee(), v.particulars(), v.rc(), v.amount(), names.get(v.approvedBy()), names.get(f.custodianId()), v.status()));
         String file = "PCV_" + v.number() + ".xlsx";
-        audit.record("downloaded", VOUCHER, id, "Downloaded PCV " + v.number() + " (" + file + ")", null, Map.of("file", file));
+        audit.record("downloaded", VOUCHER, id, "Downloaded PCV " + v.number() + " (" + com.avtech.pams.report.PdfFormAdvice.fileName(file) + ")", null, Map.of("file", com.avtech.pams.report.PdfFormAdvice.fileName(file)));
         return PaymentController.xlsx(bytes, file);
     }
 
@@ -352,7 +352,7 @@ public class PettyCashController {
                 f.fundCluster() != null ? f.fundCluster() : settings.get("fund_cluster", ""), f.name(), names.get(f.custodianId()), r.number(), r.date(),
                 f.amount(), onHand, lines, r.total(), r.status(), r.reference(), r.replenishedDate()));
         String file = "PettyCashReplenishment_" + r.number() + ".xlsx";
-        audit.record("downloaded", REPLENISHMENT, id, "Downloaded Report of Petty Cash replenishment " + r.number() + " (" + file + ")", null, Map.of("file", file));
+        audit.record("downloaded", REPLENISHMENT, id, "Downloaded Report of Petty Cash replenishment " + r.number() + " (" + com.avtech.pams.report.PdfFormAdvice.fileName(file) + ")", null, Map.of("file", com.avtech.pams.report.PdfFormAdvice.fileName(file)));
         return PaymentController.xlsx(bytes, file);
     }
 

@@ -408,7 +408,7 @@ public class PaymentController {
     }
 
     ResponseEntity<byte[]> file(byte[] bytes, String filename, String what, Long id) {
-        audit.record("downloaded", TYPE, id, "Downloaded " + what + " (" + filename + ")", null, Map.of("file", filename));
+        audit.record("downloaded", TYPE, id, "Downloaded " + what + " (" + com.avtech.pams.report.PdfFormAdvice.fileName(filename) + ")", null, Map.of("file", com.avtech.pams.report.PdfFormAdvice.fileName(filename)));
         return xlsx(bytes, filename);
     }
 

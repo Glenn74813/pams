@@ -125,6 +125,11 @@ NPC IMS Terms of Reference (V23):
 - Reports (`report/TorReportController`): PPE Ledger Card (App. 70), Supplies Ledger Card (App. 57), semi-expendable
   cards, RegSPI, RSPI, ITR, IRP, CNAS, COS letter of undertaking; list reports (lapsing schedule, PIF, IAR/RIS/PO
   registers, master lists) render through `TabularReport` to xlsx, CSV (UTF-8 BOM) or PDF (OpenPDF, icu4j excluded).
+- Period reports (TOR 1.6.4, `report/TorPeriodReports`): `GET /api/reports/registers/{par|ics|property-transactions|stock-movements|physical-counts|wmr|iirup|rlsddp|gate-passes|transfers|reorder-point}/export`
+  with optional `from`, `to` and `format` (xlsx, csv or pdf). The Reports page also offers a month or a year.
+- PDF of any COA form (TOR 1.6.2): add `format=pdf` to a form's export URL. `PdfFormAdvice` draws the workbook the form
+  built on PDF pages (`XlsxPdf`: its widths, merges, borders, fonts, signature images and page setup), so a form has one
+  layout to maintain. Check marks are drawn; text the standard fonts lack (₱) uses the Unicode font bundled with OpenPDF.
 - Dashboard: stock value and assets by category, received/issued per month over 12 months, overdue maintenance.
 
 Issuance assigns RIS numbers (plus ICS for semi-expendable and PAR for PPE) when stock goes out; both "approve all" and

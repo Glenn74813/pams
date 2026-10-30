@@ -190,7 +190,7 @@ public class ClearanceController {
         if (!"issued".equals(c.status())) throw ApiException.of(HttpStatus.CONFLICT, "Only an issued certificate can be printed.");
         byte[] file = form.generate(id, settings.get("agency_name", ""));
         String name = "Clearance_" + c.certificateNumber() + ".xlsx";
-        audit.record("downloaded", "ClearanceCertificate", id, "Downloaded clearance certificate " + c.certificateNumber() + " (" + name + ")", null, Map.of("file", name));
+        audit.record("downloaded", "ClearanceCertificate", id, "Downloaded clearance certificate " + c.certificateNumber() + " (" + com.avtech.pams.report.PdfFormAdvice.fileName(name) + ")", null, Map.of("file", com.avtech.pams.report.PdfFormAdvice.fileName(name)));
         return ResponseEntity.ok().contentType(MediaType.parseMediaType("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"))
                 .header(HttpHeaders.CONTENT_DISPOSITION, ContentDisposition.attachment().filename(name, StandardCharsets.UTF_8).build().toString())
                 .body(file);

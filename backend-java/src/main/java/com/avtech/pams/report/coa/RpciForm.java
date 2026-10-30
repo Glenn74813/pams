@@ -192,6 +192,7 @@ public class RpciForm {
         }
 
         x.style("B" + row + ":K" + row).border(Edge.ALL, Line.THIN).vcenter();
+        x.style("B" + row + ":D" + row).wrap();
         x.style("D" + row + ":J" + row).center();
     }
 

@@ -58,7 +58,7 @@ public class RpcppeForm {
         colWidths.put("B", 3.0);
         colWidths.put("C", 14.0);
         colWidths.put("D", 20.0);
-        colWidths.put("E", 14.0);
+        colWidths.put("E", 18.0);
         colWidths.put("F", 10.0);
         colWidths.put("G", 12.0);
         colWidths.put("H", 12.0);
@@ -159,6 +159,7 @@ public class RpcppeForm {
             x.set("L" + row, property.get("condition") + " / " + property.get("status"));
 
             x.style("C" + row + ":L" + row).border(Edge.ALL, Line.THIN).vcenter();
+            x.style("C" + row + ":E" + row).wrap();
             x.style("E" + row + ":K" + row).center();
 
             row++;

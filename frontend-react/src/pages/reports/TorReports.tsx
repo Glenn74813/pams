@@ -109,9 +109,18 @@ function UserField({ id, label, value, onChange, options, allLabel }: {
 }
 
 /** A date-range list report (register or master list) in Excel, CSV or PDF. */
-function RangeReport({ id, title, hint, path, name, optional, office, options }: {
+type PeriodKind = 'dates' | 'month' | 'year'
+
+function lastDayOf(ym: string) {
+  const [y, m] = ym.split('-').map(Number)
+  const d = new Date(y, m, 0).getDate()
+  return `${ym}-${String(d).padStart(2, '0')}`
+}
+
+function RangeReport({ id, title, code, hint, path, name, optional, office, options, extra, extraParams }: {
   id: string
   title: string
+  code?: string
   hint: string
   path: string
   name: string
@@ -119,27 +128,106 @@ function RangeReport({ id, title, hint, path, name, optional, office, options }:
   optional?: boolean
   office?: boolean
   options?: TorOptions
+  /** More filter fields for this report. */
+  extra?: React.ReactNode
+  extraParams?: Record<string, string | undefined>
 }) {
-  const [from, setFrom] = useState(optional ? '' : firstOfYear())
-  const [to, setTo] = useState(optional ? '' : today())
+  const [kind, setKind] = useState<PeriodKind>('dates')
+  const [month, setMonth] = useState(today().slice(0, 7))
+  const [year, setYear] = useState(today().slice(0, 4))
+  const [fromDate, setFrom] = useState(optional ? '' : firstOfYear())
+  const [toDate, setTo] = useState(optional ? '' : today())
   const [dept, setDept] = useState('')
   const [format, setFormat] = useState<Format>('xlsx')
+  const from = kind === 'month' ? (month ? `${month}-01` : '') : kind === 'year' ? (/^\d{4}$/.test(year) ? `${year}-01-01` : '') : fromDate
+  const to = kind === 'month' ? (month ? lastDayOf(month) : '') : kind === 'year' ? (/^\d{4}$/.test(year) ? `${year}-12-31` : '') : toDate
   const bad = !!from && !!to && to < from
   return (
-    <Section title={title} hint={hint}>
-      <DateField id={`${id}-from`} label={optional ? 'From (optional)' : 'From'} value={from} onChange={setFrom} />
-      <DateField id={`${id}-to`} label={optional ? 'To (optional)' : 'To'} value={to} onChange={setTo} />
+    <Section title={title} code={code} hint={hint}>
+      <div className="field" style={{ minWidth: 120 }}>
+        <label htmlFor={`${id}-kind`}>Period</label>
+        <select id={`${id}-kind`} value={kind} onChange={(e) => setKind(e.target.value as PeriodKind)}>
+          <option value="dates">Any dates</option>
+          <option value="month">Monthly</option>
+          <option value="year">Annual</option>
+        </select>
+      </div>
+      {kind === 'dates' && (
+        <>
+          <DateField id={`${id}-from`} label={optional ? 'From (optional)' : 'From'} value={fromDate} onChange={setFrom} />
+          <DateField id={`${id}-to`} label={optional ? 'To (optional)' : 'To'} value={toDate} onChange={setTo} />
+        </>
+      )}
+      {kind === 'month' && (
+        <div className="field">
+          <label htmlFor={`${id}-month`}>Month</label>
+          <input id={`${id}-month`} type="month" value={month} onChange={(e) => setMonth(e.target.value)} />
+        </div>
+      )}
+      {kind === 'year' && (
+        <div className="field" style={{ maxWidth: 110 }}>
+          <label htmlFor={`${id}-year`}>Year</label>
+          <input id={`${id}-year`} type="number" min={2000} max={2100} value={year} onChange={(e) => setYear(e.target.value)} />
+        </div>
+      )}
       {office && <OfficeField id={`${id}-dept`} value={dept} onChange={setDept} options={options} />}
+      {extra}
       <FormatField id={`${id}-fmt`} value={format} onChange={setFormat} />
       <ExportButton
         path={path}
-        params={{ from: from || undefined, to: to || undefined, department_id: dept || undefined, format }}
+        params={{ from: from || undefined, to: to || undefined, department_id: dept || undefined, ...extraParams, format }}
         name={`${name}.${format}`}
         label="Download"
         disabled={bad || (!optional && (!from || !to))}
       />
       {bad && <span className="small" style={{ color: 'var(--danger)' }}>The end date is before the start date.</span>}
     </Section>
+  )
+}
+
+/** Counts of one kind or all: the RPCI, RPCSP and RPCPPE counts held in a period. */
+function PhysicalCountRegister({ options }: { options?: TorOptions }) {
+  const [type, setType] = useState('')
+  return (
+    <RangeReport id="tor-counts" title="Physical Counts" code="RPCI · RPCSP · RPCPPE" hint="Counts held in the period, with items counted, found and discrepancies. The forms themselves export as at a date from their own tabs."
+      path="/reports/registers/physical-counts/export" name="Physical_Counts" options={options} extraParams={{ count_type: type || undefined }}
+      extra={
+        <div className="field">
+          <label htmlFor="tor-counts-type">Type</label>
+          <select id="tor-counts-type" value={type} onChange={(e) => setType(e.target.value)}>
+            <option value="">All</option>
+            <option value="supplies">Inventories (RPCI)</option>
+            <option value="semi_expendable">Semi-expendable (RPCSP)</option>
+            <option value="ppe">PPE (RPCPPE)</option>
+          </select>
+        </div>
+      }
+    />
+  )
+}
+
+/** Stock Card movements of one item or all. */
+function StockMovements({ options }: { options?: TorOptions }) {
+  const [item, setItem] = useState<Item | null>(null)
+  return (
+    <RangeReport id="tor-stock" title="Stock Card Movements" code="SC" hint="Receipts, issues and running balance for the period. Leave the item empty for all items."
+      path="/reports/registers/stock-movements/export" name="Stock_Movements" options={options} extraParams={{ item_id: item ? String(item.id) : undefined }}
+      extra={
+        <div className="field" style={{ minWidth: 240 }}>
+          <label htmlFor="tor-stock-item">Item (optional)</label>
+          {item ? (
+            <div className="chosen">
+              <span>{item.name}</span>
+              <button type="button" className="btn btn-outline btn-sm" onClick={() => setItem(null)}>
+                Clear
+              </button>
+            </div>
+          ) : (
+            <ItemPicker id="tor-stock-item" onPick={setItem} />
+          )}
+        </div>
+      }
+    />
   )
 }
 
@@ -363,6 +451,28 @@ export function TorReports() {
         path="/reports/registers/ris/export" name="RIS_Monitoring" office options={o} />
       <RangeReport id="tor-po" title="Summary of Purchase Orders" hint="Purchase orders by PO date: supplier, mode of procurement, amount, status and deliveries."
         path="/reports/registers/purchase-orders/export" name="PO_Summary" options={o} />
+
+      <h4 className="muted small" style={{ textTransform: 'uppercase', margin: '1rem 0 0.5rem' }}>Monthly, annual or any dates</h4>
+      <RangeReport id="tor-par" title="Property Acknowledgment Receipts" code="PAR" hint="PARs issued in the period, with asset, accountable officer and amount."
+        path="/reports/registers/par/export" name="PAR_Register" options={o} />
+      <RangeReport id="tor-ics" title="Inventory Custodian Slips" code="ICS" hint="ICSs issued in the period, with item, custodian and amount."
+        path="/reports/registers/ics/export" name="ICS_Register" options={o} />
+      <RangeReport id="tor-pc" title="Property Card Transactions" code="PC" hint="Acquisitions, transfers, returns and disposals of every asset in the period."
+        path="/reports/registers/property-transactions/export" name="Property_Transactions" options={o} />
+      <StockMovements options={o} />
+      <PhysicalCountRegister options={o} />
+      <RangeReport id="tor-iirup" title="Unserviceable Property" code="IIRUP" hint="Assets disposed of in the period after inspection."
+        path="/reports/registers/iirup/export" name="IIRUP_Register" options={o} />
+      <RangeReport id="tor-wmr" title="Waste Materials" code="WMR" hint="Everything disposed of in the period, assets and supplies."
+        path="/reports/registers/wmr/export" name="WMR_Register" options={o} />
+      <RangeReport id="tor-rlsddp" title="Lost or Damaged Property" code="RLSDDP" hint="Assets reported lost or damaged in the period, from gate pass returns and asset records."
+        path="/reports/registers/rlsddp/export" name="RLSDDP_Register" options={o} />
+      <RangeReport id="tor-rta" title="Transfers of Accountability" code="RTA" hint="Every change of accountable officer in the period, with its reason and approver."
+        path="/reports/registers/transfers/export" name="RTA_Register" options={o} />
+      <RangeReport id="tor-gate" title="Gate Passes" hint="Gate passes released in the period, with what came back."
+        path="/reports/registers/gate-passes/export" name="Gate_Passes" options={o} />
+      <RangeReport id="tor-reorder" title="Reordering Point" hint="Items at or below their reorder point today, with what was issued in the period and what to order."
+        path="/reports/registers/reorder-point/export" name="Reordering_Point" options={o} />
 
       <h4 className="muted small" style={{ textTransform: 'uppercase', margin: '1rem 0 0.5rem' }}>Master lists</h4>
       <RangeReport id="tor-ml-assets" title="Asset Master List" hint="Every asset with class, cost, book value, holder and status; dates filter on acquisition date."

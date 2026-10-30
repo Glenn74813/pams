@@ -192,7 +192,7 @@ public class PlanningReportController {
     }
 
     private ResponseEntity<byte[]> file(byte[] bytes, String filename, String what, String type, Long id) {
-        audit.record("downloaded", type, id, "Downloaded " + what + " (" + filename + ")", null, Map.of("file", filename));
+        audit.record("downloaded", type, id, "Downloaded " + what + " (" + PdfFormAdvice.fileName(filename) + ")", null, Map.of("file", PdfFormAdvice.fileName(filename)));
         return ResponseEntity.ok()
                 .contentType(MediaType.parseMediaType(CoaExportController.XLSX))
                 .header(HttpHeaders.CONTENT_DISPOSITION, ContentDisposition.attachment()

@@ -40,7 +40,7 @@ public class RlsddpForm {
                            String department, String rlsddpNumber, String rlsddpDate, String parNumber, String parDate,
                            Boolean policeNotified, String policeStation, String policeDate) {
         List<Map<String, Object>> found = jdbc.queryForList("""
-                select p.id, p.tag_number, p.serial_number, i.name as item_name, i.weighted_average_cost, u.name as assigned_name
+                select p.id, p.tag_number, p.serial_number, i.name as item_name, coalesce(p.acquisition_cost, i.weighted_average_cost) as acquisition_cost, u.name as assigned_name
                 from properties p
                 left join items i on i.id = p.item_id
                 left join users u on u.id = p.assigned_to
@@ -149,9 +149,10 @@ public class RlsddpForm {
         int row = 22;
         x.set("B" + row, property.get("tag_number"));
         x.merge("C" + row + ":F" + row);
-        x.set("C" + row, PropertyCardForm.str(property.get("item_name")) + " (S/N: " + PropertyCardForm.str(property.get("serial_number")) + ")");
+        String serial = PropertyCardForm.str(property.get("serial_number"));
+        x.set("C" + row, PropertyCardForm.str(property.get("item_name")) + (serial.isBlank() ? "" : " (S/N: " + serial + ")"));
         x.merge("G" + row + ":H" + row);
-        x.set("G" + row, PropertyCardForm.dbl(property.get("weighted_average_cost")));
+        x.set("G" + row, PropertyCardForm.dbl(property.get("acquisition_cost")));
         x.style("G" + row).numberFormat("#,##0.00");
         x.style("B" + row + ":H" + row).border(Edge.ALL, Line.THIN);
 
@@ -186,8 +187,10 @@ public class RlsddpForm {
         cRow += 2;
         x.merge("B" + cRow + ":E" + cRow);
         x.set("B" + cRow, "I hereby certify that the item/s and circumstances stated above are true and correct.");
-        x.style("B" + cRow).size(9);
+        x.style("B" + cRow).size(9).wrap().valign(Xlsx.V.TOP);
+        x.height(cRow, 26);
         x.set("F" + cRow, "Noted by:");
+        x.style("F" + cRow).valign(Xlsx.V.TOP);
 
         // Signatures
         cRow += 2;
