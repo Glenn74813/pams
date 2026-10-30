@@ -519,7 +519,13 @@ public class RfqController {
             if (p == null) throw ApiException.validation(f + "purchase_request_item_id", "Line " + (i + 1) + " is not on the purchase request.");
             if (!seen.add(p.id())) throw ApiException.validation(f + "purchase_request_item_id", "\"" + p.description() + "\" is listed twice.");
             boolean afterFailure = twoFailed && "Competitive Bidding".equals(p.mode()) && "Negotiated Procurement".equals(method);
-            if (p.mode() != null && !p.mode().equals(method) && !afterFailure) {
+            // Common-use supplies come from PS-DBM; only a Certificate of Non-Availability of Stock (valid 15 days) lets them be bought elsewhere.
+            boolean psOut = ProcurementRules.PS_DBM.equals(p.mode()) && List.of("Shopping", "Small Value Procurement").contains(method) && cnasValid(p.id());
+            if (ProcurementRules.PS_DBM.equals(p.mode()) && !psOut) {
+                throw ApiException.validation("procurement_method", "\"" + p.description() + "\" is a common-use item for PS-DBM; buy it through a PS-DBM "
+                        + "Agency Procurement Request, or record PS's Certificate of Non-Availability of Stock there first (then Shopping or SVP within 15 days).");
+            }
+            if (p.mode() != null && !p.mode().equals(method) && !afterFailure && !psOut) {
                 throw ApiException.validation("procurement_method", "\"" + p.description() + "\" was planned under " + p.mode() + "; the RFQ method must match the approved mode (RA 12009)"
                         + ("Competitive Bidding".equals(p.mode()) && "Negotiated Procurement".equals(method) ? ", or the PR must have two failed biddings." : "."));
             }
@@ -652,4 +658,14 @@ public class RfqController {
     private static String blank(String s) {
         return text(s);
     }
+
+    /** A PS Certificate of Non-Availability of Stock for this PR line, issued within the last 15 days. */
+    private boolean cnasValid(Long prItemId) {
+        Integer n = jdbc.queryForObject("""
+                select count(*) from ps_order_items pi join ps_orders o on o.id = pi.ps_order_id
+                where pi.purchase_request_item_id = ? and pi.availability = 'not_available' and o.deleted_at is null and pi.cnas_date >= ?""",
+                Integer.class, prItemId, java.sql.Date.valueOf(LocalDate.now(Times.ZONE).minusDays(15)));
+        return n != null && n > 0;
+    }
+
 }

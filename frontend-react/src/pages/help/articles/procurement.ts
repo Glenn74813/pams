@@ -152,6 +152,72 @@ export const procurementArticles: Article[] = [
   },
 
   {
+    slug: 'ps-dbm',
+    title: 'PS-DBM (Common-Use Supplies)',
+    area: 'procurement',
+    route: '/ps-dbm',
+    keywords: ['PS-DBM', 'Procurement Service', 'common-use supplies', 'CSE', 'APP-CSE', 'Agency Procurement Request', 'APR', 'Virtual Store', 'PhilGEPS', 'delivery receipt', 'CNAS', 'non-availability of stock', 'e-wallet'],
+    summary:
+      'Buy common-use supplies and equipment from the Procurement Service of the DBM without bidding: Agency Procurement Request, Virtual Store order, payment, PS Delivery Receipt, then inspection in Receiving.',
+    sections: [
+      who(
+        'The page opens for view_procurement, edit_procurement or approve_procurement.',
+        'edit_procurement: prepare, place, pay, record delivery and cancel requests, and keep the PS price catalogue (seeded: Admin, Purchaser).',
+      ),
+      purpose(
+        p('Government agencies buy common-use supplies and equipment (CSE) from the Procurement Service of the DBM (LOI 755, EO 359 s. 1989, AO 17 s. 2011) instead of bidding them out. PS sells through the PhilGEPS **Virtual Store**: the agency uploads its APP-CSE, funds its e-Wallet, orders, pays, and picks up or receives the goods against PS\'s Delivery Receipt.'),
+        p('In PAMS, plan those lines as **Procurement from PS-DBM** on the PPMP, APP and purchase request. The APP-CSE form in Procurement Reports lists them for upload to the Virtual Store.'),
+      ),
+      sec(
+        'catalogue',
+        'Keep the PS price catalogue',
+        steps(
+          'Open the **PS price catalogue** tab and click **+ Add item**.',
+          'Enter the **PS item code**, **Description**, **Unit**, **PS price** and **Price as of**, as shown in the Virtual Store.',
+          'When PS changes a price, edit the item. Untick **In the current PS catalogue** for items PS no longer sells.',
+        ),
+      ),
+      sec(
+        'request',
+        'Prepare the Agency Procurement Request',
+        steps(
+          'Click **+ New request** and choose the **Approved purchase request**. Only approved PRs with PS-DBM lines not yet on a request are listed.',
+          'Tick the lines, pick the **PS catalogue item** (or type the PS price) and set the **Qty**. The PS price may not exceed the PR estimate.',
+          'Click **Save draft**. The request is numbered APR-YYYY-NNNN.',
+        ),
+      ),
+      sec(
+        'virtual-store',
+        'Place, pay and receive',
+        steps(
+          'Order the same items in the Virtual Store, then click **Placed in Virtual Store…** and enter its order reference.',
+          'If PS has no stock of a line, click **Not available…** and record the Certificate of Non-Availability of Stock (CNAS). That line drops off the request and, for 15 days, can be bought by Shopping or Small Value Procurement through an RFQ.',
+          'Pay PS (cash, LDDAP-ADA, check, or funds already with PS) and click **Record payment…**. The amount must equal the request total.',
+          'When PS issues its Delivery Receipt, click **Record Delivery Receipt…**: pick-up at the depot or delivery. PS releases a request in one lot.',
+          'An order to PS-DBM opens in **Receiving**, numbered as the APR. Inspect, accept and take the items into stock there as with any delivery.',
+        ),
+        warn('A paid request cannot be cancelled here. Ask PS for a refund, or leave the amount with PS as unutilized funds for the next order. Wrongly ordered items may be returned to PS within a month of the Delivery Receipt, with a letter of explanation.'),
+      ),
+      statuses(
+        table(
+          ['Status', 'What moves it'],
+          [
+            ['Draft', '+ New request'],
+            ['In Virtual Store', 'Placed in Virtual Store…'],
+            ['Paid', 'Record payment…'],
+            ['Delivered (DR)', 'Record Delivery Receipt… (then Receiving)'],
+            ['Cancelled', 'Cancel request (before payment), or every line not available'],
+          ],
+        ),
+      ),
+      tips(
+        'PS-DBM lines cannot go on an RFQ or bidding unless PS issued a CNAS within the last 15 days.',
+        'The Agency Procurement Report (Procurement Reports) counts these requests under "Procurement from PS-DBM".',
+      ),
+    ],
+  },
+
+  {
     slug: 'rfq',
     title: 'RFQ and Alternative Modes',
     area: 'procurement',

@@ -17,7 +17,7 @@ public class DocumentNumbers {
 
     /** table.column pairs a number may be read from; keeps the SQL below injection-free. */
     private static final Set<String> COLUMNS = Set.of(
-            "requests.request_number", "requests.ris_number", "requests.ics_number", "requests.par_number",
+            "requests.request_number", "ps_orders.apr_number", "requests.ris_number", "requests.ics_number", "requests.par_number",
             "stock_adjustments.adjustment_number", "properties.tag_number", "properties.accountability_number",
             "property_transfers.reference_number", "disposal_requests.disposal_number", "gate_passes.gate_pass_number",
             "ppmps.ppmp_number", "apps.app_number", "purchase_requests.pr_number", "purchase_requests.caf_number",

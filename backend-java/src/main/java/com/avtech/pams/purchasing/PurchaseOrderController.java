@@ -267,6 +267,7 @@ public class PurchaseOrderController {
     @Transactional
     public PoView update(@PathVariable Long id, @RequestBody PoInput in) {
         PurchaseOrder po = lock(id);
+        notFromPs(po);
         if (!PurchaseOrder.DRAFT.equals(po.getStatus())) throw ApiException.of(HttpStatus.CONFLICT, "Only a draft purchase order can be changed.");
         Map<String, Object> before = snapshot(po);
         BigDecimal awarded = po.getBiddingId() == null ? null
@@ -284,6 +285,7 @@ public class PurchaseOrderController {
     @Transactional
     public PoView send(@PathVariable Long id) {
         PurchaseOrder po = lock(id);
+        notFromPs(po);
         if (!PurchaseOrder.DRAFT.equals(po.getStatus())) throw ApiException.of(HttpStatus.CONFLICT, "Only a draft purchase order can be approved and sent.");
         User me = current.user();
         if (me.getId().equals(po.getCreatedBy()) && !me.isSuperAdmin()) throw ApiException.forbidden("You prepared this purchase order, so someone else has to approve it.");
@@ -302,6 +304,7 @@ public class PurchaseOrderController {
     @Transactional
     public PoView confirm(@PathVariable Long id) {
         PurchaseOrder po = lock(id);
+        notFromPs(po);
         if (!PurchaseOrder.SENT.equals(po.getStatus())) throw ApiException.of(HttpStatus.CONFLICT, "Only a sent purchase order can be confirmed.");
         po.setStatus(PurchaseOrder.CONFIRMED);
         orders.flush();
@@ -319,6 +322,7 @@ public class PurchaseOrderController {
     @Transactional
     public PoView cancel(@PathVariable Long id, @RequestBody(required = false) ReasonInput in) {
         PurchaseOrder po = lock(id);
+        notFromPs(po);
         if (!List.of(PurchaseOrder.DRAFT, PurchaseOrder.SENT, PurchaseOrder.CONFIRMED).contains(po.getStatus())) {
             throw ApiException.of(HttpStatus.CONFLICT, "A purchase order with deliveries, or already closed, cannot be cancelled.");
         }
@@ -340,6 +344,7 @@ public class PurchaseOrderController {
     @Transactional
     public Map<String, Object> destroy(@PathVariable Long id) {
         PurchaseOrder po = lock(id);
+        notFromPs(po);
         if (!PurchaseOrder.DRAFT.equals(po.getStatus())) throw ApiException.of(HttpStatus.CONFLICT, "Only a draft purchase order can be deleted; cancel it instead.");
         po.setDeletedAt(Times.now());
         jdbc.update("update contracts set purchase_order_id = null, updated_at = ? where purchase_order_id = ?", java.sql.Timestamp.valueOf(Times.now()), po.getId());
@@ -419,7 +424,8 @@ public class PurchaseOrderController {
                     Math.max(0, i.getQuantity() - delivered.getOrDefault(i.getId(), 0)), i.getRfqItemId(), i.getBiddingItemId())).toList();
             List<InspectionReport> iars = full ? reports.findByPurchaseOrderIdOrderByIdAsc(po.getId()) : List.of();
             String[] pr = po.getPurchaseRequestId() == null ? null : prs.get(po.getPurchaseRequestId());
-            Source source = po.getRfqId() != null ? sourceOf("rfq", po.getRfqId()) : po.getBiddingId() != null ? sourceOf("bidding", po.getBiddingId()) : null;
+            Source source = po.getRfqId() != null ? sourceOf("rfq", po.getRfqId()) : po.getBiddingId() != null ? sourceOf("bidding", po.getBiddingId())
+                    : po.getPsOrderId() != null ? sourceOf("ps", po.getPsOrderId()) : null;
             boolean own = me.getId().equals(po.getCreatedBy()) && !me.isSuperAdmin();
             boolean open = !PurchaseOrder.RECEIVED.equals(po.getStatus()) && !PurchaseOrder.CANCELLED.equals(po.getStatus());
             out.put(po, new PoView(po.getId(), po.getPoNumber(), po.getStatus(), new Ref(po.getSupplierId(), suppliers.get(po.getSupplierId())),
@@ -438,8 +444,16 @@ public class PurchaseOrderController {
 
     private Source sourceOf(String type, Long id) {
         String sql = "rfq".equals(type) ? "select rfq_number, noa_number, procurement_method from rfqs where id = ?"
+                : "ps".equals(type) ? "select apr_number, null, '" + com.avtech.pams.procurement.ProcurementRules.PS_DBM + "' from ps_orders where id = ?"
                 : "select bidding_number, noa_number, 'Competitive Bidding' from biddings where id = ?";
         return jdbc.query(sql, rs -> rs.next() ? new Source(type, id, rs.getString(1), rs.getString(2), rs.getString(3)) : null, id);
+    }
+
+    /** The order to PS-DBM follows its Agency Procurement Request; only receiving acts on it here. */
+    private static void notFromPs(PurchaseOrder po) {
+        if (po.getPsOrderId() != null) {
+            throw ApiException.of(HttpStatus.CONFLICT, po.getPoNumber() + " is a PS-DBM order; it is managed from its Agency Procurement Request.");
+        }
     }
 
     private String fundSource(Long prId) {

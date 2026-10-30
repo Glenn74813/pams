@@ -75,6 +75,10 @@ public class PurchaseOrder extends Timestamped {
     @Column(name = "bidding_id")
     private Long biddingId;
 
+    /** Set on the order to PS-DBM opened from an Agency Procurement Request; it is managed from the APR. */
+    @Column(name = "ps_order_id")
+    private Long psOrderId;
+
     @Column(name = "deleted_at")
     private LocalDateTime deletedAt;
 
@@ -123,6 +127,8 @@ public class PurchaseOrder extends Timestamped {
     public void setRfqId(Long rfqId) { this.rfqId = rfqId; }
     public Long getBiddingId() { return biddingId; }
     public void setBiddingId(Long biddingId) { this.biddingId = biddingId; }
+    public Long getPsOrderId() { return psOrderId; }
+    public void setPsOrderId(Long psOrderId) { this.psOrderId = psOrderId; }
     public LocalDateTime getDeletedAt() { return deletedAt; }
     public void setDeletedAt(LocalDateTime deletedAt) { this.deletedAt = deletedAt; }
     public List<PurchaseOrderItem> getItems() { return items; }

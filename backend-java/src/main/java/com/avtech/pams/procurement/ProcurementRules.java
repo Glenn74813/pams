@@ -17,9 +17,11 @@ import java.util.Map;
 @Component
 public class ProcurementRules {
 
+    /** Common-use supplies and equipment bought from the Procurement Service of the DBM (LOI 755, EO 359, AO 17), without bidding. */
+    public static final String PS_DBM = "Procurement from PS-DBM";
     public static final List<String> MODES = List.of("Competitive Bidding", "Competitive Dialogue", "Limited Source Bidding",
             "Direct Contracting", "Direct Acquisition", "Repeat Order", "Small Value Procurement", "Negotiated Procurement",
-            "Shopping", "Direct Sales", "Unsolicited Offer");
+            "Shopping", "Direct Sales", "Unsolicited Offer", PS_DBM);
     public static final List<String> CATEGORIES = List.of("Goods", "Infrastructure Projects", "Consulting Services");
     public static final List<String> FUND_SOURCES = List.of("General Appropriations Act (GAA)", "Continuing Appropriations",
             "Special Purpose Funds (SPFs)", "Automatic Appropriations", "Revolving Funds", "Trust Receipts / Trust Funds",

@@ -85,6 +85,19 @@ public class AprForm {
                 group by coalesce(nullif(trim(r.procurement_method), ''), 'Unspecified')""", rs -> {
             fill(by.computeIfAbsent(rs.getString(1), Tally::new), rs.getLong(2), rs.getLong(3), rs.getLong(4), rs.getBigDecimal(5), rs.getBigDecimal(6), rs.getBigDecimal(7));
         }, fiscalYear);
+        // PS-DBM requests: paid or delivered ones count as awarded at the PS price; cancelled ones as unsuccessful.
+        jdbc.query("""
+                select count(*), coalesce(sum(case when o.status in ('paid', 'delivered') then 1 else 0 end), 0),
+                       coalesce(sum(case when o.status = 'cancelled' then 1 else 0 end), 0), coalesce(sum(o.total_amount), 0),
+                       coalesce(sum(case when o.status in ('paid', 'delivered') then o.total_amount end), 0),
+                       coalesce(sum(case when o.status in ('paid', 'delivered') then o.total_amount end), 0)
+                from ps_orders o join purchase_requests pr on pr.id = o.purchase_request_id
+                where o.deleted_at is null and coalesce(pr.fiscal_year,""" + " " + db.year("o.created_at") + ") = ?", rs -> {
+            if (rs.getLong(1) > 0) {
+                fill(by.computeIfAbsent(com.avtech.pams.procurement.ProcurementRules.PS_DBM, Tally::new), rs.getLong(1), rs.getLong(2), rs.getLong(3),
+                        rs.getBigDecimal(4), rs.getBigDecimal(5), rs.getBigDecimal(6));
+            }
+        }, fiscalYear);
         jdbc.query("""
                 select ai.procurement_mode, count(*), coalesce(sum(ai.estimated_budget), 0)
                 from app_items ai join apps a on a.id = ai.app_id

@@ -16,6 +16,7 @@ import { SemiExpendablePage } from './pages/issuance/SemiExpendablePage'
 import { WarehousePage } from './pages/inventory/WarehousePage'
 import { PlanningPage } from './pages/procurement/PlanningPage'
 import { RfqPage } from './pages/rfq/RfqPage'
+import { PsDbmPage } from './pages/psdbm/PsDbmPage'
 import { BiddingPage } from './pages/bidding/BiddingPage'
 import { PurchaseOrdersPage } from './pages/purchasing/PurchaseOrdersPage'
 import { ReceivingPage } from './pages/purchasing/ReceivingPage'
@@ -55,6 +56,7 @@ const ported: Record<string, React.ReactNode> = {
   '/procurement-planning': <PlanningPage />,
   '/purchase-requests': <PurchaseRequestsPage />,
   '/rfq': <RfqPage />,
+  '/ps-dbm': <PsDbmPage />,
   '/bidding': <BiddingPage />,
   '/procurement': <PurchaseOrdersPage />,
   '/receiving': <ReceivingPage />,

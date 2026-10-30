@@ -161,6 +161,7 @@ public final class Permissions {
                 "pr_approve_department", "pr_approve_budget", "pr_approve_accounting", "pr_approve_bac"));
         m.put("bac", List.of("view_bac", "manage_bac_meetings", "manage_bac_resolutions", "conduct_bid_evaluation"));
         m.put("rfq", List.of("view_rfq", "create_rfq", "generate_abstract"));
+        m.put("ps-dbm", List.of("view_procurement", "edit_procurement", "approve_procurement"));
         m.put("bidding", List.of("view_bidding", "manage_bidding", "process_award"));
         m.put("contracts", List.of("view_contracts", "create_contracts", "edit_contracts"));
         m.put("suppliers", List.of("view_suppliers", "create_suppliers", "edit_suppliers"));

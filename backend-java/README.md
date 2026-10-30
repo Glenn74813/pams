@@ -71,6 +71,7 @@ Windows Server deployment (SQL Server, HTTPS, Windows service): see `../docs/dep
 | Settings | `GET/PUT /api/settings`, `GET/PUT settings/mis`, `GET/PUT settings/signatories`, `GET settings/signatory/{role}`, `GET/POST settings/document-logos`, `PUT/DELETE settings/document-logos/{id}` |
 | Audit trail | `GET /api/audit`, `GET {id}`, `GET filters`, `GET verify` (recompute seals), `GET export` (CSV), `POST events` (prints/downloads) |
 | Offices | `GET/POST /api/departments`, `PUT/DELETE {id}` |
+| PS-DBM | `GET/POST /api/ps-dbm/catalogue`, `PUT/DELETE catalogue/{id}`, `GET purchase-requests`, `GET/POST orders`, `GET/PUT/DELETE orders/{id}`, `POST orders/{id}/submit`, `pay`, `deliver`, `cancel`, `POST orders/{id}/items/{lineId}/not-available` |
 | Log trails | `GET /api/logs/inventory`, `GET inventory/actions`, `GET login-attempts`, `GET active-users` |
 | BAC | `GET/POST /api/bac/members`, `PUT/DELETE members/{id}`, `GET/POST meetings`, `GET/PUT/DELETE meetings/{id}`, `POST meetings/{id}/attendance`, `GET/POST resolutions`, `GET/PUT/DELETE resolutions/{id}`, `POST resolutions/{id}/submit`, `return`, `approve`, `archive` |
 
@@ -87,6 +88,16 @@ deleted. `GET /api/audit/verify` recomputes the seals; a failed audit write fail
 can be deactivated (`POST /api/users/{id}/deactivate`, `activate`) and lockouts cleared (`unlock`); a password older
 than `password_expiry_days` (Settings → System, 0 = off) allows only `/auth/me`, `change-password`, `logout` and
 `refresh` until it is changed. The test wipe must disable the `audit_trails_append_only` trigger to clear audit rows.
+
+PS-DBM (V22): common-use supplies and equipment are bought from the Procurement Service of the DBM without
+bidding (LOI 755, EO 359 s. 1989, AO 17 s. 2011). Lines planned as "Procurement from PS-DBM" on an approved PR go on
+an Agency Procurement Request (`APR-YYYY-NNNN`, PS catalogue prices, not above the PR estimate), which follows the
+Virtual Store: draft → submitted (Virtual Store order reference) → paid (cash, LDDAP-ADA, check or unutilized funds;
+the whole request) → delivered (PS Delivery Receipt). The DR opens a confirmed purchase order to the "Procurement
+Service - DBM" supplier, numbered as the APR and linked by `purchase_orders.ps_order_id`, which Receiving inspects
+and takes into stock; that order cannot be edited or cancelled from Purchase Orders. A line PS cannot supply takes
+the Certificate of Non-Availability of Stock: it leaves the request and, for 15 days, may go on a Shopping or SVP RFQ.
+PS-DBM lines cannot otherwise go to an RFQ or bidding. The Agency Procurement Report counts the requests.
 
 Issuance assigns RIS numbers (plus ICS for semi-expendable and PAR for PPE) when stock goes out; both "approve all" and
 per-line approval issue first-expired-first-out and write the stock card. Requesters can't approve their own requests and
