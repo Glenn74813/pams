@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { NavLink, Outlet, useLocation } from 'react-router'
-import { ChevronsUpDown, CircleHelp, LogOut, Settings, type LucideIcon } from 'lucide-react'
+import { ChevronDown, ChevronsUpDown, CircleHelp, LogOut, Settings, type LucideIcon } from 'lucide-react'
 import { auditApi } from '../api/endpoints'
 import { useAuth } from '../auth/AuthContext'
 import { dashboardItem, menuGroups } from './menu'
@@ -23,6 +23,17 @@ function initials(name: string) {
     .join('')
 }
 
+const COLLAPSED_KEY = 'pams.sidebar.collapsed'
+
+/** Sections the person folded away, remembered in this browser. */
+function savedCollapsed(): Record<string, boolean> {
+  try {
+    return JSON.parse(localStorage.getItem(COLLAPSED_KEY) ?? '{}') as Record<string, boolean>
+  } catch {
+    return {}
+  }
+}
+
 function NavIcon({ icon: Icon }: { icon: LucideIcon }) {
   return <Icon className="icon" size={18} strokeWidth={1.75} aria-hidden />
 }
@@ -32,6 +43,17 @@ export function AppLayout() {
   const location = useLocation()
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const [userMenuOpen, setUserMenuOpen] = useState(false)
+  const [collapsed, setCollapsed] = useState<Record<string, boolean>>(savedCollapsed)
+  const toggle = (key: string) =>
+    setCollapsed((c) => {
+      const next = { ...c, [key]: !c[key] }
+      try {
+        localStorage.setItem(COLLAPSED_KEY, JSON.stringify(next))
+      } catch {
+        /* just not remembered */
+      }
+      return next
+    })
   const [shownPath, setShownPath] = useState(location.pathname)
 
   // Printing is recorded in the audit trail (TOR 6.4), whether from a Print button or the browser menu.
@@ -90,19 +112,40 @@ export function AppLayout() {
               </NavLink>
             )}
 
-            {groups.map((group) => (
-              <section key={group.key} className="nav-group" aria-labelledby={`nav-${group.key}`}>
-                <h2 id={`nav-${group.key}`} className="nav-group-label">
-                  {group.label}
-                </h2>
-                {group.children.map((item) => (
-                  <NavLink key={item.path} to={item.path} className={() => 'nav-item' + (isUnder(location.pathname, item.path) ? ' active' : '')}>
-                    <NavIcon icon={item.icon} />
-                    <span className="label">{item.label}</span>
-                  </NavLink>
-                ))}
-              </section>
-            ))}
+            {groups.map((group) => {
+              const hasActive = group.children.some((c) => isUnder(location.pathname, c.path))
+              // The section holding the current page stays open.
+              const open = !collapsed[group.key] || hasActive
+              return (
+                <section key={group.key} className="nav-group">
+                  <button
+                    type="button"
+                    className={'nav-group-label' + (hasActive ? ' has-active' : '')}
+                    onClick={() => toggle(group.key)}
+                    aria-expanded={open}
+                    aria-controls={`nav-${group.key}`}
+                  >
+                    <span>{group.label}</span>
+                    <ChevronDown className={'nav-group-chevron' + (open ? '' : ' closed')} size={14} strokeWidth={2} aria-hidden />
+                  </button>
+                  <div id={`nav-${group.key}`} className={'nav-group-items' + (open ? '' : ' closed')}>
+                    <div className="nav-group-inner">
+                    {group.children.map((item) => (
+                      <NavLink
+                        key={item.path}
+                        to={item.path}
+                        tabIndex={open ? undefined : -1}
+                        className={() => 'nav-item' + (isUnder(location.pathname, item.path) ? ' active' : '')}
+                      >
+                        <NavIcon icon={item.icon} />
+                        <span className="label">{item.label}</span>
+                      </NavLink>
+                    ))}
+                    </div>
+                  </div>
+                </section>
+              )
+            })}
           </nav>
 
           <div className="sidebar-user">
