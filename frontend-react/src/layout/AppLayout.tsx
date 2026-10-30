@@ -6,7 +6,6 @@ import { dashboardItem, menuGroups } from './menu'
 import { NotificationBell } from './NotificationBell'
 import { PageHelp } from './PageHelp'
 import { ScanButton } from './ScanButton'
-import { ThemeSelect } from './ThemeSelect'
 import './AppLayout.css'
 
 /** A path is active on itself and its sub-pages, but /procurement is not active on /procurement-planning. */
@@ -74,7 +73,6 @@ export function AppLayout() {
           <PageHelp />
           <ScanButton />
           <NotificationBell />
-          <ThemeSelect />
         </div>
       </header>
 

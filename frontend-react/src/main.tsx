@@ -3,7 +3,7 @@ import { createRoot } from 'react-dom/client'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { ApiError } from './api/client'
 import { App } from './App'
-import './styles/themes.css'
+import './styles/palette.css'
 import './styles/base.css'
 
 const queryClient = new QueryClient({

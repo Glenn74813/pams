@@ -4,7 +4,7 @@ export const gettingStartedArticle: Article = {
   slug: 'getting-started',
   title: 'Getting started',
   area: 'general',
-  keywords: ['login', 'sign in', 'password', 'two-factor', '2FA', 'authenticator', 'lockout', 'logout', 'theme', 'menu', 'idle'],
+  keywords: ['login', 'sign in', 'password', 'two-factor', '2FA', 'authenticator', 'lockout', 'logout', 'menu', 'idle'],
   summary: 'Signing in, two-factor sign-in, the password rules, finding your way around the menu, and signing out.',
   sections: [
     sec(
@@ -44,7 +44,7 @@ export const gettingStartedArticle: Article = {
       'Finding your way around',
       list(
         'The sidebar shows only the modules your role can open, grouped under Procurement, Vendor Management, Inventory, Assets / Property, Reports & Compliance and Administration. Click a group to open or close it. On a phone, ☰ opens the menu.',
-        'The top bar has **⌖ Scan** (look up items, assets and gate passes), the 🔔 notification bell and the theme selector (Orange, Light, Dark, Blue, Green, Red; remembered in this browser).',
+        'The top bar has **⌖ Scan** (look up items, assets and gate passes) and the 🔔 notification bell.',
         'Most pages have a search box and filters above the list. Click a record\'s number or name to open its details, where the action buttons are.',
         'Buttons only appear for actions you are allowed to take on that record right now.',
       ),

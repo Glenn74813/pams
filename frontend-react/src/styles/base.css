@@ -139,7 +139,7 @@ button, input, select, textarea { font: inherit; }
 .field input:focus, .field select:focus, .field textarea:focus {
   outline: none;
   border-color: var(--primary-accent);
-  box-shadow: 0 0 0 3px rgba(237, 90, 45, 0.15);
+  box-shadow: 0 0 0 3px rgba(3, 105, 161, 0.15);
 }
 .field input:disabled { opacity: 0.7; }
 .field .hint { font-size: 0.75rem; color: var(--text-light); }

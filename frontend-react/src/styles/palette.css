@@ -1,0 +1,41 @@
+/*
+ * The one colour palette: neutral slate surfaces, sky-blue accents, and a dark navy sidebar.
+ * Status colours (success, danger, warning, info) keep their usual meanings.
+ */
+:root {
+  --bg-primary: #ffffff;
+  --bg-secondary: #f1f5f9;
+  --bg-tertiary: #e2e8f0;
+  --text-dark: #0f172a;
+  --text-light: #64748b;
+  --text-white: #ffffff;
+  --border-color: #e2e8f0;
+  --primary-accent: #0369a1;
+  --primary-hover: #075985;
+  --success: #16a34a;
+  --danger: #dc2626;
+  --warning: #d97706;
+  --info: #0284c7;
+  --navbar-bg: #ffffff;
+  --navbar-text: #0f172a;
+  --shadow: 0 1px 3px rgba(15, 39, 68, 0.12);
+  --shadow-lg: 0 4px 14px rgba(15, 39, 68, 0.16);
+  --card-bg: #ffffff;
+  --input-bg: #ffffff;
+  --input-border: #cbd5e1;
+  --input-text: #0f172a;
+  --table-header-bg: #f8fafc;
+  --table-border: #e2e8f0;
+  --table-hover: #f0f9ff;
+  --modal-bg: #ffffff;
+  --badge-bg: #e0f2fe;
+
+  /* Sidebar: dark navy with sky-blue highlights. */
+  --sidebar-bg: #0f2744;
+  --sidebar-text: #cbd5e1;
+  --sidebar-muted: #8ba3c0;
+  --sidebar-hover: rgba(255, 255, 255, 0.07);
+  --sidebar-active-bg: rgba(56, 189, 248, 0.16);
+  --sidebar-accent: #38bdf8;
+  --sidebar-border: rgba(255, 255, 255, 0.08);
+}
