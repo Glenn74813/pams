@@ -96,7 +96,7 @@ PAMS has no live connection to PhilGEPS, the PS-DBM Virtual Store or the DBM BTM
 
 ## 9. Testing
 
-The project has automated API checks that run against both databases. They are not yet part of the repository: they were run from a working folder during development, so a maintainer should bring them in and add them to the build.
+The API suites in [`tests/api`](../tests/api/README.md) drive a running backend and check the results, on PostgreSQL and on SQL Server. They delete data, so they run only on disposable copies of the databases that `tests/api/throwaway-db.sh` makes; `tests/api/run.sh` refuses the working databases. The README there says how to run them.
 
 ## 10. Related documents
 

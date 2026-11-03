@@ -134,6 +134,22 @@ public class AwardSupport {
         return out;
     }
 
+    /**
+     * True when the supplier was let through on the receipt of a permit renewal and has not yet shown the valid
+     * permit, which GPPB Circular 06-2026 (4.3.2 a) requires after the award and before payment.
+     */
+    public boolean permitPending(Long supplierId) {
+        if (supplierId == null) return false;
+        Date today = Date.valueOf(LocalDate.now(Times.ZONE));
+        Integer n = jdbc.queryForObject("""
+                select case when exists (select 1 from supplier_compliance_documents where supplier_id = ? and document_type = ?)
+                             and not exists (select 1 from supplier_compliance_documents where supplier_id = ? and document_type in (?, ?, ?)
+                                             and (expiry_date is null or expiry_date >= ?))
+                            then 1 else 0 end""", Integer.class, supplierId, EligibilityRules.RENEWAL, supplierId,
+                EligibilityRules.MAYOR, EligibilityRules.BUSINESS_PERMIT, EligibilityRules.PLATINUM, today);
+        return n != null && n == 1;
+    }
+
     /** 0 goods, 1 infrastructure, 2 consulting: the strictest category on the lines of an RFQ. */
     public int rfqCategoryRank(Long rfqId) {
         Integer rank = jdbc.queryForObject("""

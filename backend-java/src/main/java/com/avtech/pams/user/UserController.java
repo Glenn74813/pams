@@ -274,8 +274,9 @@ public class UserController {
     public Map<String, Object> unlock(@PathVariable Long id) {
         User u = guarded(id, "unlock");
         if (auth.lockedUntil(u) == null) throw ApiException.of(HttpStatus.CONFLICT, u.getName() + " is not locked out.");
-        // Stored to the second: round up so failures earlier in this second no longer count.
-        u.setLockoutClearedAt(Times.now().withNano(0).plusSeconds(1));
+        // Times are stored rounded to the second, so a failure just before the unlock can be stored one second
+        // after it; starting the count two seconds on keeps every earlier failure out.
+        u.setLockoutClearedAt(Times.now().withNano(0).plusSeconds(2));
         users.flush();
         audit.record("unlocked", AuditService.USER, id, "Cleared the sign-in lockout of " + u.getName(), null, null);
         return Map.of("message", u.getName() + " can try signing in again.", "user", UserView.of(u, null));

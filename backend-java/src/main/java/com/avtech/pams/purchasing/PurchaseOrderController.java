@@ -169,6 +169,8 @@ public class PurchaseOrderController {
     /**
      * ABC unit costs scaled to the awarded amount, rounded down so the lines never exceed it; what
      * rounding leaves over goes to the first line (from the last) whose quantity divides it evenly.
+     * When none does, one unit of the last line is priced on its own line, so the PO adds up to the
+     * awarded amount to the centavo.
      */
     private static List<SourceLine> prorate(List<SourceLine> lines, BigDecimal abc, BigDecimal awarded) {
         if (abc == null || abc.signum() == 0 || awarded == null) return lines;
@@ -188,6 +190,16 @@ public class PurchaseOrderController {
             if (perUnit.multiply(qty).compareTo(left) == 0) {
                 out.set(i, new SourceLine(l.sourceItemId(), l.description(), l.specifications(), l.unit(), l.quantity(), l.unitCost().add(perUnit)));
                 left = BigDecimal.ZERO;
+            }
+        }
+        if (left.signum() > 0) {
+            int i = out.size() - 1;
+            SourceLine l = out.get(i);
+            if (l.quantity() > 1) {
+                out.set(i, new SourceLine(l.sourceItemId(), l.description(), l.specifications(), l.unit(), l.quantity() - 1, l.unitCost()));
+                out.add(new SourceLine(l.sourceItemId(), l.description(), l.specifications(), l.unit(), 1, l.unitCost().add(left)));
+            } else {
+                out.set(i, new SourceLine(l.sourceItemId(), l.description(), l.specifications(), l.unit(), 1, l.unitCost().add(left)));
             }
         }
         return out;
@@ -368,12 +380,13 @@ public class PurchaseOrderController {
         if (in.remarks() != null) po.setRemarks(blank(in.remarks()));
         if (in.prices() != null && !in.prices().isEmpty()) {
             if (src.pricesFixed()) throw ApiException.validation("prices", "An RFQ purchase order is priced at the winning quotation.");
-            Map<Long, PurchaseOrderItem> byLine = po.getItems().stream().collect(Collectors.toMap(PurchaseOrderItem::getBiddingItemId, x -> x));
+            // A bidding line can sit on two PO lines when a centavo of rounding was priced on its own unit.
+            Map<Long, List<PurchaseOrderItem>> byLine = po.getItems().stream().collect(Collectors.groupingBy(PurchaseOrderItem::getBiddingItemId));
             for (PriceInput p : in.prices()) {
-                PurchaseOrderItem line = p == null ? null : byLine.get(p.sourceItemId());
-                if (line == null) throw ApiException.validation("prices", "A price is for a line not on this purchase order.");
+                List<PurchaseOrderItem> lines = p == null ? null : byLine.get(p.sourceItemId());
+                if (lines == null) throw ApiException.validation("prices", "A price is for a line not on this purchase order.");
                 if (p.unitCost() == null || p.unitCost().signum() < 0 || p.unitCost().scale() > 2) throw ApiException.validation("prices", "Enter unit prices in pesos.");
-                line.setUnitCost(p.unitCost());
+                lines.forEach(line -> line.setUnitCost(p.unitCost()));
             }
         }
         po.recalc();

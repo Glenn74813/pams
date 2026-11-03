@@ -76,9 +76,10 @@ public class PaymentController {
     private final SettingService settings;
     private final OrsForm orsForm;
     private final DisbursementVoucherForm dvForm;
+    private final com.avtech.pams.procurement.AwardSupport awards;
 
     public PaymentController(JdbcTemplate jdbc, Db db, AuditService audit, CurrentUser current, PaymentNumbers numbers, SettingService settings,
-                             OrsForm orsForm, DisbursementVoucherForm dvForm) {
+                             OrsForm orsForm, DisbursementVoucherForm dvForm, com.avtech.pams.procurement.AwardSupport awards) {
         this.jdbc = jdbc;
         this.db = db;
         this.audit = audit;
@@ -87,6 +88,7 @@ public class PaymentController {
         this.settings = settings;
         this.orsForm = orsForm;
         this.dvForm = dvForm;
+        this.awards = awards;
     }
 
     // ───────────────────────── records & views ─────────────────────────
@@ -325,6 +327,9 @@ public class PaymentController {
         }
         User me = current.user();
         if (me.getId().equals(t.approvedBy()) && !me.isSuperAdmin()) throw ApiException.forbidden("You approved this tranche for payment, so someone else has to release it.");
+        if (awards.permitPending(p.supplierId())) {
+            throw ApiException.of(HttpStatus.CONFLICT, p.supplier() + " was accepted on the receipt of its permit renewal; record the valid Mayor's or Business Permit in the supplier register before payment (GPPB Circular 06-2026, 4.3.2 a).");
+        }
         if (in.paymentMethod() == null || !METHODS.contains(in.paymentMethod())) throw ApiException.validation("payment_method", "Choose check, ADA or LDDAP-ADA.");
         String ref = text(in.paymentReference(), 100, "payment_reference");
         if (ref == null) throw ApiException.validation("payment_reference", "Enter the check, ADA or LDDAP-ADA number.");
