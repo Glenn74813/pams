@@ -24,9 +24,11 @@ import java.util.List;
 @Table(name = "suppliers")
 public class Supplier extends Timestamped {
 
-    /** Documents a vendor needs on file, valid, to be eligible (alternatives grouped). */
-    public static final List<List<String>> REQUIRED_DOCUMENTS = List.of(List.of("PhilGEPS Registration"), List.of("DTI Registration", "SEC Registration"),
-            List.of("Mayor's Permit"), List.of("BIR Registration"), List.of("Tax Clearance"));
+    /**
+     * What a supplier needs on file to be verified for competitive selection (GPPB Circular 06-2026, 5.2). The other
+     * items of that list are checked bid by bid, and other modes have their own lists in EligibilityRules.
+     */
+    public static final List<List<String>> REQUIRED_DOCUMENTS = List.of(List.of(com.avtech.pams.procurement.EligibilityRules.PLATINUM));
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -66,6 +68,9 @@ public class Supplier extends Timestamped {
 
     @Column(name = "is_msme", nullable = false)
     private boolean msme;
+
+    @Column(name = "supplier_kind", nullable = false)
+    private String kind = com.avtech.pams.procurement.EligibilityRules.BUSINESS;
 
     @OneToMany(mappedBy = "supplier", cascade = CascadeType.ALL, orphanRemoval = true)
     @OrderBy("documentType, id")
@@ -110,6 +115,8 @@ public class Supplier extends Timestamped {
     public void setTin(String tin) { this.tin = tin; }
     public String getPhilgepsRegNumber() { return philgepsRegNumber; }
     public void setPhilgepsRegNumber(String philgepsRegNumber) { this.philgepsRegNumber = philgepsRegNumber; }
+    public String getKind() { return kind; }
+    public void setKind(String kind) { this.kind = kind; }
     public boolean isEligible() { return eligible; }
     public void setEligible(boolean eligible) { this.eligible = eligible; }
     public boolean isMsme() { return msme; }

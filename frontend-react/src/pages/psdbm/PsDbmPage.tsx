@@ -309,7 +309,7 @@ function OrderDetail({ id, onClose, onEdit, onChanged }: { id: number; onClose: 
       if (step === 'deliver') return (await psDbmApi.deliver(o.id, { dr_number: f.ref ?? '', dr_date: f.date || undefined, delivery_mode: (f.mode || 'pickup') as 'pickup' | 'delivery', delivery_address: f.address || undefined })).apr_number + ' delivered; inspect it in Receiving.'
       if (step === 'cancel') return (await psDbmApi.cancel(o.id, f.reason ?? '')).apr_number + ' cancelled.'
       if (step === 'delete') return (await psDbmApi.remove(o.id)).message
-      if (step && typeof step === 'object') return (await psDbmApi.notAvailable(o.id, step.cnas.id, { release_ground: (f.ground || 'zero_inventory') as PsReleaseGround, cnas_number: f.ref ?? '', cnas_date: f.date || undefined })).apr_number + ': line marked not available.'
+      if (step && typeof step === 'object') return (await psDbmApi.notAvailable(o.id, step.cnas.id, { release_ground: (f.ground || 'zero_inventory') as PsReleaseGround, available_quantity: f.ground === 'insufficient_stock' && f.available ? Number(f.available) : undefined, cnas_number: f.ref ?? '', cnas_date: f.date || undefined })).apr_number + ': line marked not available.'
       return ''
     },
     onSuccess: (m) => {
@@ -485,6 +485,7 @@ function OrderDetail({ id, onClose, onEdit, onChanged }: { id: number; onClose: 
                 </div>
                 {field('ref', `${PS_RELEASE_GROUNDS[(f.ground || 'zero_inventory') as PsReleaseGround].reference}: reference *`)}
                 {field('date', 'Document date', 'date')}
+                {f.ground === 'insufficient_stock' && field('available', `Quantity PS can still supply (of ${step.cnas.quantity}); it stays on this request`)}
               </div>
               <StepButtons label="Mark not available" busy={act.isPending} onCancel={() => setStep(null)} onGo={() => act.mutate()} />
             </div>

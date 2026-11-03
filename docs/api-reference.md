@@ -68,7 +68,7 @@ It fetches `file_url` and posts the detached signature over the file's exact byt
 
 ## Endpoints
 
-469 endpoints in 49 groups.
+485 endpoints in 50 groups.
 
 - [Adjustment](#adjustment)
 - [Analytics](#analytics)
@@ -118,6 +118,7 @@ It fetches `file_url` and posts the detached signature over the file's exact byt
 - [Stock Card](#stock-card)
 - [Supplier](#supplier)
 - [Tor Report](#tor-report)
+- [Unsolicited Offer](#unsolicited-offer)
 - [User](#user)
 
 ### Adjustment
@@ -658,6 +659,13 @@ Rated criteria for MEARB; their weights add up to 100. Fixed once the Invitation
 Opens the bids once the submission deadline has passed.
 
 - Requires: `manage_bidding`
+- Returns: [`BiddingView`](#biddingview)
+
+**`POST /api/bidding/{id}/open-financial`**
+
+Opens the financial proposals of a MEARB or MARB bidding once every bid has been rated (IRR 58 b, 61.3, 61.8): under MEARB those that met the minimum quality score, under MARB only the highest technical rating.
+
+- Requires: `manage_bidding`, `conduct_bid_evaluation`
 - Returns: [`BiddingView`](#biddingview)
 
 **`POST /api/bidding/{id}/pre-proc`**
@@ -2207,7 +2215,7 @@ PS issued its Delivery Receipt: the goods are picked up or delivered in one lot.
 This line cannot come from PS on a ground of IRR 40.2. It frees the quantity for other sources.
 
 - Requires: `edit_procurement`
-- Body: `release_ground` string, `cnas_number` string, `cnas_date` date
+- Body: `release_ground` string, `cnas_number` string, `cnas_date` date, `available_quantity` integer
 - Returns: [`OrderView`](#orderview)
 
 **`POST /api/ps-dbm/orders/{id}/pay`**
@@ -2605,7 +2613,7 @@ Requests for quotation under the alternative modes (Shopping, SVP, negotiated, d
 **`POST /api/rfq`**
 
 - Requires: `create_rfq`
-- Body: `title` string, `procurement_method` string, `purchase_request_id` integer, `deadline` date-time, `delivery_term` string, `delivery_lead_days` integer, `description` string, `justification` string, `negotiated_ground` string, `invited_suppliers` string[], `items` ItemInput[]
+- Body: `title` string, `procurement_method` string, `purchase_request_id` integer, `deadline` date-time, `delivery_term` string, `delivery_lead_days` integer, `description` string, `justification` string, `negotiated_ground` string, `invited_suppliers` string[], `eligibility_revised` boolean, `documents_stage` string, `items` ItemInput[]
 - Returns: [`RfqView`](#rfqview)
 
 **`GET /api/rfq/purchase-requests`**
@@ -2639,7 +2647,7 @@ Approved purchase requests with lines not yet on an RFQ, for the new-RFQ form.
 **`PUT /api/rfq/{id}`**
 
 - Requires: `create_rfq`
-- Body: `title` string, `procurement_method` string, `purchase_request_id` integer, `deadline` date-time, `delivery_term` string, `delivery_lead_days` integer, `description` string, `justification` string, `negotiated_ground` string, `invited_suppliers` string[], `items` ItemInput[]
+- Body: `title` string, `procurement_method` string, `purchase_request_id` integer, `deadline` date-time, `delivery_term` string, `delivery_lead_days` integer, `description` string, `justification` string, `negotiated_ground` string, `invited_suppliers` string[], `eligibility_revised` boolean, `documents_stage` string, `items` ItemInput[]
 - Returns: [`RfqView`](#rfqview)
 
 **`GET /api/rfq/{id}/abstract`**
@@ -2666,6 +2674,14 @@ Abstract of Quotations: every line priced by every supplier, and the lowest resp
 Closes the RFQ for quotations once the deadline has passed; quotations are then opened and compared.
 
 - Requires: `create_rfq`
+- Returns: [`RfqView`](#rfqview)
+
+**`POST /api/rfq/{id}/declare-failed`**
+
+A failure of Limited Source Bidding or Competitive Dialogue (IRR 64.1); it frees the lines for a re-bid and counts towards two failures.
+
+- Requires: `create_rfq`
+- Body: `remarks` string
 - Returns: [`RfqView`](#rfqview)
 
 **`POST /api/rfq/{id}/issue`**
@@ -2955,7 +2971,7 @@ The supplier register (TOR §9): vendors, their compliance documents, blacklisti
 **`POST /api/suppliers`**
 
 - Requires: `create_suppliers`
-- Body: `vendor_code` string, `name` string, `tin` string, `philgeps_reg_number` string, `contact_person` string, `email` string, `phone` string, `mobile_number` string, `address` string, `website` string, `credit_terms` string, `notes` string, `is_active` boolean, `is_msme` boolean
+- Body: `vendor_code` string, `name` string, `tin` string, `philgeps_reg_number` string, `contact_person` string, `email` string, `phone` string, `mobile_number` string, `address` string, `website` string, `credit_terms` string, `notes` string, `is_active` boolean, `is_msme` boolean, `supplier_kind` string
 - Returns: [`SupplierView`](#supplierview)
 
 **`PUT /api/suppliers/blacklist/{sanctionId}/lift`**
@@ -3006,7 +3022,7 @@ A supplier with any procurement or stock history stays on the register; deactiva
 **`PUT /api/suppliers/{id}`**
 
 - Requires: `edit_suppliers`
-- Body: `vendor_code` string, `name` string, `tin` string, `philgeps_reg_number` string, `contact_person` string, `email` string, `phone` string, `mobile_number` string, `address` string, `website` string, `credit_terms` string, `notes` string, `is_active` boolean, `is_msme` boolean
+- Body: `vendor_code` string, `name` string, `tin` string, `philgeps_reg_number` string, `contact_person` string, `email` string, `phone` string, `mobile_number` string, `address` string, `website` string, `credit_terms` string, `notes` string, `is_active` boolean, `is_msme` boolean, `supplier_kind` string
 - Returns: [`SupplierView`](#supplierview)
 
 **`POST /api/suppliers/{id}/blacklist`**
@@ -3182,6 +3198,111 @@ Choices for the report forms: offices, people, semi-expendable items, issuances,
 - Requires: `view_reports`, `generate_reports`
 - Returns: a JSON object
 
+### Unsolicited Offer
+
+Unsolicited Offer with Bid Matching (IRR Section 30): the offer is assessed within 20 days, its documents come in within 30, evaluation takes up to 60 (plus up to 30), negotiation up to 15; the offeror then becomes the original offeror, posts bid security within 10 days, and an Invitation to Bid goes out within 30. The lowest responsive comparative bid can be matched within 15 days, and the award follows on the bidding.
+
+**`GET /api/unsolicited-offers`**
+
+- Requires: `view_bidding`, `manage_bidding`, `process_award`, `conduct_bid_evaluation`
+- Query: `page` (optional) default `1` integer, `status` (optional), `search` (optional)
+- Returns: a page of [`OfferView`](#offerview)
+
+**`POST /api/unsolicited-offers`**
+
+- Requires: `manage_bidding`
+- Body: `supplier_id` integer, `supplier_name` string, `title` string, `concept` string, `category` string, `proposed_amount` number, `received_date` date
+- Returns: [`OfferView`](#offerview)
+
+**`GET /api/unsolicited-offers/options`**
+
+- Requires: `view_bidding`, `manage_bidding`, `process_award`, `conduct_bid_evaluation`
+- Returns: a JSON object
+
+**`GET /api/unsolicited-offers/{id}`**
+
+- Requires: `view_bidding`, `manage_bidding`, `process_award`, `conduct_bid_evaluation`
+- Returns: [`OfferView`](#offerview)
+
+**`POST /api/unsolicited-offers/{id}/assess`**
+
+Whether the project is needed, within 20 days of receipt; if not acted on in time the offer is deemed rejected (IRR 30.3).
+
+- Requires: `manage_bidding`
+- Body: `needed` boolean, `notice_date` date, `reason` string
+- Returns: [`OfferView`](#offerview)
+
+**`POST /api/unsolicited-offers/{id}/bid-security`**
+
+Bid security within 10 days of the certification (IRR 30.6).
+
+- Requires: `manage_bidding`
+- Body: `form` string, `amount` number, `date` date
+- Returns: [`OfferView`](#offerview)
+
+**`POST /api/unsolicited-offers/{id}/documents`**
+
+All four sets of IRR 30.2, within 30 days of the notice; a resubmission for lacking requirements is a new offer.
+
+- Requires: `manage_bidding`
+- Body: `concept_details` boolean, `proof_of_concept` boolean, `eligibility_documents` boolean, `terms_and_consent` boolean, `date` date
+- Returns: [`OfferView`](#offerview)
+
+**`POST /api/unsolicited-offers/{id}/evaluate`**
+
+The result of the evaluation (IRR 30.5): 60 days, or up to 30 more with the HoPE's justified extension.
+
+- Requires: `manage_bidding`
+- Body: `favorable` boolean, `new_concept_basis` string, `funds_available` boolean, `eligibility_verified` boolean, `date` date, `negotiation_start` date, `extension_days` integer, `extension_reason` string, `reason` string
+- Returns: [`OfferView`](#offerview)
+
+**`POST /api/unsolicited-offers/{id}/link-bidding`**
+
+The bidding that invites comparative bids; a failed or cancelled one can be replaced.
+
+- Requires: `manage_bidding`
+- Body: `bidding_id` integer
+- Returns: [`OfferView`](#offerview)
+
+**`POST /api/unsolicited-offers/{id}/match`**
+
+The original offeror's answer, within 15 days; matching or beating the lowest bid wins the award (IRR 30.8).
+
+- Requires: `manage_bidding`
+- Body: `matched` boolean, `amount` number, `date` date
+- Returns: [`OfferView`](#offerview)
+
+**`POST /api/unsolicited-offers/{id}/negotiation`**
+
+Negotiation ends within 15 days: a failure ends the procurement, success confers original offeror status (IRR 30.6).
+
+- Requires: `manage_bidding`
+- Body: `successful` boolean, `date` date, `negotiated_amount` number, `terms` string, `certification_number` string, `reason` string
+- Returns: [`OfferView`](#offerview)
+
+**`POST /api/unsolicited-offers/{id}/reject`**
+
+Rejects the offer: for instance a later offer of the same concept, which the first in time prevails over (IRR 30.4).
+
+- Requires: `manage_bidding`
+- Body: `reason` string, `date` date
+- Returns: [`OfferView`](#offerview)
+
+**`POST /api/unsolicited-offers/{id}/start-matching`**
+
+Takes the result of the bidding: the lowest responsive bid to match, or no comparative bid at all (IRR 30.7, 30.8).
+
+- Requires: `manage_bidding`
+- Returns: [`OfferView`](#offerview)
+
+**`POST /api/unsolicited-offers/{id}/withdraw`**
+
+The offeror withdraws. Within 5 days of the notice it costs nothing; later it bars the offeror from the agency's procurement for 1 year, then 2 years, then for good (IRR 30.3).
+
+- Requires: `manage_bidding`
+- Body: `reason` string, `date` date
+- Returns: [`OfferView`](#offerview)
+
 ### User
 
 **`GET /api/users`**
@@ -3302,11 +3423,11 @@ Ends a lockout from failed sign-ins before it times out.
 
 ### BidderView
 
-`id` integer, `supplier` Ref, `supplier_eligible` boolean, `bid_amount` number, `over_abc` boolean, `bid_security_form` string, `bid_security_amount` number, `bid_security_posted` boolean, `bid_security_required` number, `bid_security_ok` boolean, `results` object, `scores` object, `rated_score` number, `mearb_score` number, `computed_rank` integer, `post_qual_turn` boolean, `is_winner` boolean, `remarks` string
+`id` integer, `supplier` Ref, `supplier_eligible` boolean, `eligibility_problems` string[], `bid_amount` number, `over_abc` boolean, `bid_security_form` string, `bid_security_amount` number, `bid_security_posted` boolean, `bid_security_required` number, `bid_security_ok` boolean, `results` object, `scores` object, `rated_score` number, `mearb_score` number, `computed_rank` integer, `post_qual_turn` boolean, `is_winner` boolean, `remarks` string
 
 ### BiddingView
 
-`id` integer, `bidding_number` string, `title` string, `status` string, `abc` number, `purchase_request` Ref, `department` Ref, `preparer` Ref, `delivery_term` string, `delivery_lead_days` integer, `evaluation_method` string, `price_weight` number, `technical_weight` number, `min_quality_score` number, `pre_proc_date` date-time, `pre_proc_notes` string, `pre_proc_required` boolean, `itb_reference` string, `itb_posted_at` date, `itb_publication` string, `submission_deadline` date-time, `deadline_passed` boolean, `bid_opening_date` date-time, `awarded_supplier` Ref, `awarded_amount` number, `awarded_at` date-time, `bac_resolution` Ref, `noa_number` string, `noa_date` date, `ntp_number` string, `ntp_date` date, `contract_recommendation` string, `failure_reason` string, `failed_count` integer, `remarks` string, `bidders_count` integer, `items` LineView[], `criteria` CriterionView[], `bidders` BidderView[], `protests` ProtestView[], `observers` ObserverView[], `recommended_bidder_id` integer, `next_post_qual_bidder_id` integer, `open_protests` integer, `observers_invited` integer, `timeline` Interval[], `can_edit` boolean, `can_schedule` boolean, `can_open` boolean, `can_record_bids` boolean, `can_evaluate` boolean, `can_award` boolean, `can_noa` boolean, `can_ntp` boolean, `can_fail` boolean, `can_cancel` boolean, `can_delete` boolean, `created_at` date-time
+`id` integer, `bidding_number` string, `title` string, `status` string, `abc` number, `purchase_request` Ref, `department` Ref, `preparer` Ref, `delivery_term` string, `delivery_lead_days` integer, `evaluation_method` string, `price_weight` number, `technical_weight` number, `min_quality_score` number, `pre_proc_date` date-time, `pre_proc_notes` string, `pre_proc_required` boolean, `itb_reference` string, `itb_posted_at` date, `itb_publication` string, `submission_deadline` date-time, `deadline_passed` boolean, `bid_opening_date` date-time, `awarded_supplier` Ref, `awarded_amount` number, `awarded_at` date-time, `bac_resolution` Ref, `noa_number` string, `noa_date` date, `ntp_number` string, `ntp_date` date, `contract_recommendation` string, `failure_reason` string, `failed_count` integer, `remarks` string, `bidders_count` integer, `items` LineView[], `criteria` CriterionView[], `bidders` BidderView[], `protests` ProtestView[], `observers` ObserverView[], `recommended_bidder_id` integer, `next_post_qual_bidder_id` integer, `open_protests` integer, `observers_invited` integer, `timeline` Interval[], `can_edit` boolean, `can_schedule` boolean, `can_open` boolean, `sealed` boolean, `financial_opened_at` date-time, `can_open_financial` boolean, `unsolicited_offer` Ref, `original_offeror` Ref, `original_offeror_amount` number, `award_to_original_offeror` boolean, `can_record_bids` boolean, `can_evaluate` boolean, `can_award` boolean, `can_noa` boolean, `can_ntp` boolean, `can_fail` boolean, `can_cancel` boolean, `can_delete` boolean, `created_at` date-time
 
 ### BudgetRow
 
@@ -3520,6 +3641,10 @@ Ends a lockout from failed sign-ins before it times out.
 
 `data` MemberView[], `compliance` Compliance
 
+### ModeReadiness
+
+`mode` string, `required` string[], `missing` string[]
+
 ### MoveView
 
 `id` integer, `from` string, `to` string, `moved_by` string, `remarks` string, `moved_at` date-time
@@ -3531,6 +3656,10 @@ Ends a lockout from failed sign-ins before it times out.
 ### ObserverView
 
 `id` integer, `name` string, `organization` string, `observer_type` string, `invited` boolean, `invited_date` date, `attended` boolean, `remarks` string
+
+### OfferView
+
+`id` integer, `offer_number` string, `supplier` Ref, `title` string, `concept` string, `category` string, `proposed_amount` number, `received_date` date, `status` string, `notice_date` date, `documents_date` date, `new_concept_basis` string, `evaluation_extension_days` integer, `evaluation_extension_reason` string, `evaluation_date` date, `negotiation_start` date, `negotiation_end` date, `negotiated_amount` number, `negotiated_terms` string, `certification_number` string, `certification_date` date, `bid_security_form` string, `bid_security_amount` number, `bid_security_date` date, `bid_security_required` number, `bidding` Ref, `bidding_status` string, `lccrb_date` date, `lccrb_supplier` Ref, `lccrb_amount` number, `match_result` string, `match_amount` number, `match_date` date, `closing_reason` string, `closed_date` date, `late_withdrawal` boolean, `due_date` date, `due_for` string, `overdue` boolean, `can_manage` boolean
 
 ### Options
 
@@ -3586,7 +3715,7 @@ Ends a lockout from failed sign-ins before it times out.
 
 ### QuotationView
 
-`id` integer, `supplier` Ref, `quotation_number` string, `submitted_at` date, `total_amount` number, `is_responsive` boolean, `is_winner` boolean, `over_abc` boolean, `supplier_eligible` boolean, `remarks` string, `lines` QuoteLineView[]
+`id` integer, `supplier` Ref, `quotation_number` string, `submitted_at` date, `total_amount` number, `is_responsive` boolean, `is_winner` boolean, `over_abc` boolean, `supplier_eligible` boolean, `eligibility_problems` string[], `remarks` string, `lines` QuoteLineView[]
 
 ### QuoteLineView
 
@@ -3612,7 +3741,7 @@ Ends a lockout from failed sign-ins before it times out.
 
 `id` integer, `request_number` string, `title` string, `file_name` string, `file_size` integer, `file_sha256` string, `requested_by_id` integer, `requested_by` string, `signer_id` integer, `signer` string, `status` string, `platform_reference` string, `remarks` string, `signed_at` date-time, `created_at` date-time, `can_sign` boolean, `can_cancel` boolean, `signatures` SignatureView[]
 
-### Requirement
+### Requirement (Supplier)
 
 `document_type` string, `present` boolean, `valid` boolean, `expiry_date` date
 
@@ -3626,7 +3755,7 @@ Ends a lockout from failed sign-ins before it times out.
 
 ### RfqView
 
-`id` integer, `rfq_number` string, `title` string, `procurement_method` string, `single_source` boolean, `status` string, `abc` number, `deadline` date-time, `deadline_passed` boolean, `delivery_term` string, `delivery_lead_days` integer, `description` string, `justification` string, `negotiated_ground` string, `invited_suppliers` string[], `purchase_request` Ref, `department` Ref, `preparer` Ref, `awarded_supplier` Ref, `awarded_at` date-time, `bac_resolution` Ref, `remarks` string, `noa_number` string, `noa_date` date, `ntp_number` string, `ntp_date` date, `items_count` integer, `quotations_count` integer, `items` LineView[], `quotations` QuotationView[], `can_edit` boolean, `can_issue` boolean, `can_close` boolean, `can_cancel` boolean, `can_delete` boolean, `can_quote` boolean, `can_award` boolean, `can_noa` boolean, `can_ntp` boolean, `created_at` date-time
+`id` integer, `rfq_number` string, `title` string, `procurement_method` string, `single_source` boolean, `status` string, `abc` number, `deadline` date-time, `deadline_passed` boolean, `delivery_term` string, `delivery_lead_days` integer, `description` string, `justification` string, `negotiated_ground` string, `invited_suppliers` string[], `eligibility_revised` boolean, `documents_stage` string, `required_documents` string[], `failure_reason` string, `purchase_request` Ref, `department` Ref, `preparer` Ref, `awarded_supplier` Ref, `awarded_at` date-time, `bac_resolution` Ref, `remarks` string, `noa_number` string, `noa_date` date, `ntp_number` string, `ntp_date` date, `items_count` integer, `quotations_count` integer, `items` LineView[], `quotations` QuotationView[], `can_edit` boolean, `can_issue` boolean, `can_close` boolean, `can_cancel` boolean, `can_delete` boolean, `can_quote` boolean, `can_award` boolean, `can_noa` boolean, `can_ntp` boolean, `can_declare_failed` boolean, `created_at` date-time
 
 ### SanctionView
 
@@ -3670,7 +3799,7 @@ Ends a lockout from failed sign-ins before it times out.
 
 ### SupplierView
 
-`id` integer, `vendor_code` string, `name` string, `tin` string, `philgeps_reg_number` string, `contact_person` string, `email` string, `phone` string, `mobile_number` string, `address` string, `website` string, `credit_terms` string, `notes` string, `is_active` boolean, `is_eligible` boolean, `is_msme` boolean, `is_sanctioned` boolean, `sanction` string, `awardable` boolean, `eligibility` Readiness, `expiring_documents` integer, `documents` DocumentView[], `sanctions` SanctionView[], `evaluations` EvaluationView[], `performance` Performance, `can_edit` boolean, `can_delete` boolean, `created_at` date-time
+`id` integer, `vendor_code` string, `name` string, `tin` string, `philgeps_reg_number` string, `contact_person` string, `email` string, `phone` string, `mobile_number` string, `address` string, `website` string, `credit_terms` string, `notes` string, `is_active` boolean, `is_eligible` boolean, `is_msme` boolean, `supplier_kind` string, `is_sanctioned` boolean, `sanction` string, `awardable` boolean, `eligibility` Readiness, `by_mode` ModeReadiness[], `expiring_documents` integer, `documents` DocumentView[], `sanctions` SanctionView[], `evaluations` EvaluationView[], `performance` Performance, `can_edit` boolean, `can_delete` boolean, `created_at` date-time
 
 ### TagView
 

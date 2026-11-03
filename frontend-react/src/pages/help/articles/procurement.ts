@@ -191,7 +191,7 @@ export const procurementArticles: Article[] = [
         'Place, pay and receive',
         steps(
           'Order the same items in the Virtual Store, then click **Placed in Virtual Store…** and enter its order reference.',
-          'If a line cannot come from PS, click **Cannot buy from PS…** and choose the ground: zero inventory (the CNAS, downloaded from the PhilGEPS Electronic Catalogue), specifications that do not meet the need, too little stock, or a BAC resolution on efficiency, practicality or economic viability. Enter the supporting document. The line drops off the request and can go to Small Value Procurement, Direct Acquisition or Competitive Bidding.',
+          'If a line cannot come from PS, click **Cannot buy from PS…** and choose the ground: zero inventory (the CNAS, downloaded from the PhilGEPS Electronic Catalogue), specifications that do not meet the need, too little stock, or a BAC resolution on efficiency, practicality or economic viability. Enter the supporting document. With too little stock, enter what PS can still supply: that part stays on the request and only the shortfall leaves. Otherwise the whole line drops off the request and can go to Small Value Procurement, Direct Acquisition or Competitive Bidding.',
           'Pay PS (cash, LDDAP-ADA, check, or funds already with PS) and click **Record payment…**. The amount must equal the request total.',
           'When PS issues its Delivery Receipt, click **Record Delivery Receipt…**: pick-up at the depot or delivery. PS releases a request in one lot.',
           'An order to PS-DBM opens in **Receiving**, numbered as the APR. Inspect, accept and take the items into stock there as with any delivery.',
@@ -236,6 +236,7 @@ export const procurementArticles: Article[] = [
         p('Negotiated Procurement needs a ground from Section 35, such as two failed biddings, an emergency or a take-over. After two failed biddings, choose at least three invited suppliers from the list (including those disqualified earlier), or type a name that is not on it; the ABC may rise at most 20% over the last failed bidding, and each supplier\'s best offer is recorded as its quotation. The award may proceed even with one response. Every other ground needs a written justification.'),
         p('Direct Contracting, Direct Acquisition, Repeat Order, Direct Sales and Direct Procurement for Science, Technology and Innovation are single-source: they need a written justification and take one quotation only. Unsolicited Offer with Bid Matching needs the justification but can take matching offers.'),
       ),
+      sec('failed', 'Failed Limited Source Bidding or Competitive Dialogue', p('These two modes can fail as a bidding does (IRR 64.1). Click **Declare failure** with the ground. The lines are free for a re-bid, and the failure counts towards the two failed biddings that allow Negotiated Procurement, together with any failed Competitive Bidding on the same purchase request.')),
       sec(
         'create-rfq',
         'Create and issue an RFQ',
@@ -244,6 +245,7 @@ export const procurementArticles: Article[] = [
           'Pick the **Mode**. It must match the mode planned on the PR lines (shown as "Planned: …").',
           'Fill in **Title**, **Deadline for quotations**, **Delivery term**, **Delivery within (days)** and **Instructions to suppliers**. For single-source modes, fill in the **Justification**.',
           'Tick the lines to include and set **Quantity** and **ABC / unit** (not more than the PR unit cost).',
+          'Choose when **Supplier documents are submitted**: with the offer, during evaluation or before the Notice of Award. Direct Contracting, SVP and most Negotiated grounds need this to be issued.',
           'Click **Save draft**, then **Issue to suppliers** when ready. The deadline must still be in the future.',
         ),
       ),
@@ -343,7 +345,7 @@ export const procurementArticles: Article[] = [
           'Eligibility cannot pass without enough bid security.',
           'Financial cannot pass a bid above the ABC.',
           'Post-qualification starts only when every bid has finished the first three stages. It goes to the top-ranked bidder and moves down only if that bidder fails. An ineligible supplier cannot pass.',
-          'MEARB: enter **Scores** per bidder until post-qualification starts.',
+          'MEARB and MARB: prices stay sealed (IRR 58). Record each bid without a price, pass eligibility and technical, enter **Scores**, then click **Open financial proposals**. MEARB opens those at or above the minimum quality score; MARB opens only the highest rating. Then **Record price** and evaluate. Scores and technical results are final from that point.',
         ),
       ),
       sec(
@@ -386,6 +388,48 @@ export const procurementArticles: Article[] = [
     ],
   },
 
+  {
+    slug: 'unsolicited-offers',
+    title: 'Unsolicited Offers with Bid Matching',
+    area: 'procurement',
+    route: '/unsolicited-offers',
+    keywords: ['unsolicited offer', 'bid matching', 'original offeror', 'new concept', 'new technology', 'LCCRB', 'comparative bid', 'Section 30'],
+    summary: 'Follow an unsolicited offer of a new concept or technology through assessment, evaluation and negotiation, then invite comparative bids and let the original offeror match the lowest.',
+    sections: [
+      who('The page opens for view_bidding, manage_bidding, process_award or conduct_bid_evaluation.', 'manage_bidding: record each step. process_award: award on the bidding.'),
+      purpose(p('RA 12009 Section 30 lets an agency consider an offer it did not ask for when the offer brings a new concept or technology, for Goods or Consulting Services only. PAMS shows the next deadline of each offer and refuses a step once its deadline has passed.')),
+      sec(
+        'steps',
+        'The steps',
+        table(
+          ['Step', 'Deadline', 'If missed'],
+          [
+            ['Assess the need and notify the offeror', '20 days from receipt', 'Deemed rejected'],
+            ['Complete documents: concept and cost, proof of concept, eligibility, terms with consent to bid matching', '30 days from the notice', 'Deemed rejected; a resubmission is a new offer'],
+            ['Evaluate: new concept basis, funds, eligibility', '60 days, plus up to 30 with the HoPE\'s reason', 'Record the extension, or reject'],
+            ['Negotiate', 'Starts within 5 days of the notice; ends within 15 days', 'Failure of negotiation ends the procurement'],
+            ['Certify the original offeror; bid security', '10 days from the certification', 'Refused'],
+            ['Publish the Invitation to Bid', '30 days from the certification', 'Refused on the bidding'],
+            ['Original offeror matches the lowest responsive bid', '15 days from the bidding result', 'The award goes to the lowest bid'],
+          ],
+        ),
+      ),
+      sec(
+        'bidding',
+        'Comparative bids and the award',
+        steps(
+          'Once the bid security is recorded, draft a lowest-price bidding under **Competitive Bidding** from the approved purchase request.',
+          'On the offer, click **Link bidding**, then post the Invitation to Bid and run the bidding as usual.',
+          'After post-qualification, or if no bid came in or all failed at opening, click **Take the bidding result**.',
+          'Record whether the original offeror matched, then award on the bidding. The award and price follow the result.',
+        ),
+        warn('An offeror that withdraws more than 5 days after the notice is barred for 1 year, then 2 years, then for good. PAMS records this as a sanction on the supplier.'),
+      ),
+      statuses(p('Received, Awaiting documents, Under evaluation, Under negotiation, Original offeror, Comparative bidding, Bid matching, then Awarded, Rejected, Withdrawn or Failed negotiation.')),
+      forms(p('None of its own; the Notice of Award and contract come from the linked bidding.')),
+      tips('If several offers cover the same concept, the first complete one prevails; reject the others with that reason. They can still bid.'),
+    ],
+  },
   {
     slug: 'bac',
     title: 'BAC Management',
@@ -640,7 +684,7 @@ export const procurementArticles: Article[] = [
         'Register: create_suppliers. Edit, verify eligibility, sanctions and removing documents: edit_suppliers. Add documents: create_suppliers or edit_suppliers. Delete: delete_suppliers.',
         'Rate a supplier: edit_suppliers, accept_delivery or edit_procurement.',
       ),
-      purpose(p('Only active, eligible suppliers with no sanction can be awarded, given a PO or a contract.')),
+      purpose(p('A supplier under a sanction, or inactive, cannot be awarded under any mode. What else it needs depends on the mode, following GPPB Circular 06-2026, whose list is exclusive: nothing more may be asked.')),
       sec(
         'register',
         'Register a supplier',
@@ -653,8 +697,11 @@ export const procurementArticles: Article[] = [
       sec(
         'eligibility',
         'Verify eligibility',
-        p('These documents must be on file and not expired: PhilGEPS registration, DTI or SEC registration, Mayor\'s Permit, BIR Registration and Tax Clearance.'),
-        steps('Upload each document with its expiry date.', 'Click **Mark eligible**. If something is missing or expired, the message lists it.'),
+        p('**Competitive selection** (Competitive Bidding, Limited Source Bidding, Competitive Dialogue, Unsolicited Offer): a valid PhilGEPS Certificate of Registration (Platinum) on file and **Mark eligible**. Post-qualification also needs the Income or Business Tax Return. The rest of that list (ongoing contracts, SLCC, NFCC, bid security) is checked bid by bid.'),
+        p('**Other modes in the circular** (Direct Contracting, SVP and seven Negotiated grounds) go by the documents on file, with no need to mark the supplier eligible. The **Documents by mode** table shows what each needs. Amounts matter: the OSS applies above ₱50,000 and the tax return above ₱500,000 where the circular says so; PCAB and NFCC apply to infrastructure, and the license or CV to consulting.'),
+        p('**Modes outside the circular** (Direct Acquisition, Repeat Order, Direct Sales, Agency-to-Agency, UN agencies, direct retail, Defense, NGO, Community, Science and Technology, Sagip Saka, international events) ask for no documents here; follow their own guidelines.'),
+        p('Set the supplier\'s **Kind**: a Platinum certificate replaces the ID and permit; an individual may show BIR registration instead of a permit on the scientific and highly technical grounds; government lessors and artists not in business are exempt where the circular says. An expired permit counts with its renewal receipt; collect the valid permit before paying.'),
+        steps('Upload each document with its expiry date.', 'For competitive selection, click **Mark eligible**. If something is missing or expired, the message lists it.'),
         p('Use **Mark ineligible…** (with a reason) to withdraw eligibility. Removing or changing a required document also drops eligibility. Deactivating a supplier clears it too.'),
       ),
       sec(

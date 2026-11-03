@@ -111,7 +111,7 @@ export const psDbmApi = {
   update: (id: number, input: PsOrderInput) => api<PsOrder>('PUT', `/ps-dbm/orders/${id}`, input),
   remove: (id: number) => api<{ message: string }>('DELETE', `/ps-dbm/orders/${id}`),
   submit: (id: number, input: { vs_reference: string; submitted_date?: string }) => api<PsOrder>('POST', `/ps-dbm/orders/${id}/submit`, input),
-  notAvailable: (id: number, lineId: number, input: { release_ground: PsReleaseGround; cnas_number: string; cnas_date?: string }) =>
+  notAvailable: (id: number, lineId: number, input: { release_ground: PsReleaseGround; cnas_number: string; cnas_date?: string; available_quantity?: number }) =>
     api<PsOrder>('POST', `/ps-dbm/orders/${id}/items/${lineId}/not-available`, input),
   pay: (id: number, input: { payment_mode: PsPaymentMode; payment_reference: string; payment_date?: string; amount_paid: number }) =>
     api<PsOrder>('POST', `/ps-dbm/orders/${id}/pay`, input),

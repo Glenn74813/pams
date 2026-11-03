@@ -32,6 +32,8 @@ export function RfqFormModal({ rfq, onClose, onSaved }: Props) {
   const [ground, setGround] = useState(rfq?.negotiated_ground ?? '')
   const [invited, setInvited] = useState<string[]>(rfq?.invited_suppliers ?? [])
   const [otherInvited, setOtherInvited] = useState('')
+  const [revised, setRevised] = useState(rfq?.eligibility_revised ?? false)
+  const [docStage, setDocStage] = useState(rfq?.documents_stage ?? '')
   const suppliers = useQuery({ queryKey: ['supplier-options'], queryFn: supplierApi.options })
   const addInvited = (name: string) => {
     const n = name.trim()
@@ -83,6 +85,8 @@ export function RfqFormModal({ rfq, onClose, onSaved }: Props) {
         justification: justification || null,
         negotiated_ground: negotiated ? ground : null,
         invited_suppliers: twoFailed ? invited : [],
+        eligibility_revised: twoFailed && revised,
+        documents_stage: docStage || null,
         items: chosen.map((l) => ({ purchase_request_item_id: l.id, quantity: Number(picks[l.id].quantity) || 0, abc_unit_cost: Number(picks[l.id].abc) || 0 })),
       }
       return editing ? rfqApi.update(rfq.id, input) : rfqApi.create(input)
@@ -195,6 +199,23 @@ export function RfqFormModal({ rfq, onClose, onSaved }: Props) {
               <label htmlFor="rq-just">Justification for {method} *</label>
               <textarea id="rq-just" rows={2} value={justification} onChange={(e) => setJustification(e.target.value)} required placeholder="Exclusive distributorship, proprietary nature, legal ground…" />
             </div>
+          )}
+          <div className="field">
+            <label htmlFor="rq-docstage">Supplier documents are submitted</label>
+            <select id="rq-docstage" value={docStage} onChange={(e) => setDocStage(e.target.value)}>
+              <option value="">Choose</option>
+              {Object.entries(opts.data?.documents_stages ?? {}).map(([k, l]) => (
+                <option key={k} value={k}>
+                  {l}
+                </option>
+              ))}
+            </select>
+            <span className="hint">Needed to issue under Direct Contracting, SVP and most Negotiated grounds (GPPB Circular 06-2026, 4.2).</span>
+          </div>
+          {twoFailed && (
+            <label className="checkbox-line">
+              <input type="checkbox" checked={revised} onChange={(e) => setRevised(e.target.checked)} /> The BAC revised the eligibility requirements after its mandatory review
+            </label>
           )}
           <div className="field span-3">
             <label htmlFor="rq-desc">Instructions to suppliers</label>

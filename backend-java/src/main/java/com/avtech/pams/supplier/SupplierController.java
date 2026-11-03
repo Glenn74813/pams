@@ -3,6 +3,8 @@ package com.avtech.pams.supplier;
 import com.avtech.pams.audit.AuditService;
 import com.avtech.pams.auth.CurrentUser;
 import com.avtech.pams.common.ApiException;
+import com.avtech.pams.procurement.AwardSupport;
+import com.avtech.pams.procurement.EligibilityRules;
 import com.avtech.pams.common.Db;
 import com.avtech.pams.common.DocumentNumbers;
 import com.avtech.pams.common.PageResponse;
@@ -65,9 +67,11 @@ public class SupplierController {
     private final CurrentUser current;
     private final JdbcTemplate jdbc;
     private final Db db;
+    private final AwardSupport awards;
 
-    public SupplierController(SupplierRepository suppliers, UserRepository users, DocumentNumbers numbers, NotificationService notifications,
+    public SupplierController(AwardSupport awards, SupplierRepository suppliers, UserRepository users, DocumentNumbers numbers, NotificationService notifications,
                               AuditService audit, CurrentUser current, JdbcTemplate jdbc, Db db) {
+        this.awards = awards;
         this.suppliers = suppliers;
         this.users = users;
         this.numbers = numbers;
@@ -82,7 +86,8 @@ public class SupplierController {
     @GetMapping("/options")
     @PreAuthorize("@perm.any('view_suppliers', 'create_inventory', 'edit_inventory', 'add_stock', 'manage_warehouse', 'create_rfq', 'manage_bidding', 'conduct_bid_evaluation', 'create_receiving', 'view_procurement', 'view_contracts', 'view_receiving', 'view_payments', 'view_reports', 'generate_reports')")
     public Map<String, Object> options() {
-        return Map.of("data", jdbc.queryForList("select id, name from suppliers where is_active = " + db.t() + " order by name"));
+        return Map.of("data", jdbc.queryForList("select id, name from suppliers where is_active = " + db.t() + " order by name"),
+                "kinds", EligibilityRules.KINDS, "document_types", ComplianceDocument.TYPES);
     }
 
     // ───────────────────────── views ─────────────────────────
@@ -115,9 +120,13 @@ public class SupplierController {
                               int rejectedDeliveries, BigDecimal liquidatedDamages) {
     }
 
+    /** One row of GPPB Circular 06-2026 for this supplier, for goods with an ABC above ₱500,000. */
+    public record ModeReadiness(String mode, List<String> required, List<String> missing) {
+    }
+
     public record SupplierView(Long id, String vendorCode, String name, String tin, String philgepsRegNumber, String contactPerson, String email,
                                String phone, String mobileNumber, String address, String website, String creditTerms, String notes, boolean isActive,
-                               boolean isEligible, boolean isMsme, boolean isSanctioned, String sanction, boolean awardable, Readiness eligibility,
+                               boolean isEligible, boolean isMsme, String supplierKind, boolean isSanctioned, String sanction, boolean awardable, Readiness eligibility, List<ModeReadiness> byMode,
                                int expiringDocuments, List<DocumentView> documents, List<SanctionView> sanctions, List<EvaluationView> evaluations,
                                Performance performance, boolean canEdit, boolean canDelete, OffsetDateTime createdAt) {
     }
@@ -142,7 +151,7 @@ public class SupplierController {
     }
 
     public record SupplierInput(String vendorCode, String name, String tin, String philgepsRegNumber, String contactPerson, String email, String phone,
-                                String mobileNumber, String address, String website, String creditTerms, String notes, Boolean isActive, Boolean isMsme) {
+                                String mobileNumber, String address, String website, String creditTerms, String notes, Boolean isActive, Boolean isMsme, String supplierKind) {
     }
 
     @PostMapping
@@ -451,6 +460,10 @@ public class SupplierController {
         if (in.creditTerms() != null) s.setCreditTerms(blank(in.creditTerms()));
         if (in.notes() != null) s.setNotes(blank(in.notes()));
         if (in.isMsme() != null) s.setMsme(in.isMsme());
+        if (in.supplierKind() != null) {
+            if (!EligibilityRules.KINDS.containsKey(in.supplierKind())) throw ApiException.validation("supplier_kind", "Choose business, government agency, individual or artist.");
+            s.setKind(in.supplierKind());
+        }
         if (in.isActive() != null) {
             s.setActive(in.isActive());
             if (!in.isActive()) s.setEligible(false);
@@ -514,9 +527,9 @@ public class SupplierController {
             Readiness r = readiness(s, today);
             int expiring = (int) s.getDocuments().stream().filter(d -> d.getExpiryDate() != null && !d.getExpiryDate().isBefore(today) && !d.getExpiryDate().isAfter(today.plusDays(30))).count();
             out.put(s, new SupplierView(s.getId(), s.getVendorCode(), s.getName(), s.getTin(), s.getPhilgepsRegNumber(), s.getContactPerson(), s.getEmail(), s.getPhone(),
-                    s.getMobileNumber(), s.getAddress(), s.getWebsite(), s.getCreditTerms(), s.getNotes(), s.isActive(), s.isEligible(), s.isMsme(), sanction != null,
+                    s.getMobileNumber(), s.getAddress(), s.getWebsite(), s.getCreditTerms(), s.getNotes(), s.isActive(), s.isEligible(), s.isMsme(), s.getKind(), sanction != null,
                     sanction == null ? null : sanction.getSanctionType() + (sanction.getEndDate() == null ? "" : " until " + sanction.getEndDate()),
-                    s.isActive() && s.isEligible() && sanction == null, r, expiring,
+                    s.isActive() && s.isEligible() && sanction == null, r, full ? byMode(s) : null, expiring,
                     !full ? null : s.getDocuments().stream().map(d -> new DocumentView(d.getId(), d.getDocumentType(), d.getReferenceNumber(), d.getIssuedDate(),
                             d.getExpiryDate(), !d.validOn(today) ? "expired" : d.getExpiryDate() != null && !d.getExpiryDate().isAfter(today.plusDays(30)) ? "expiring" : "valid",
                             d.getExpiryDate() == null ? null : (int) ChronoUnit.DAYS.between(today, d.getExpiryDate()), d.getRemarks())).toList(),
@@ -530,6 +543,14 @@ public class SupplierController {
                     full ? performance(s) : null, editor, deleter, Times.toOffset(s.getCreatedAt())));
         }
         return out;
+    }
+
+    private List<ModeReadiness> byMode(Supplier s) {
+        BigDecimal above = new BigDecimal("500001");
+        return EligibilityRules.MATRIX.entrySet().stream().map(e -> {
+            List<EligibilityRules.Requirement> required = EligibilityRules.required(e.getValue()[0], e.getValue()[1], false, 0, above, s.getKind());
+            return new ModeReadiness(e.getKey(), required.stream().map(EligibilityRules.Requirement::label).toList(), awards.missingDocuments(s.getId(), required));
+        }).toList();
     }
 
     private static Map<String, Object> snapshot(Supplier s) {

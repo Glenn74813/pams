@@ -50,7 +50,7 @@ function Abstract({ rfqId, onBack }: { rfqId: number; onBack: () => void }) {
   )
 }
 
-type Mode = null | 'quote' | 'award' | 'cancel' | 'delete' | { reject: number }
+type Mode = null | 'quote' | 'award' | 'cancel' | 'fail' | 'delete' | { reject: number }
 
 function Details({ r, onPrint, onEdit, onChanged }: { r: Rfq; onPrint: () => void; onEdit: Props['onEdit']; onChanged: Props['onChanged'] }) {
   const [mode, setMode] = useState<Mode>(null)
@@ -64,6 +64,7 @@ function Details({ r, onPrint, onEdit, onChanged }: { r: Rfq; onPrint: () => voi
   }
   const issue = useMutation({ mutationFn: () => rfqApi.issue(r.id), onSuccess: ok(`${r.rfq_number} issued to suppliers.`), onError: fail })
   const close = useMutation({ mutationFn: () => rfqApi.close(r.id), onSuccess: ok(`${r.rfq_number} closed; ready for award.`), onError: fail })
+  const declareFailed = useMutation({ mutationFn: () => rfqApi.declareFailed(r.id, text), onSuccess: ok(`${r.rfq_number} declared failed.`), onError: fail })
   const cancel = useMutation({ mutationFn: () => rfqApi.cancel(r.id, text || undefined), onSuccess: ok(`${r.rfq_number} cancelled.`), onError: fail })
   const remove = useMutation({ mutationFn: () => rfqApi.remove(r.id), onSuccess: (x) => onChanged(x.message, true), onError: fail })
   const responsive = useMutation({
@@ -211,6 +212,7 @@ function Details({ r, onPrint, onEdit, onChanged }: { r: Rfq; onPrint: () => voi
                     <td>
                       {!x.is_responsive && <span className="badge st-bad">Non-responsive</span>} {x.over_abc && <span className="badge st-bad">Over ABC</span>}{' '}
                       {!x.supplier_eligible && <span className="badge st-bad">Not eligible</span>}
+                      {!x.supplier_eligible && <div className="muted small">{x.eligibility_problems.join('; ')}</div>}
                       {x.remarks && <div className="small">{x.remarks}</div>}
                     </td>
                     <td>
@@ -279,6 +281,22 @@ function Details({ r, onPrint, onEdit, onChanged }: { r: Rfq; onPrint: () => voi
           </div>
         </div>
       )}
+      {mode === 'fail' && (
+        <div className="reject-box">
+          <div className="field">
+            <label htmlFor="rq-fail">Ground for the failure (IRR 64.1) *</label>
+            <input id="rq-fail" value={text} onChange={(e) => setText(e.target.value)} autoFocus placeholder="e.g. No bid was found responsive" />
+          </div>
+          <div className="modal-footer">
+            <button className="btn btn-secondary" onClick={() => setMode(null)}>
+              Back
+            </button>
+            <button className="btn btn-danger" onClick={() => declareFailed.mutate()} disabled={busy || !text.trim()}>
+              Declare failure
+            </button>
+          </div>
+        </div>
+      )}
       {mode === 'delete' && (
         <ConfirmDialog title="Delete RFQ" message={`Delete the draft ${r.rfq_number}?`} confirmLabel="Delete" busy={busy} onConfirm={() => remove.mutate()} onCancel={() => setMode(null)} />
       )}
@@ -293,6 +311,11 @@ function Details({ r, onPrint, onEdit, onChanged }: { r: Rfq; onPrint: () => voi
           {r.can_delete && (
             <button className="btn btn-danger" onClick={() => setMode('delete')}>
               Delete
+            </button>
+          )}
+          {r.can_declare_failed && (
+            <button className="btn btn-secondary" onClick={() => { setText(''); setMode('fail') }}>
+              Declare failure
             </button>
           )}
           {r.can_cancel && r.status !== 'draft' && (

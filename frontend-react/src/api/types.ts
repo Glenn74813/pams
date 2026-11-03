@@ -625,11 +625,12 @@ export interface RfqQuotation {
   is_winner: boolean
   over_abc: boolean
   supplier_eligible: boolean
+  eligibility_problems: string[]
   remarks: string | null
   lines: { rfq_item_id: number; unit_price: number; total_price: number; over_abc: boolean }[]
 }
 
-export type RfqStatus = 'draft' | 'issued' | 'closed' | 'awarded' | 'cancelled'
+export type RfqStatus = 'draft' | 'issued' | 'closed' | 'awarded' | 'cancelled' | 'failed'
 
 export interface Rfq {
   id: number
@@ -647,6 +648,11 @@ export interface Rfq {
   justification: string | null
   negotiated_ground: string | null
   invited_suppliers: string[]
+  eligibility_revised: boolean
+  documents_stage: string | null
+  required_documents: string[] | null
+  failure_reason: string | null
+  can_declare_failed: boolean
   purchase_request: NamedRef | null
   department: NamedRef | null
   preparer: NamedRef | null
@@ -787,6 +793,7 @@ export interface Bidder {
   id: number
   supplier: NamedRef
   supplier_eligible: boolean
+  eligibility_problems: string[]
   bid_amount: number | null
   over_abc: boolean
   bid_security_form: string | null
@@ -829,6 +836,13 @@ export interface BidObserver {
 }
 
 export interface Bidding {
+  sealed: boolean
+  financial_opened_at: string | null
+  can_open_financial: boolean
+  unsolicited_offer: NamedRef | null
+  original_offeror: NamedRef | null
+  original_offeror_amount: number | null
+  award_to_original_offeror: boolean
   id: number
   bidding_number: string
   title: string
@@ -1092,6 +1106,8 @@ export interface Supplier {
   is_active: boolean
   is_eligible: boolean
   is_msme: boolean
+  supplier_kind: string
+  by_mode: { mode: string; required: string[]; missing: string[] }[] | null
   is_sanctioned: boolean
   sanction: string | null
   awardable: boolean

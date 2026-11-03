@@ -375,7 +375,7 @@ public class PsDbmController {
         return view(id, true);
     }
 
-    public record CnasInput(String releaseGround, String cnasNumber, LocalDate cnasDate) {
+    public record CnasInput(String releaseGround, String cnasNumber, LocalDate cnasDate, Integer availableQuantity) {
     }
 
     /**
@@ -395,6 +395,11 @@ public class PsDbmController {
         if (no == null || no.length() > 100) throw ApiException.validation("cnas_number", ZERO_INVENTORY.equals(ground) ? "Enter the CNAS reference." : "Enter the reference of the supporting document.");
         LocalDate date = in.cnasDate() == null ? LocalDate.now(Times.ZONE) : in.cnasDate();
         if (date.isAfter(LocalDate.now(Times.ZONE))) throw ApiException.validation("cnas_date", "The document's date cannot be in the future.");
+        // Too little stock (IRR 40.2 c): what PS has stays on the request, and only the shortfall goes elsewhere.
+        if (in.availableQuantity() != null && in.availableQuantity() > 0) {
+            if (!"insufficient_stock".equals(ground)) throw ApiException.validation("available_quantity", "Only the too-little-stock ground keeps part of the line at PS-DBM.");
+            lineId = splitLine(id, lineId, in.availableQuantity());
+        }
         int n = jdbc.update("update ps_order_items set availability = 'not_available', release_ground = ?, cnas_number = ?, cnas_date = ?, updated_at = ? where id = ? and ps_order_id = ? and availability = 'available'",
                 ground, no, Date.valueOf(date), Timestamp.valueOf(Times.now()), lineId, id);
         if (n == 0) throw ApiException.validation("line", "That line is not on this request, or is already marked not available.");
@@ -558,6 +563,24 @@ public class PsDbmController {
                     l.unitPrice(), l.unitPrice().multiply(BigDecimal.valueOf(l.quantity())).setScale(2, RoundingMode.HALF_UP), now, now);
         }
         recalc(orderId);
+    }
+
+    /** Keeps the quantity PS can supply on this line and returns a new line for the rest. */
+    private Long splitLine(Long orderId, Long lineId, int keep) {
+        List<Map<String, Object>> rows = jdbc.queryForList("select * from ps_order_items where id = ? and ps_order_id = ? and availability = 'available'", lineId, orderId);
+        if (rows.isEmpty()) throw ApiException.validation("line", "That line is not on this request, or is already marked not available.");
+        Map<String, Object> l = rows.get(0);
+        int quantity = ((Number) l.get("quantity")).intValue();
+        if (keep >= quantity) throw ApiException.validation("available_quantity", "PS has to be short of the " + quantity + " ordered; enter less than that.");
+        BigDecimal price = (BigDecimal) l.get("unit_price");
+        Timestamp now = Timestamp.valueOf(Times.now());
+        jdbc.update("update ps_order_items set quantity = ?, amount = ?, updated_at = ? where id = ?", keep, price.multiply(BigDecimal.valueOf(keep)).setScale(2, RoundingMode.HALF_UP), now, lineId);
+        int rest = quantity - keep;
+        return com.avtech.pams.common.Inserts.insert(jdbc, """
+                insert into ps_order_items (ps_order_id, purchase_request_item_id, ps_catalogue_item_id, description, unit, quantity, unit_price, amount,
+                                            availability, created_at, updated_at)
+                values (?, ?, ?, ?, ?, ?, ?, ?, 'available', ?, ?)""", orderId, l.get("purchase_request_item_id"), l.get("ps_catalogue_item_id"), l.get("description"), l.get("unit"), rest,
+                price, price.multiply(BigDecimal.valueOf(rest)).setScale(2, RoundingMode.HALF_UP), now, now);
     }
 
     private void recalc(Long orderId) {

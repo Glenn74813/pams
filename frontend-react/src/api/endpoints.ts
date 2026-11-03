@@ -221,6 +221,7 @@ export interface SupplierInput {
   notes?: string | null
   is_active?: boolean
   is_msme?: boolean
+  supplier_kind?: string
 }
 
 export const supplierApi = {
@@ -469,6 +470,8 @@ export interface RfqInput {
   justification?: string | null
   negotiated_ground?: string | null
   invited_suppliers?: string[]
+  eligibility_revised?: boolean
+  documents_stage?: string | null
   items: { purchase_request_item_id: number; quantity: number; abc_unit_cost?: number; specifications?: string | null; delivery_lead_time?: string | null }[]
 }
 
@@ -485,13 +488,14 @@ export const rfqApi = {
   list: (f: { page: number; status?: string; procurement_method?: string; search?: string }) => api<Paged<Rfq>>('GET', '/rfq', undefined, { params: f }),
   get: (id: number) => api<Rfq>('GET', `/rfq/${id}`),
   abstract: (id: number) => api<RfqAbstract>('GET', `/rfq/${id}/abstract`),
-  prOptions: () => api<{ data: RfqPrOption[]; methods: string[]; single_source: string[]; negotiated_grounds: Record<string, string> }>('GET', '/rfq/purchase-requests'),
+  prOptions: () => api<{ data: RfqPrOption[]; methods: string[]; single_source: string[]; documents_stages: Record<string, string>; negotiated_grounds: Record<string, string> }>('GET', '/rfq/purchase-requests'),
   create: (input: RfqInput) => api<Rfq>('POST', '/rfq', input),
   update: (id: number, input: RfqInput) => api<Rfq>('PUT', `/rfq/${id}`, input),
   remove: (id: number) => api<{ message: string }>('DELETE', `/rfq/${id}`),
   issue: (id: number) => api<Rfq>('POST', `/rfq/${id}/issue`),
   close: (id: number) => api<Rfq>('POST', `/rfq/${id}/close`),
   cancel: (id: number, remarks?: string) => api<Rfq>('POST', `/rfq/${id}/cancel`, { remarks }),
+  declareFailed: (id: number, remarks: string) => api<Rfq>('POST', `/rfq/${id}/declare-failed`, { remarks }),
   addQuotation: (id: number, input: QuotationInput) => api<Rfq>('POST', `/rfq/${id}/quotations`, input),
   removeQuotation: (quotationId: number) => api<Rfq>('DELETE', `/rfq/quotations/${quotationId}`),
   setResponsive: (quotationId: number, isResponsive: boolean, remarks?: string) =>
@@ -598,11 +602,13 @@ export const biddingApi = {
   openBids: (id: number) => api<Bidding>('POST', `${BD}/${id}/open-bids`),
   addBidder: (id: number, input: BidderInput) => api<Bidding>('POST', `${BD}/${id}/bidders`, input),
   evaluate: (bidderId: number, input: { stage: string; result: string; remarks?: string }) => api<Bidding>('PUT', `${BD}/bidders/${bidderId}`, input),
+  openFinancial: (id: number) => api<Bidding>('POST', `${BD}/${id}/open-financial`),
+  recordPrice: (bidderId: number, bid_amount: number) => api<Bidding>('PUT', `${BD}/bidders/${bidderId}`, { bid_amount }),
   removeBidder: (bidderId: number) => api<Bidding>('DELETE', `${BD}/bidders/${bidderId}`),
   scores: (bidderId: number, scores: { bidding_criterion_id: number; score: number }[]) => api<Bidding>('PUT', `${BD}/bidders/${bidderId}/scores`, { scores }),
   declareFailed: (id: number, reason: string) => api<{ bidding: Bidding; message: string; may_negotiate: boolean }>('POST', `${BD}/${id}/declare-failed`, { reason }),
   cancel: (id: number, reason?: string) => api<Bidding>('POST', `${BD}/${id}/cancel`, { reason }),
-  award: (id: number, input: { bidder_id: number; bac_resolution_id: number; contract_recommendation?: string }) => api<Bidding>('POST', `${BD}/${id}/award`, input),
+  award: (id: number, input: { bidder_id: number | null; bac_resolution_id: number; contract_recommendation?: string }) => api<Bidding>('POST', `${BD}/${id}/award`, input),
   noa: (id: number) => api<Bidding>('POST', `${BD}/${id}/noa`, {}),
   ntp: (id: number) => api<Bidding>('POST', `${BD}/${id}/ntp`, {}),
   addProtest: (id: number, input: { protest_type: string; supplier_id?: number | null; filed_by?: string | null; grounds: string; filed_date?: string }) =>

@@ -119,6 +119,9 @@ public class Bidding extends Timestamped {
 
     private String remarks;
 
+    @Column(name = "financial_opened_at")
+    private java.time.LocalDateTime financialOpenedAt;
+
     @Column(name = "evaluation_method", nullable = false)
     private String evaluationMethod = "price";
 
@@ -183,6 +186,13 @@ public class Bidding extends Timestamped {
         return isMearb() || "marb".equals(evaluationMethod);
     }
 
+    /** MEARB or MARB prices not opened yet (IRR 58 b). */
+    public boolean isSealed() {
+        return isRated() && financialOpenedAt == null;
+    }
+
+    public java.time.LocalDateTime getFinancialOpenedAt() { return financialOpenedAt; }
+    public void setFinancialOpenedAt(java.time.LocalDateTime financialOpenedAt) { this.financialOpenedAt = financialOpenedAt; }
     public BigDecimal getMinQualityScore() { return minQualityScore; }
     public void setMinQualityScore(BigDecimal minQualityScore) { this.minQualityScore = minQualityScore; }
     public int getCategoryRank() { return categoryRank == null ? 0 : categoryRank; }

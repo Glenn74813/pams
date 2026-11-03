@@ -31,6 +31,18 @@ export function BiddersPanel({ b, onChanged, onError }: Props) {
     onError: fail,
   })
   const remove = useMutation({ mutationFn: (x: Bidder) => biddingApi.removeBidder(x.id), onSuccess: () => onChanged('Bid removed.'), onError: fail })
+  const openFinancial = useMutation({ mutationFn: () => biddingApi.openFinancial(b.id), onSuccess: () => onChanged('Financial proposals opened.'), onError: fail })
+  const [pricing, setPricing] = useState<Bidder | null>(null)
+  const [price, setPrice] = useState('')
+  const savePrice = useMutation({
+    mutationFn: () => biddingApi.recordPrice(pricing!.id, Number(price)),
+    onSuccess: () => {
+      setPricing(null)
+      setPrice('')
+      onChanged('Price recorded.')
+    },
+    onError: fail,
+  })
   const mearb = b.evaluation_method !== 'price'
   const nextStage = (x: Bidder) => STAGES.find(([s]) => x.results[s] === 'pending')?.[0]
   const anyPostQual = (b.bidders ?? []).some((x) => x.results.post_qualification !== 'pending')
@@ -44,7 +56,13 @@ export function BiddersPanel({ b, onChanged, onError }: Props) {
             + Record bid
           </button>
         )}
+        {b.can_open_financial && (
+          <button className="btn btn-primary btn-sm" disabled={openFinancial.isPending} onClick={() => openFinancial.mutate()}>
+            Open financial proposals
+          </button>
+        )}
       </div>
+      {b.sealed && <p className="hint">Prices stay sealed until every bid has passed technical evaluation and been scored (IRR 58). {b.evaluation_method === 'marb' ? 'Only the highest technical rating is then opened.' : 'Only bids that meet the minimum quality score are then opened.'}</p>}
       {adding && <BidForm b={b} onCancel={() => setAdding(false)} onSaved={() => { setAdding(false); onChanged('Bid recorded.') }} onError={onError} />}
       <div className="table-wrap">
         <table className="table table-compact">
@@ -72,11 +90,12 @@ export function BiddersPanel({ b, onChanged, onError }: Props) {
                   <td>
                     {x.is_winner && '🏆 '}
                     {x.supplier.name}
-                    {!x.supplier_eligible && <span className="badge st-bad">Not eligible</span>}
+                    {!x.supplier_eligible && <span className="badge st-bad" title={x.eligibility_problems.join('; ')}>Not eligible</span>}
+                    {!x.supplier_eligible && <div className="muted small">{x.eligibility_problems.join('; ')}</div>}
                     {x.remarks && <div className="muted small">{x.remarks}</div>}
                   </td>
                   <td className="num">
-                    {x.bid_amount == null ? '—' : formatPeso(x.bid_amount)}
+                    {x.bid_amount == null ? (b.sealed ? 'Sealed' : '—') : formatPeso(x.bid_amount)}
                     {x.over_abc && <div><span className="badge st-bad">Over ABC</span></div>}
                   </td>
                   <td>
@@ -100,7 +119,12 @@ export function BiddersPanel({ b, onChanged, onError }: Props) {
                   )}
                   <td>
                     <div className="workflow-actions">
-                      {canAct && next && (
+                      {b.can_evaluate && mearb && !b.sealed && !failedEarlier && x.results.financial === 'pending' && (
+                        <button className="btn btn-outline btn-sm" onClick={() => { setPrice(x.bid_amount == null ? '' : String(x.bid_amount)); setPricing(x) }}>
+                          Record price
+                        </button>
+                      )}
+                      {canAct && next && !(next === 'financial' && b.sealed) && !(next === 'financial' && x.bid_amount == null) && (
                         <>
                           <button className="btn btn-primary btn-sm" disabled={evaluate.isPending} onClick={() => evaluate.mutate({ bidder: x, stage: next, result: 'passed' })}>
                             Pass {STAGES.find(([s]) => s === next)![1]}
@@ -110,7 +134,7 @@ export function BiddersPanel({ b, onChanged, onError }: Props) {
                           </button>
                         </>
                       )}
-                      {mearb && b.can_evaluate && !anyPostQual && (
+                      {mearb && b.can_evaluate && b.sealed && !anyPostQual && (
                         <button className="btn btn-outline btn-sm" onClick={() => setScoring(x)}>
                           Scores
                         </button>
@@ -137,6 +161,22 @@ export function BiddersPanel({ b, onChanged, onError }: Props) {
       </div>
       {b.can_evaluate && b.next_post_qual_bidder_id && (
         <p className="hint">Post-qualify the top-ranked responsive bidder; if it fails, the next one in rank is post-qualified.</p>
+      )}
+      {pricing && (
+        <div className="reject-box">
+          <div className="field">
+            <label htmlFor="bd-price">Price of {pricing.supplier.name} as read (₱) *</label>
+            <input id="bd-price" type="number" min={0} step="0.01" value={price} onChange={(e) => setPrice(e.target.value)} autoFocus />
+          </div>
+          <div className="modal-footer">
+            <button className="btn btn-secondary" onClick={() => setPricing(null)}>
+              Cancel
+            </button>
+            <button className="btn btn-primary" disabled={!price || savePrice.isPending} onClick={() => savePrice.mutate()}>
+              Record price
+            </button>
+          </div>
+        </div>
       )}
       {failing && (
         <div className="reject-box">
@@ -205,10 +245,12 @@ function BidForm({ b, onCancel, onSaved, onError }: { b: Bidding; onCancel: () =
             <input id="bf-name" value={name} onChange={(e) => setName(e.target.value)} />
           </div>
         )}
-        <div className="field">
-          <label htmlFor="bf-amt">Bid as read (₱)</label>
-          <input id="bf-amt" type="number" min={0} step="0.01" value={amount} onChange={(e) => setAmount(e.target.value)} />
-        </div>
+        {!b.sealed && (
+          <div className="field">
+            <label htmlFor="bf-amt">Bid as read (₱)</label>
+            <input id="bf-amt" type="number" min={0} step="0.01" value={amount} onChange={(e) => setAmount(e.target.value)} />
+          </div>
+        )}
         <div className="field">
           <label htmlFor="bf-form">Bid security</label>
           <select id="bf-form" value={form} onChange={(e) => setForm(e.target.value)}>

@@ -43,6 +43,7 @@ export const menuGroups: MenuGroup[] = [
     children: [
       { path: '/ps-dbm', icon: Store, label: 'PS-DBM (Common-Use)', module: 'ps-dbm', ported: true },
       { path: '/bidding', icon: Gavel, label: 'Competitive Bidding', module: 'bidding', ported: true },
+      { path: '/unsolicited-offers', icon: Gavel, label: 'Unsolicited Offers', module: 'bidding', ported: true },
       { path: '/rfq', icon: FileQuestion, label: 'RFQ / Alternative Modes', module: 'rfq', ported: true },
       { path: '/bac', icon: Users, label: 'BAC Management', module: 'bac', ported: true },
       { path: '/suppliers', icon: Truck, label: 'Vendors / Suppliers', module: 'suppliers', ported: true },

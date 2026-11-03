@@ -8,7 +8,26 @@ import { ConfirmDialog, Modal } from '../../components/Modal'
 import { formatDate, formatPeso, today } from '../../lib/format'
 import { AttachmentsPanel } from '../documents/AttachmentsPanel'
 
-const DOC_TYPES = ['PhilGEPS Registration', 'DTI Registration', 'SEC Registration', "Mayor's Permit", 'BIR Registration', 'Tax Clearance', 'Omnibus Sworn Statement', 'Other']
+const DOC_TYPES = [
+  'PhilGEPS Certificate of Registration (Platinum)',
+  'PhilGEPS Organization ID',
+  'PhilGEPS Registration',
+  'DTI Registration',
+  'SEC Registration',
+  "Mayor's Permit",
+  'Business Registration Permit',
+  "Mayor's Permit renewal receipt",
+  'BIR Registration',
+  'Professional License',
+  'Curriculum Vitae',
+  'NFCC Computation',
+  'Committed Line of Credit',
+  'PCAB License',
+  'Income or Business Tax Return',
+  'Omnibus Sworn Statement',
+  'Tax Clearance',
+  'Other',
+]
 const DOC_CLASS: Record<string, string> = { valid: 'st-ok', expiring: 'st-pending', expired: 'st-bad' }
 
 interface Props {
@@ -40,13 +59,13 @@ export function SupplierDetailModal({ supplierId, onClose, onEdit, onChanged }: 
           {error && <div className="alert alert-error">{error}</div>}
           <div className={s.awardable ? 'alert alert-success' : 'alert alert-warning'}>
             {s.awardable
-              ? 'Eligible for award.'
+              ? 'Verified for competitive selection.'
               : s.is_sanctioned
                 ? `Under ${s.sanction}; not eligible for award.`
                 : !s.is_active
                   ? 'Inactive.'
                   : s.eligibility.ready
-                    ? 'Documents complete — not yet marked eligible.'
+                    ? 'PhilGEPS Platinum on file — not yet marked eligible for competitive selection. Other modes go by the table under Eligibility requirements.'
                     : `Not eligible: ${[s.eligibility.missing.length ? 'missing ' + s.eligibility.missing.join(', ') : '', s.eligibility.expired.length ? 'expired ' + s.eligibility.expired.join(', ') : ''].filter(Boolean).join('; ')}.`}
           </div>
           <dl className="detail-grid">
@@ -122,6 +141,32 @@ function EligibilityPanel({ s, edit, onOk, onError }: PanelProps & { edit: boole
           </li>
         ))}
       </ul>
+      {s.by_mode && (
+        <>
+          <h4 style={{ margin: '1rem 0 0.5rem' }}>Documents by mode (GPPB Circular 06-2026)</h4>
+          <p className="hint">For goods above ₱500,000. Infrastructure and consulting add their licenses, and lower amounts need less. Other modes ask for no documents here.</p>
+          <div className="table-wrap">
+            <table className="table table-compact">
+              <thead>
+                <tr>
+                  <th>Mode</th>
+                  <th>Needs</th>
+                  <th>Status</th>
+                </tr>
+              </thead>
+              <tbody>
+                {s.by_mode.map((m) => (
+                  <tr key={m.mode}>
+                    <td>{m.mode}</td>
+                    <td className="small">{m.required.join(', ') || 'None'}</td>
+                    <td className="small">{m.missing.length === 0 ? <span className="badge st-ok">Ready</span> : m.missing.join(', ')}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </>
+      )}
       {edit && (
         <div className="workflow-actions" style={{ marginTop: '0.5rem' }}>
           {!s.is_eligible && (

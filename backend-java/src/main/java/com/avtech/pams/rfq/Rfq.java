@@ -30,7 +30,9 @@ import java.util.Map;
 public class Rfq extends Timestamped {
 
     public static final List<String> METHODS = List.of(ProcurementRules.SVP, ProcurementRules.NEGOTIATED, "Direct Contracting",
-            "Direct Acquisition", "Repeat Order", "Limited Source Bidding", "Competitive Dialogue", ProcurementRules.UNSOLICITED, "Direct Sales", ProcurementRules.STI);
+            "Direct Acquisition", "Repeat Order", "Limited Source Bidding", "Competitive Dialogue", "Direct Sales", ProcurementRules.STI);
+    /** Modes that can fail as a bidding does and count towards two failed biddings (IRR 64.1). */
+    public static final List<String> CAN_FAIL = List.of("Limited Source Bidding", "Competitive Dialogue");
     /** The instances of Negotiated Procurement (IRR Section 35; GPPB Resolution 01-2026; GPPB Circular 06-2026), by the code stored on the RFQ. */
     public static final Map<String, String> NEGOTIATED_GROUNDS = new LinkedHashMap<>();
     public static final String TWO_FAILED = "two_failed_biddings";
@@ -60,6 +62,7 @@ public class Rfq extends Timestamped {
     public static final String CLOSED = "closed";
     public static final String AWARDED = "awarded";
     public static final String CANCELLED = "cancelled";
+    public static final String FAILED = "failed";
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -103,6 +106,15 @@ public class Rfq extends Timestamped {
 
     @jakarta.persistence.Column(name = "negotiated_ground")
     private String negotiatedGround;
+
+    @Column(name = "eligibility_revised", nullable = false)
+    private boolean eligibilityRevised;
+
+    @Column(name = "documents_stage")
+    private String documentsStage;
+
+    @Column(name = "failure_reason")
+    private String failureReason;
 
     /** One invited supplier per line (a Negotiated Procurement after two failed biddings invites at least three). */
     @jakarta.persistence.Column(name = "invited_suppliers")
@@ -182,6 +194,12 @@ public class Rfq extends Timestamped {
     public void setBacResolutionId(Long bacResolutionId) { this.bacResolutionId = bacResolutionId; }
     public String getRemarks() { return remarks; }
     public void setRemarks(String remarks) { this.remarks = remarks; }
+    public boolean isEligibilityRevised() { return eligibilityRevised; }
+    public void setEligibilityRevised(boolean eligibilityRevised) { this.eligibilityRevised = eligibilityRevised; }
+    public String getDocumentsStage() { return documentsStage; }
+    public void setDocumentsStage(String documentsStage) { this.documentsStage = documentsStage; }
+    public String getFailureReason() { return failureReason; }
+    public void setFailureReason(String failureReason) { this.failureReason = failureReason; }
     public String getNegotiatedGround() { return negotiatedGround; }
     public void setNegotiatedGround(String negotiatedGround) { this.negotiatedGround = negotiatedGround; }
     public String getInvitedSuppliers() { return invitedSuppliers; }

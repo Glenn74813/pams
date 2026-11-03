@@ -12,6 +12,7 @@ import com.avtech.pams.common.Times;
 import com.avtech.pams.notification.NotificationService;
 import com.avtech.pams.procurement.AwardSupport;
 import com.avtech.pams.procurement.PrLineUsage;
+import com.avtech.pams.procurement.EligibilityRules;
 import com.avtech.pams.procurement.ProcurementRules;
 import com.avtech.pams.user.User;
 import com.avtech.pams.user.UserRepository;
@@ -71,7 +72,7 @@ public class BiddingController {
     /** Days a bidding's Invitation stays posted before bids can close (IRR 50). */
     private static final int ITB_POSTING_DAYS = 7;
     /** Bid security as a share of the ABC, by form (IRR 56.2) (a Bid Securing Declaration needs no amount). */
-    static final Map<String, BigDecimal> SECURITY_RATES = new LinkedHashMap<>();
+    public static final Map<String, BigDecimal> SECURITY_RATES = new LinkedHashMap<>();
 
     static {
         SECURITY_RATES.put("cash", new BigDecimal("0.02"));
@@ -126,7 +127,7 @@ public class BiddingController {
     public record CriterionView(Long id, String name, BigDecimal weight, boolean isEnvironmental) {
     }
 
-    public record BidderView(Long id, Ref supplier, boolean supplierEligible, BigDecimal bidAmount, boolean overAbc, String bidSecurityForm,
+    public record BidderView(Long id, Ref supplier, boolean supplierEligible, List<String> eligibilityProblems, BigDecimal bidAmount, boolean overAbc, String bidSecurityForm,
                              BigDecimal bidSecurityAmount, boolean bidSecurityPosted, BigDecimal bidSecurityRequired, boolean bidSecurityOk,
                              Map<String, String> results, Map<Long, BigDecimal> scores, BigDecimal ratedScore, BigDecimal mearbScore,
                              Integer computedRank, boolean postQualTurn, boolean isWinner, String remarks) {
@@ -153,6 +154,7 @@ public class BiddingController {
                               List<LineView> items, List<CriterionView> criteria, List<BidderView> bidders, List<ProtestView> protests,
                               List<ObserverView> observers, Long recommendedBidderId, Long nextPostQualBidderId, int openProtests,
                               int observersInvited, List<Interval> timeline, boolean canEdit, boolean canSchedule, boolean canOpen,
+                              boolean sealed, OffsetDateTime financialOpenedAt, boolean canOpenFinancial, Ref unsolicitedOffer, Ref originalOfferor, BigDecimal originalOfferorAmount, boolean awardToOriginalOfferor,
                               boolean canRecordBids, boolean canEvaluate, boolean canAward, boolean canNoa, boolean canNtp, boolean canFail,
                               boolean canCancel, boolean canDelete, OffsetDateTime createdAt) {
     }
@@ -347,6 +349,14 @@ public class BiddingController {
         LocalDate today = LocalDate.now(Times.ZONE);
         LocalDate posted = in.itbPostedAt() == null ? today : in.itbPostedAt();
         if (posted.isAfter(today)) throw ApiException.validation("itb_posted_at", "Record the posting once it has happened.");
+        Map<String, Object> offer = linkedOffer(b.getId());
+        if (offer == null) {
+            Integer planned = jdbc.queryForObject("select count(*) from bidding_items bi join purchase_request_items pri on pri.id = bi.purchase_request_item_id where bi.bidding_id = ? and pri.procurement_mode = ?",
+                    Integer.class, b.getId(), ProcurementRules.UNSOLICITED);
+            if (planned != null && planned > 0) throw ApiException.of(HttpStatus.CONFLICT, "These lines are planned as an Unsolicited Offer; link this bidding to the offer first (Unsolicited Offers).");
+        } else if (posted.isAfter(((java.sql.Date) offer.get("certification_date")).toLocalDate().plusDays(30))) {
+            throw ApiException.validation("itb_posted_at", "The Invitation to Bid is published within 30 calendar days of the original offeror certification (IRR 30.7).");
+        }
         if (in.submissionDeadline() == null) throw ApiException.validation("submission_deadline", "Set the deadline for bids.");
         if (in.submissionDeadline().toLocalDate().isBefore(posted.plusDays(ITB_POSTING_DAYS))) {
             throw ApiException.validation("submission_deadline", "The Invitation to Bid stays posted for " + ITB_POSTING_DAYS + " calendar days; set the deadline on or after " + posted.plusDays(ITB_POSTING_DAYS) + ".");
@@ -399,6 +409,7 @@ public class BiddingController {
         // A bid read at the opening but entered late can still be added while evaluation is under way, until post-qualification.
         if (!Bidding.BID_OPENING.equals(b.getStatus()) && !Bidding.EVALUATION.equals(b.getStatus())) throw ApiException.of(HttpStatus.CONFLICT, "Bids are recorded at the bid opening.");
         if (postQualStarted(b)) throw ApiException.of(HttpStatus.CONFLICT, "Post-qualification has started; no more bids can be recorded.");
+        if (b.isRated() && !b.isSealed()) throw ApiException.of(HttpStatus.CONFLICT, "The financial proposals have been opened; no more bids can be recorded.");
         Long supplierId = awards.supplier(in.supplierId(), in.supplierName());
         if (b.getBidders().stream().anyMatch(x -> x.getSupplierId().equals(supplierId))) throw ApiException.validation("supplier_id", "This supplier has already bid.");
         BiddingBidder x = new BiddingBidder(b, supplierId);
@@ -430,7 +441,14 @@ public class BiddingController {
                 throw ApiException.of(HttpStatus.CONFLICT, "Bids and bid securities are recorded at the opening.");
             }
             // A correction is allowed until this bid has been evaluated; after that its results would rest on the old figures.
-            if (BiddingBidder.STAGES.stream().anyMatch(st -> !"pending".equals(x.result(st)))) {
+            if (b.isRated() && !b.isSealed()) {
+                // The price comes in after the technical stages, so only the later stages stand in its way.
+                if (in.bidSecurityForm() != null || in.bidSecurityAmount() != null || in.bidSecurityPosted() != null) throw ApiException.of(HttpStatus.CONFLICT, "The bid security was settled at eligibility.");
+                if (x.failedAny()) throw ApiException.of(HttpStatus.CONFLICT, "This bidder's financial proposal stays unopened.");
+                if (!"pending".equals(x.result("financial")) || !"pending".equals(x.result("post_qualification"))) {
+                    throw ApiException.of(HttpStatus.CONFLICT, "This bid has already been evaluated; set its results back to pending before correcting the bid.");
+                }
+            } else if (BiddingBidder.STAGES.stream().anyMatch(st -> !"pending".equals(x.result(st)))) {
                 throw ApiException.of(HttpStatus.CONFLICT, "This bid has already been evaluated; set its results back to pending before correcting the bid.");
             }
             applyBid(b, x, new BidderInput(null, null, in.bidAmount() != null ? in.bidAmount() : x.getBidAmount(),
@@ -471,6 +489,7 @@ public class BiddingController {
         if (!b.isRated()) throw ApiException.validation("scores", "Rated scores apply to MEARB or MARB evaluation only.");
         if (!Bidding.BID_OPENING.equals(b.getStatus()) && !Bidding.EVALUATION.equals(b.getStatus())) throw ApiException.of(HttpStatus.CONFLICT, "Scores are given during evaluation.");
         if (postQualStarted(b)) throw ApiException.of(HttpStatus.CONFLICT, "Post-qualification has started; the rated scores are final.");
+        if (!b.isSealed()) throw ApiException.of(HttpStatus.CONFLICT, "The financial proposals have been opened; the rated scores are final.");
         BiddingBidder x = b.getBidders().stream().filter(y -> y.getId().equals(bidderId)).findFirst().orElseThrow();
         Set<Long> criteria = b.getCriteria().stream().map(BiddingCriterion::getId).collect(Collectors.toSet());
         for (ScoreInput s : in == null || in.scores() == null ? List.<ScoreInput>of() : in.scores()) {
@@ -483,6 +502,56 @@ public class BiddingController {
         if (Bidding.BID_OPENING.equals(b.getStatus())) b.setStatus(Bidding.EVALUATION);
         biddings.flush();
         return view(b);
+    }
+
+    /**
+     * Opens the financial proposals of a MEARB or MARB bidding once every bid has been rated (IRR 58 b, 61.3, 61.8):
+     * under MEARB those that met the minimum quality score, under MARB only the highest technical rating.
+     */
+    @PostMapping("/{id}/open-financial")
+    @PreAuthorize(EVALUATE)
+    @Transactional
+    public BiddingView openFinancial(@PathVariable Long id) {
+        Bidding b = lock(id);
+        if (!b.isRated()) throw ApiException.of(HttpStatus.CONFLICT, "Lowest-price biddings open both proposals on the same day.");
+        if (!b.isSealed()) throw ApiException.of(HttpStatus.CONFLICT, "The financial proposals have already been opened.");
+        if (!Bidding.BID_OPENING.equals(b.getStatus()) && !Bidding.EVALUATION.equals(b.getStatus())) throw ApiException.of(HttpStatus.CONFLICT, "Financial proposals are opened during evaluation.");
+        List<BiddingBidder> live = b.getBidders().stream().filter(x -> !x.failedAny()).toList();
+        if (live.isEmpty()) throw ApiException.of(HttpStatus.CONFLICT, "No bid is left to open; declare a failure of bidding instead.");
+        for (BiddingBidder x : live) {
+            String name = awards.supplierName(x.getSupplierId());
+            if (!"passed".equals(x.result("technical"))) throw ApiException.of(HttpStatus.CONFLICT, "Finish the eligibility and technical evaluation of " + name + " first.");
+            if (x.getScores().size() < b.getCriteria().size()) throw ApiException.of(HttpStatus.CONFLICT, "Score " + name + " on every criterion first.");
+        }
+        BigDecimal best = live.stream().map(x -> rating(b, x)).max(BigDecimal::compareTo).orElseThrow();
+        List<String> opened = new ArrayList<>();
+        for (BiddingBidder x : live) {
+            BigDecimal r = rating(b, x);
+            String name = awards.supplierName(x.getSupplierId());
+            if (b.isMearb() && b.getMinQualityScore() != null && r.compareTo(b.getMinQualityScore()) < 0) {
+                x.setResult("technical", "failed");
+                x.setRemarks("Rated " + r + ", below the minimum quality score of " + b.getMinQualityScore() + "; financial proposal not opened.");
+            } else if (!b.isMearb() && r.compareTo(best) < 0) {
+                x.setResult("financial", "failed");
+                x.setRemarks("Rated " + r + ", below the highest rating of " + best + "; financial proposal not opened.");
+            } else {
+                opened.add(name);
+            }
+        }
+        b.setFinancialOpenedAt(Times.now());
+        b.setStatus(Bidding.EVALUATION);
+        biddings.flush();
+        audit.record("financial_opened", TYPE, b.getId(), "Financial proposals opened for " + b.getBiddingNumber() + ": " + (opened.isEmpty() ? "none met the minimum" : String.join(", ", opened)),
+                null, Map.of("opened", opened));
+        return view(b);
+    }
+
+    private static BigDecimal rating(Bidding b, BiddingBidder x) {
+        BigDecimal weights = b.getCriteria().stream().map(BiddingCriterion::getWeight).reduce(BigDecimal.ZERO, BigDecimal::add);
+        if (weights.signum() == 0) return x.getTechnicalScore() == null ? BigDecimal.ZERO : x.getTechnicalScore();
+        Map<Long, BigDecimal> byCrit = x.getScores().stream().collect(Collectors.toMap(BiddingBidderScore::getCriterionId, BiddingBidderScore::getScore));
+        return b.getCriteria().stream().map(c -> byCrit.getOrDefault(c.getId(), BigDecimal.ZERO).multiply(c.getWeight()))
+                .reduce(BigDecimal.ZERO, BigDecimal::add).divide(weights, 2, RoundingMode.HALF_UP);
     }
 
     // ───────────────────────── outcome ─────────────────────────
@@ -498,9 +567,7 @@ public class BiddingController {
         if (why == null) throw ApiException.validation("failure_reason", "State the ground for declaring a failure of bidding.");
         Bidding b = lock(id);
         if (b.isOver() || b.isPlanning()) throw ApiException.of(HttpStatus.CONFLICT, "Only a bidding that has been advertised can be declared failed.");
-        Integer before = jdbc.queryForObject("select count(*) from biddings where purchase_request_id = ? and status = 'failed' and deleted_at is null and id <> ?",
-                Integer.class, b.getPurchaseRequestId(), b.getId());
-        int count = (before == null ? 0 : before) + 1;
+        int count = usage.failedBiddings(b.getPurchaseRequestId()) + 1;
         String was = b.getStatus();
         b.setStatus(Bidding.FAILED);
         b.setFailureReason(why);
@@ -537,20 +604,32 @@ public class BiddingController {
     @Transactional
     public BiddingView award(@PathVariable Long id, @RequestBody AwardInput in) {
         Bidding b = lock(id);
-        if (!Bidding.EVALUATION.equals(b.getStatus())) throw ApiException.of(HttpStatus.CONFLICT, "A bidding is awarded after evaluation.");
+        Map<String, Object> offer = linkedOffer(b.getId());
+        boolean toOfferor = offer != null && originalOfferorWins(b, offer);
+        if (!Bidding.EVALUATION.equals(b.getStatus()) && !(toOfferor && Bidding.BID_OPENING.equals(b.getStatus()))) throw ApiException.of(HttpStatus.CONFLICT, "A bidding is awarded after evaluation.");
+        if (offer != null && !"bid_matching".equals(offer.get("status"))) throw ApiException.of(HttpStatus.CONFLICT, "Bid matching comes first: record the result on the Unsolicited Offer (IRR 30.8).");
+        if (offer != null && offer.get("match_result") == null) {
+            throw ApiException.of(HttpStatus.CONFLICT, "The original offeror has 15 calendar days to match the lowest bid; record its answer on the Unsolicited Offer first (IRR 30.8).");
+        }
         User me = current.user();
         if (me.getId().equals(b.getPreparedBy()) && !me.isSuperAdmin()) throw ApiException.forbidden("You prepared this bidding, so someone else has to award it.");
         long open = b.getProtests().stream().filter(BidProtest::isOpen).count();
         if (open > 0) throw ApiException.of(HttpStatus.CONFLICT, open + " protest(s) or request(s) for reconsideration are pending; resolve them before the award.");
         Evaluation ev = evaluation(b);
-        BiddingBidder x = b.getBidders().stream().filter(y -> y.getId().equals(in.bidderId())).findFirst()
-                .orElseThrow(() -> ApiException.validation("bidder_id", "Choose a bidder on this bidding."));
-        if (ev.recommended() == null) throw ApiException.of(HttpStatus.CONFLICT, "No bidder has passed post-qualification yet.");
-        if (!x.getId().equals(ev.recommended())) {
-            throw ApiException.validation("bidder_id", "The award goes to the bidder that passed post-qualification as the "
-                    + (b.isRated() ? "highest-rated" : "lowest calculated") + " responsive bid.");
+        BiddingBidder x;
+        if (toOfferor) {
+            x = originalOfferorBid(b, offer);
+        } else {
+            x = b.getBidders().stream().filter(y -> y.getId().equals(in.bidderId())).findFirst()
+                    .orElseThrow(() -> ApiException.validation("bidder_id", "Choose a bidder on this bidding."));
+            if (ev.recommended() == null) throw ApiException.of(HttpStatus.CONFLICT, "No bidder has passed post-qualification yet.");
+            if (!x.getId().equals(ev.recommended())) {
+                throw ApiException.validation("bidder_id", "The award goes to the bidder that passed post-qualification as the "
+                        + (b.isRated() ? "highest-rated" : "lowest calculated") + " responsive bid.");
+            }
         }
-        if (!awards.eligible(x.getSupplierId())) throw ApiException.validation("bidder_id", awards.supplierName(x.getSupplierId()) + " is inactive or not eligible.");
+        List<String> problems = awards.awardProblems(x.getSupplierId(), "Competitive Bidding", null, false, b.getCategoryRank(), b.getAbc());
+        if (!problems.isEmpty()) throw ApiException.validation("bidder_id", awards.supplierName(x.getSupplierId()) + " is not eligible: " + String.join("; ", problems) + ".");
         BacResolution res = awards.resolution(in.bacResolutionId(), b.getPurchaseRequestId(), null, b.getId());
         b.getBidders().forEach(y -> y.setWinner(false));
         x.setWinner(true);
@@ -563,11 +642,60 @@ public class BiddingController {
         String rec = text(in.contractRecommendation());
         if (rec != null) b.setContractRecommendation(rec);
         biddings.flush();
+        if (offer != null) {
+            jdbc.update("update unsolicited_offers set status = ?, updated_at = ? where id = ?", toOfferor ? "awarded_original" : "awarded_comparative",
+                    java.sql.Timestamp.valueOf(Times.now()), offer.get("id"));
+        }
         audit.record("awarded", TYPE, b.getId(), b.getBiddingNumber() + " awarded to " + awards.supplierName(x.getSupplierId()) + " (₱" + ProcurementRules.peso(x.getBidAmount())
                 + ") on " + res.getResolutionNumber(), Map.of("status", "evaluation"), Map.of("status", "awarded", "supplier_id", x.getSupplierId()));
         notifications.notifyPermission(List.of("view_bidding", "manage_bidding", "process_award"), me.getId(), "bidding_award", "Bidding awarded",
                 b.getBiddingNumber() + " (" + b.getTitle() + ") was awarded to " + awards.supplierName(x.getSupplierId()) + ". Issue the NOA and NTP.", TYPE, b.getId());
         return view(b);
+    }
+
+    private Map<String, Object> linkedOffer(Long biddingId) {
+        List<Map<String, Object>> rows = jdbc.queryForList("select * from unsolicited_offers where bidding_id = ? and deleted_at is null", biddingId);
+        return rows.isEmpty() ? null : rows.get(0);
+    }
+
+    /** IRR 30.8: no comparative bid came in or all failed at opening, or the original offeror matched or beat the lowest. */
+    private static boolean originalOfferorWins(Bidding b, Map<String, Object> offer) {
+        return "matched".equals(offer.get("match_result")) || "no_comparative".equals(offer.get("match_result"));
+    }
+
+    /** The original offeror goes on the bidding at the price that wins, so the award, NOA and contract read as for any bidder. */
+    private BiddingBidder originalOfferorBid(Bidding b, Map<String, Object> offer) {
+        Long supplierId = ((Number) offer.get("supplier_id")).longValue();
+        BigDecimal price = (BigDecimal) (offer.get("match_amount") != null ? offer.get("match_amount") : offer.get("negotiated_amount"));
+        if (b.getAbc().signum() > 0 && price.compareTo(b.getAbc()) > 0) throw ApiException.validation("bidder_id", "₱" + ProcurementRules.peso(price) + " exceeds the ABC of ₱" + ProcurementRules.peso(b.getAbc()) + ".");
+        BiddingBidder x = b.getBidders().stream().filter(y -> y.getSupplierId().equals(supplierId)).findFirst().orElse(null);
+        if (x == null) {
+            x = new BiddingBidder(b, supplierId);
+            b.getBidders().add(x);
+        }
+        x.setBidAmount(price);
+        x.setBidSecurityForm((String) offer.get("bid_security_form"));
+        x.setBidSecurityAmount((BigDecimal) offer.get("bid_security_amount"));
+        x.setBidSecurityPosted(true);
+        for (String stage : BiddingBidder.STAGES) x.setResult(stage, "passed");
+        x.setRemarks("Original offeror (IRR 30.8), certified " + offer.get("certification_number") + ".");
+        return x;
+    }
+
+    /** The lowest bid that came through post-qualification, for bid matching (IRR 30.7, 30.8). */
+    public record Comparative(boolean none, Long supplierId, BigDecimal amount) {
+    }
+
+    @Transactional(readOnly = true)
+    public Comparative comparative(Long biddingId) {
+        Bidding b = biddings.findById(biddingId).orElseThrow(() -> ApiException.notFound("Bidding"));
+        if (b.getBidders().stream().allMatch(x -> "failed".equals(x.result("eligibility")))) {
+            return Bidding.BID_OPENING.equals(b.getStatus()) || Bidding.EVALUATION.equals(b.getStatus()) ? new Comparative(true, null, null) : new Comparative(false, null, null);
+        }
+        Long top = evaluation(b).recommended();
+        if (top == null) return new Comparative(false, null, null);
+        BiddingBidder x = b.getBidders().stream().filter(y -> y.getId().equals(top)).findFirst().orElseThrow();
+        return new Comparative(false, x.getSupplierId(), x.getBidAmount());
     }
 
     public record NoticeInput(LocalDate date) {
@@ -737,7 +865,7 @@ public class BiddingController {
             if (!seen.add(p.id())) throw ApiException.validation(f + "purchase_request_item_id", "\"" + p.description() + "\" is listed twice.");
             // A common-use line released from PS-DBM (IRR 40.2) may be bid out, as when it is above the SVP ceiling.
             boolean psOut = ProcurementRules.PS_DBM.equals(p.mode()) && usage.releasedFromPs(p.id());
-            if (p.mode() != null && !"Competitive Bidding".equals(p.mode()) && !psOut) {
+            if (p.mode() != null && !"Competitive Bidding".equals(p.mode()) && !psOut && !ProcurementRules.UNSOLICITED.equals(p.mode())) {
                 throw ApiException.validation(f + "purchase_request_item_id", "\"" + p.description() + "\" was planned under " + p.mode() + ", not competitive bidding.");
             }
             int left = p.quantity() - taken.getOrDefault(p.id(), 0);
@@ -794,6 +922,9 @@ public class BiddingController {
 
     private void applyBid(Bidding b, BiddingBidder x, BidderInput in) {
         if (in.bidAmount() != null && (in.bidAmount().signum() <= 0 || in.bidAmount().scale() > 2)) throw ApiException.validation("bid_amount", "Enter the bid as read, in pesos.");
+        if (in.bidAmount() != null && b.isSealed()) {
+            throw ApiException.validation("bid_amount", "Financial proposals stay sealed under " + b.getEvaluationMethod().toUpperCase() + " until the technical evaluation is done (IRR 58); record the price when they are opened.");
+        }
         String form = text(in.bidSecurityForm());
         if (form != null && !SECURITY_RATES.containsKey(form)) throw ApiException.validation("bid_security_form", "Unknown form of bid security.");
         if (in.bidSecurityAmount() != null && in.bidSecurityAmount().signum() < 0) throw ApiException.validation("bid_security_amount", "The amount cannot be negative.");
@@ -843,8 +974,11 @@ public class BiddingController {
             }
             Evaluation ev = evaluation(b);
             boolean current = x.getId().equals(ev.postQualTurn()) || x.getId().equals(ev.recommended());
-            if ("passed".equals(result) && !awards.eligible(x.getSupplierId())) {
-                throw ApiException.validation("result", name + " is not eligible: verify its PhilGEPS, permits and tax documents in the supplier register (and check sanctions) first.");
+            if ("passed".equals(result)) {
+                List<String> problems = awards.awardProblems(x.getSupplierId(), "Competitive Bidding", null, false, b.getCategoryRank(), b.getAbc());
+                // IRR 63.2: post-qualification also looks at the latest income and business tax returns.
+                problems.addAll(awards.missingDocuments(x.getSupplierId(), List.of(new EligibilityRules.Requirement(EligibilityRules.TAX_RETURN, List.of(EligibilityRules.TAX_RETURN)))));
+                if (!problems.isEmpty()) throw ApiException.validation("result", name + " is not eligible: " + String.join("; ", problems) + ".");
             }
             if (!current && !"pending".equals(result)) {
                 throw ApiException.validation("stage", "Post-qualification is for the " + (b.isRated() ? "highest-rated" : "lowest calculated")
@@ -856,6 +990,8 @@ public class BiddingController {
                 throw ApiException.validation("result", name + " has not posted a sufficient bid security (" + (x.getBidSecurityForm() == null
                         ? "none recorded" : x.getBidSecurityForm().replace('_', ' ') + ", ₱" + ProcurementRules.peso(securityRequired(b, x)) + " required") + ").");
             }
+            if (b.isRated() && !b.isSealed() && !"financial".equals(stage)) throw ApiException.of(HttpStatus.CONFLICT, "The financial proposals have been opened; the earlier results are final.");
+            if (b.isSealed() && "financial".equals(stage)) throw ApiException.of(HttpStatus.CONFLICT, "Open the financial proposals first (IRR 58).");
             if ("financial".equals(stage) && "passed".equals(result)) {
                 if (x.getBidAmount() == null) throw ApiException.validation("result", "Record " + name + "'s bid amount first.");
                 if (overAbc(b, x)) throw ApiException.validation("result", "₱" + ProcurementRules.peso(x.getBidAmount()) + " exceeds the ABC of ₱"
@@ -887,14 +1023,10 @@ public class BiddingController {
         List<BiddingBidder> ranked;
         if (b.isRated()) {
             BigDecimal lowest = pool.stream().map(BiddingBidder::getBidAmount).min(BigDecimal::compareTo).orElse(null);
-            BigDecimal weights = b.getCriteria().stream().map(BiddingCriterion::getWeight).reduce(BigDecimal.ZERO, BigDecimal::add);
+            // Ratings show while prices are sealed; a total needs the price.
+            b.getBidders().stream().filter(x -> !x.getScores().isEmpty()).forEach(x -> rated.put(x.getId(), rating(b, x)));
             for (BiddingBidder x : pool) {
-                BigDecimal r = x.getTechnicalScore() == null ? BigDecimal.ZERO : x.getTechnicalScore();
-                if (weights.signum() > 0) {
-                    Map<Long, BigDecimal> byCrit = x.getScores().stream().collect(Collectors.toMap(BiddingBidderScore::getCriterionId, BiddingBidderScore::getScore));
-                    r = b.getCriteria().stream().map(c -> byCrit.getOrDefault(c.getId(), BigDecimal.ZERO).multiply(c.getWeight()))
-                            .reduce(BigDecimal.ZERO, BigDecimal::add).divide(weights, 2, RoundingMode.HALF_UP);
-                }
+                BigDecimal r = rating(b, x);
                 BigDecimal price = lowest == null ? BigDecimal.ZERO : lowest.multiply(BigDecimal.valueOf(100)).divide(x.getBidAmount(), 4, RoundingMode.HALF_UP);
                 rated.put(x.getId(), r);
                 if (b.isMearb() && b.getMinQualityScore() != null && r.compareTo(b.getMinQualityScore()) < 0) continue;
@@ -974,12 +1106,10 @@ public class BiddingController {
                 full ? Stream.concat(b.getBidders().stream().map(BiddingBidder::getSupplierId), b.getProtests().stream().map(BidProtest::getSupplierId)) : Stream.empty()))
                 .filter(Objects::nonNull).collect(Collectors.toSet());
         Map<Long, String> suppliers = new HashMap<>();
-        Map<Long, Boolean> okSupplier = new HashMap<>();
         if (!supplierIds.isEmpty()) {
             jdbc.query("select s.id, s.name from suppliers s where s.id in (" + supplierIds.stream().map(x -> "?").collect(Collectors.joining(",")) + ")", rs -> {
                 suppliers.put(rs.getLong(1), rs.getString(2));
             }, supplierIds.toArray());
-            suppliers.keySet().forEach(sid -> okSupplier.put(sid, awards.eligible(sid)));
         }
         Map<Long, String[]> prs = new HashMap<>();
         List<Long> prIds = list.stream().map(Bidding::getPurchaseRequestId).filter(Objects::nonNull).distinct().toList();
@@ -1004,7 +1134,8 @@ public class BiddingController {
                 Map<String, String> results = new LinkedHashMap<>();
                 BiddingBidder.STAGES.forEach(s -> results.put(s, x.result(s)));
                 Map<Long, BigDecimal> scores = x.getScores().stream().collect(Collectors.toMap(BiddingBidderScore::getCriterionId, BiddingBidderScore::getScore));
-                return new BidderView(x.getId(), new Ref(x.getSupplierId(), suppliers.get(x.getSupplierId())), Boolean.TRUE.equals(okSupplier.get(x.getSupplierId())),
+                List<String> problems = awards.awardProblems(x.getSupplierId(), "Competitive Bidding", null, false, b.getCategoryRank(), b.getAbc());
+                return new BidderView(x.getId(), new Ref(x.getSupplierId(), suppliers.get(x.getSupplierId())), problems.isEmpty(), problems,
                         x.getBidAmount(), overAbc(b, x), x.getBidSecurityForm(), x.getBidSecurityAmount(), x.isBidSecurityPosted(), securityRequired(b, x),
                         securityOk(b, x), results, scores, ev.rated().get(x.getId()), ev.mearb().get(x.getId()), ev.ranks().get(x.getId()),
                         x.getId().equals(ev.postQualTurn()), x.isWinner(), x.getRemarks());
@@ -1019,6 +1150,11 @@ public class BiddingController {
             int open = (int) b.getProtests().stream().filter(BidProtest::isOpen).count();
             boolean deadlinePassed = b.getSubmissionDeadline() != null && !b.getSubmissionDeadline().isAfter(now);
             boolean inEval = Bidding.BID_OPENING.equals(b.getStatus()) || Bidding.EVALUATION.equals(b.getStatus());
+            Map<String, Object> offer = full ? linkedOffer(b.getId()) : null;
+            boolean toOfferor = offer != null && originalOfferorWins(b, offer);
+            Long offeror = offer == null ? null : ((Number) offer.get("supplier_id")).longValue();
+            boolean awardReady = offer == null ? ev != null && ev.recommended() != null && Bidding.EVALUATION.equals(b.getStatus())
+                    : offer.get("match_result") != null && "bid_matching".equals(offer.get("status")) && inEval && (toOfferor || ev.recommended() != null);
             out.put(b, new BiddingView(b.getId(), b.getBiddingNumber(), b.getTitle(), b.getStatus(), b.getAbc(),
                     pr == null ? null : new Ref(b.getPurchaseRequestId(), pr[0]), pr == null ? null : new Ref(Long.valueOf(pr[1]), pr[2]),
                     b.getPreparedBy() == null ? null : new Ref(b.getPreparedBy(), names.get(b.getPreparedBy())), b.getDeliveryTerm(), b.getDeliveryLeadDays(),
@@ -1035,8 +1171,12 @@ public class BiddingController {
                     bidders, protests, observers, ev == null ? null : ev.recommended(), ev == null ? null : ev.postQualTurn(), open,
                     (int) b.getObservers().stream().filter(BidObserver::isInvited).count(), full ? timeline(b) : null,
                     manager && b.isPlanning(), manager && b.isPlanning(), manager && Bidding.INVITATION.equals(b.getStatus()) && deadlinePassed,
-                    manager && inEval && !postQualStarted(b), evaluator && inEval,
-                    awarder && !own && Bidding.EVALUATION.equals(b.getStatus()) && ev != null && ev.recommended() != null && open == 0,
+                    b.isSealed(), Times.toOffset(b.getFinancialOpenedAt()), evaluator && b.isSealed() && inEval,
+                    offer == null ? null : new Ref(((Number) offer.get("id")).longValue(), (String) offer.get("offer_number")),
+                    offer == null ? null : new Ref(offeror, awards.supplierName(offeror)),
+                    offer == null ? null : (BigDecimal) (offer.get("match_amount") != null ? offer.get("match_amount") : offer.get("negotiated_amount")), toOfferor,
+                    manager && inEval && !postQualStarted(b) && (!b.isRated() || b.isSealed()), evaluator && inEval,
+                    awarder && !own && awardReady && open == 0,
                     awarder && Bidding.AWARDED.equals(b.getStatus()) && b.getNoaNumber() == null, awarder && b.getNoaNumber() != null && b.getNtpNumber() == null,
                     manager && !b.isOver() && !b.isPlanning(), manager && !b.isOver(), manager && Bidding.DRAFT.equals(b.getStatus()),
                     Times.toOffset(b.getCreatedAt())));

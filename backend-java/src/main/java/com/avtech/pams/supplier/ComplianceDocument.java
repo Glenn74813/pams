@@ -17,6 +17,8 @@ import jakarta.persistence.Table;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.ArrayList;
+import com.avtech.pams.procurement.EligibilityRules;
+
 import java.util.List;
 
 /** A permit, registration or clearance on file for a supplier. */
@@ -24,8 +26,9 @@ import java.util.List;
 @Table(name = "supplier_compliance_documents")
 public class ComplianceDocument extends Timestamped {
 
-    public static final List<String> TYPES = List.of("PhilGEPS Registration", "SEC Registration", "DTI Registration", "Mayor's Permit", "BIR Registration",
-            "Omnibus Sworn Statement", "Tax Clearance", "Other");
+    public static final List<String> TYPES = List.of(EligibilityRules.PLATINUM, EligibilityRules.ORG_ID, EligibilityRules.REGISTRATION, "SEC Registration", "DTI Registration",
+            EligibilityRules.MAYOR, EligibilityRules.BUSINESS_PERMIT, EligibilityRules.RENEWAL, EligibilityRules.BIR, EligibilityRules.LICENSE, EligibilityRules.CV,
+            EligibilityRules.NFCC, EligibilityRules.LOC, EligibilityRules.PCAB, EligibilityRules.TAX_RETURN, EligibilityRules.OSS, "Tax Clearance", "Other");
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)

@@ -21,6 +21,7 @@ export function SupplierFormModal({ supplier, onClose, onSaved }: { supplier: Su
     credit_terms: supplier?.credit_terms ?? '',
     notes: supplier?.notes ?? '',
     is_msme: supplier?.is_msme ?? false,
+    supplier_kind: supplier?.supplier_kind ?? 'business',
     is_active: supplier?.is_active ?? true,
   }))
   const [error, setError] = useState<string | null>(null)
@@ -61,6 +62,15 @@ export function SupplierFormModal({ supplier, onClose, onSaved }: { supplier: Su
           <div className="field span-3">
             <label htmlFor="sp-notes">Notes</label>
             <input id="sp-notes" value={f.notes ?? ''} onChange={(e) => set({ notes: e.target.value })} />
+          </div>
+          <div className="field">
+            <label htmlFor="sp-kind">Kind</label>
+            <select id="sp-kind" value={f.supplier_kind ?? 'business'} onChange={(e) => set({ supplier_kind: e.target.value })}>
+              <option value="business">Business</option>
+              <option value="government">Government agency</option>
+              <option value="individual">Individual</option>
+              <option value="artist">Artist not engaged in business</option>
+            </select>
           </div>
           <label className="checkbox-line">
             <input type="checkbox" checked={!!f.is_msme} onChange={(e) => set({ is_msme: e.target.checked })} /> MSME

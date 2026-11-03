@@ -141,8 +141,10 @@ infrastructure, ₱2M consulting (49.1); 7-day ITB posting (50), bid deadline pe
 to award (67.1); the modes of Section 26, with Shopping refused on new lines and RFQs while lines already approved under it go
 to SVP; Direct Acquisition ceiling ₱200,000 (32.1); Negotiated Procurement only with a recorded ground, and after two failed
 biddings at least three invited suppliers and at most 20% over the last ABC (35.1.1); five or seven voting BAC members
-(41.2.1); all four grounds for buying common-use items outside PS-DBM (40.2), with no time limit, since the IRR sets none. Eligibility documents are still one list for every mode, not by mode as GPPB Circular
-06-2026 sets out. Suppliers (V25): view access for the BAC, supply, property, accounting and audit roles.
+(41.2.1); all four grounds for buying common-use items outside PS-DBM (40.2), with no time limit, since the IRR sets none. Supplier documents follow GPPB Circular 06-2026 by mode (procurement/EligibilityRules, V26). MEARB and MARB prices stay
+sealed until technical evaluation is done (58, 61.3, 61.8). Failed Limited Source Bidding and Competitive Dialogue count
+towards two failed biddings (64.1). Too little PS-DBM stock splits the line, so only the shortfall leaves (40.2 c).
+Unsolicited Offer with Bid Matching has its own page and steps (30; bidding/UnsolicitedOfferController). Suppliers (V25): view access for the BAC, supply, property, accounting and audit roles.
 
 Issuance assigns RIS numbers (plus ICS for semi-expendable and PAR for PPE) when stock goes out; both "approve all" and
 per-line approval issue first-expired-first-out and write the stock card. Requesters can't approve their own requests and

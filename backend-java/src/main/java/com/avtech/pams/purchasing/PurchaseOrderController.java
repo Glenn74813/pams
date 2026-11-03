@@ -241,7 +241,7 @@ public class PurchaseOrderController {
         AwardSource src = sources().stream()
                 .filter(s -> s.type().equals(in.sourceType()) && s.id().equals(in.sourceId())).findFirst()
                 .orElseThrow(() -> ApiException.validation("source_id", "That award has no Notice of Award yet, or already has a purchase order."));
-        if (!awards.eligible(src.supplier().id())) throw ApiException.validation("source_id", src.supplier().name() + " is inactive or not eligible.");
+        if (!awards.allowed(src.supplier().id())) throw ApiException.validation("source_id", src.supplier().name() + " is inactive, blacklisted or suspended.");
         LocalDate today = LocalDate.now(Times.ZONE);
         PurchaseOrder po = new PurchaseOrder(numbers.yearly("PO", "purchase_orders.po_number"), current.user().getId(), today);
         po.setSupplierId(src.supplier().id());

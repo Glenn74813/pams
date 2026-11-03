@@ -1,5 +1,8 @@
 package com.avtech.pams.procurement;
 
+import java.util.Map;
+import java.util.ArrayList;
+import java.math.BigDecimal;
 import com.avtech.pams.bac.BacResolution;
 import com.avtech.pams.bac.BacResolutionRepository;
 import com.avtech.pams.common.ApiException;
@@ -81,6 +84,62 @@ public class AwardSupport {
                         + " from suppliers s where s.id = ?",
                 rs -> rs.next() ? rs.getInt(1) : null, today, today, supplierId);
         return ok != null && ok == 1;
+    }
+
+    /** Active and under no blacklist or suspension: all that a mode outside GPPB Circular 06-2026 asks of a supplier here. */
+    public boolean allowed(Long supplierId) {
+        Date today = Date.valueOf(LocalDate.now(Times.ZONE));
+        Integer ok = jdbc.query("select case when s.is_active = " + db.t() + " and not exists ("
+                        + " select 1 from supplier_blacklists b where b.supplier_id = s.id and b.status = 'active'"
+                        + " and b.start_date <= ? and (b.end_date is null or b.end_date >= ?)) then 1 else 0 end"
+                        + " from suppliers s where s.id = ?",
+                rs -> rs.next() ? rs.getInt(1) : null, today, today, supplierId);
+        return ok != null && ok == 1;
+    }
+
+    /**
+     * What stops this supplier being awarded under the mode; empty when nothing does. Competitive selection also needs
+     * the supplier verified in the register; the other modes go by the documents on file, which the circular says need
+     * not be submitted again (4.4).
+     */
+    public List<String> awardProblems(Long supplierId, String mode, String ground, boolean revised, int categoryRank, BigDecimal abc) {
+        List<String> problems = new ArrayList<>();
+        if (!allowed(supplierId)) {
+            problems.add("inactive, blacklisted or suspended");
+            return problems;
+        }
+        if (EligibilityRules.competitive(mode) && !eligible(supplierId)) problems.add("not verified as eligible in the supplier register");
+        String kind = jdbc.queryForObject("select supplier_kind from suppliers where id = ?", String.class, supplierId);
+        problems.addAll(missingDocuments(supplierId, EligibilityRules.required(mode, ground, revised, categoryRank, abc, kind)));
+        return problems;
+    }
+
+    /** Each requirement with no valid document on file, as "missing X" or "expired X". */
+    public List<String> missingDocuments(Long supplierId, List<EligibilityRules.Requirement> required) {
+        LocalDate today = LocalDate.now(Times.ZONE);
+        List<String> out = new ArrayList<>();
+        if (required.isEmpty()) return out;
+        List<Map<String, Object>> docs = jdbc.queryForList("select document_type, expiry_date from supplier_compliance_documents where supplier_id = ?", supplierId);
+        for (EligibilityRules.Requirement r : required) {
+            boolean present = false, valid = false;
+            for (Map<String, Object> d : docs) {
+                if (!r.accepted().contains(d.get("document_type"))) continue;
+                present = true;
+                Date expiry = (Date) d.get("expiry_date");
+                // The renewal receipt stands in for a permit that has already expired (4.3.2 a).
+                if (expiry == null || !expiry.toLocalDate().isBefore(today) || EligibilityRules.RENEWAL.equals(d.get("document_type"))) valid = true;
+            }
+            if (!valid) out.add((present ? "expired " : "missing ") + r.label());
+        }
+        return out;
+    }
+
+    /** 0 goods, 1 infrastructure, 2 consulting: the strictest category on the lines of an RFQ. */
+    public int rfqCategoryRank(Long rfqId) {
+        Integer rank = jdbc.queryForObject("""
+                select max(case when pri.procurement_category = 'Consulting Services' then 2 when pri.procurement_category = 'Infrastructure Projects' then 1 else 0 end)
+                from rfq_items ri join purchase_request_items pri on pri.id = ri.purchase_request_item_id where ri.rfq_id = ?""", Integer.class, rfqId);
+        return rank == null ? 0 : rank;
     }
 
     public String supplierName(Long id) {

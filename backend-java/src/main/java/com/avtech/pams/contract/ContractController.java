@@ -216,7 +216,7 @@ public class ContractController {
         db.namedLock("pams.contract." + in.sourceType() + "." + in.sourceId());
         AwardSource src = sources().stream().filter(s -> s.type().equals(in.sourceType()) && s.id().equals(in.sourceId())).findFirst()
                 .orElseThrow(() -> ApiException.validation("source_id", "That award has no Notice of Award yet, or already has a contract."));
-        if (!awards.eligible(src.supplier().id())) throw ApiException.validation("source_id", src.supplier().name() + " is inactive or not eligible.");
+        if (!awards.allowed(src.supplier().id())) throw ApiException.validation("source_id", src.supplier().name() + " is inactive, blacklisted or suspended.");
         Contract c = new Contract(numbers.yearly("CON", "contracts.contract_number"), current.user().getId());
         c.setSupplierId(src.supplier().id());
         c.setPurchaseRequestId(src.purchaseRequest() == null ? null : src.purchaseRequest().id());

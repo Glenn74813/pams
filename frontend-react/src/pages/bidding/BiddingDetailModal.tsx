@@ -398,15 +398,23 @@ function AwardForm({ b, onCancel, onSaved, onError }: SubProps & { onSaved: (m: 
   const winner = b.bidders?.find((x) => x.id === b.recommended_bidder_id)
   const usable = res.data?.data.filter((x) => ['resolution_to_award', 'award', 'recommendation'].includes(x.resolution_type) && x.used_by.length === 0) ?? []
   const save = useMutation({
-    mutationFn: () => biddingApi.award(b.id, { bidder_id: b.recommended_bidder_id!, bac_resolution_id: Number(resolution), contract_recommendation: rec || undefined }),
+    mutationFn: () => biddingApi.award(b.id, { bidder_id: b.award_to_original_offeror ? null : b.recommended_bidder_id!, bac_resolution_id: Number(resolution), contract_recommendation: rec || undefined }),
     onSuccess: (r) => onSaved(`${r.bidding_number} awarded to ${r.awarded_supplier?.name}.`),
     onError: (e) => onError(msg(e, 'Could not award.')),
   })
   return (
     <div className="reject-box">
       <p>
-        Award to <strong>{winner?.supplier.name}</strong> at {formatPeso(winner?.bid_amount)} — passed post-qualification as the{' '}
-        {b.evaluation_method !== 'price' ? 'highest-rated' : 'lowest calculated'} responsive bid.
+        {b.award_to_original_offeror ? (
+          <>
+            Award to <strong>{b.original_offeror?.name}</strong> at {formatPeso(b.original_offeror_amount)} — the original offeror on {b.unsolicited_offer?.name} (IRR 30.8).
+          </>
+        ) : (
+          <>
+            Award to <strong>{winner?.supplier.name}</strong> at {formatPeso(winner?.bid_amount)} — passed post-qualification as the{' '}
+            {b.evaluation_method !== 'price' ? 'highest-rated' : 'lowest calculated'} responsive bid.
+          </>
+        )}
       </p>
       <div className="form-grid">
         <div className="field">

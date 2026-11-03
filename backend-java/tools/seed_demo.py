@@ -149,7 +149,7 @@ def main():
                                         'phone': f'(02) 8{i}12-34{i}0', 'address': f'{100 + i} Rizal Avenue, {city}', 'tin': f'00{i}-123-456-000',
                                         'philgeps_reg_number': f'2026-0{i}1234', 'credit_terms': '30 days', 'is_msme': i % 2 == 1}, SA)
         sid = s.get('id') or s.get('supplier', {}).get('id')
-        for doc in ['PhilGEPS Registration', 'DTI Registration', "Mayor's Permit", 'BIR Registration', 'Tax Clearance']:
+        for doc in ['PhilGEPS Certificate of Registration (Platinum)', 'PhilGEPS Organization ID', "Mayor's Permit", 'Income or Business Tax Return', 'Omnibus Sworn Statement']:
             call('POST', f'/suppliers/{sid}/compliance', {'document_type': doc, 'reference_number': f'{doc[:3].upper()}-{YEAR}-{i:03d}',
                                                           'issued_date': day(-60), 'expiry_date': day(300)}, SA)
         call('POST', f'/suppliers/{sid}/eligibility', {'eligible': True}, SA)

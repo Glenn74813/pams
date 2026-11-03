@@ -4,6 +4,7 @@ export const RFQ_STATUS: Record<string, [string, string]> = {
   closed: ['Closed — for award', 'st-partial'],
   awarded: ['Awarded', 'st-ok'],
   cancelled: ['Cancelled', 'badge-muted'],
+  failed: ['Failed', 'st-bad'],
 }
 
 export const RESOLUTION_STATUS: Record<string, [string, string]> = {

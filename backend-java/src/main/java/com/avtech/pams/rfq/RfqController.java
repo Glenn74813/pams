@@ -12,6 +12,7 @@ import com.avtech.pams.common.Times;
 import com.avtech.pams.notification.NotificationService;
 import com.avtech.pams.procurement.AwardSupport;
 import com.avtech.pams.procurement.PrLineUsage;
+import com.avtech.pams.procurement.EligibilityRules;
 import com.avtech.pams.procurement.ProcurementRules;
 import com.avtech.pams.user.User;
 import com.avtech.pams.user.UserRepository;
@@ -107,16 +108,17 @@ public class RfqController {
     }
 
     public record QuotationView(Long id, Ref supplier, String quotationNumber, LocalDate submittedAt, BigDecimal totalAmount, boolean isResponsive,
-                                boolean isWinner, boolean overAbc, boolean supplierEligible, String remarks, List<QuoteLineView> lines) {
+                                boolean isWinner, boolean overAbc, boolean supplierEligible, List<String> eligibilityProblems, String remarks, List<QuoteLineView> lines) {
     }
 
     public record RfqView(Long id, String rfqNumber, String title, String procurementMethod, boolean singleSource, String status, BigDecimal abc,
                           OffsetDateTime deadline, boolean deadlinePassed, String deliveryTerm, Integer deliveryLeadDays, String description,
-                          String justification, String negotiatedGround, List<String> invitedSuppliers, Ref purchaseRequest, Ref department, Ref preparer, Ref awardedSupplier, OffsetDateTime awardedAt,
+                          String justification, String negotiatedGround, List<String> invitedSuppliers, boolean eligibilityRevised, String documentsStage, List<String> requiredDocuments,
+                          String failureReason, Ref purchaseRequest, Ref department, Ref preparer, Ref awardedSupplier, OffsetDateTime awardedAt,
                           Ref bacResolution, String remarks, String noaNumber, LocalDate noaDate, String ntpNumber, LocalDate ntpDate,
                           int itemsCount, int quotationsCount, List<LineView> items, List<QuotationView> quotations,
                           boolean canEdit, boolean canIssue, boolean canClose, boolean canCancel, boolean canDelete, boolean canQuote,
-                          boolean canAward, boolean canNoa, boolean canNtp, OffsetDateTime createdAt) {
+                          boolean canAward, boolean canNoa, boolean canNtp, boolean canDeclareFailed, OffsetDateTime createdAt) {
     }
 
     // ───────────────────────── reads ─────────────────────────
@@ -176,7 +178,7 @@ public class RfqController {
             if (mode != null && !o.modes().contains(mode)) o.modes().add(mode);
             o.lines().add(new PrLineOption(rs.getLong(6), rs.getString(7), rs.getString(8), rs.getString(9), rs.getInt(10), left, rs.getBigDecimal(11), mode));
         });
-        return Map.of("data", byPr.values(), "methods", Rfq.METHODS, "single_source", Rfq.SINGLE_SOURCE, "negotiated_grounds", Rfq.NEGOTIATED_GROUNDS);
+        return Map.of("data", byPr.values(), "methods", Rfq.METHODS, "single_source", Rfq.SINGLE_SOURCE, "documents_stages", EligibilityRules.STAGES, "negotiated_grounds", Rfq.NEGOTIATED_GROUNDS);
     }
 
     public record AbstractRow(Long rfqItemId, String generalDescription, String unit, int quantity, BigDecimal abcUnitCost,
@@ -215,7 +217,7 @@ public class RfqController {
     }
 
     public record RfqInput(String title, String procurementMethod, Long purchaseRequestId, LocalDateTime deadline, String deliveryTerm,
-                           Integer deliveryLeadDays, String description, String justification, String negotiatedGround, List<String> invitedSuppliers,
+                           Integer deliveryLeadDays, String description, String justification, String negotiatedGround, List<String> invitedSuppliers, Boolean eligibilityRevised, String documentsStage,
                            List<ItemInput> items) {
     }
 
@@ -241,7 +243,7 @@ public class RfqController {
         }
         Map<String, Object> before = snapshot(r);
         apply(r, new RfqInput(in.title(), in.procurementMethod(), r.getPurchaseRequestId(), in.deadline(), in.deliveryTerm(),
-                in.deliveryLeadDays(), in.description(), in.justification(), in.negotiatedGround(), in.invitedSuppliers(), in.items()), true);
+                in.deliveryLeadDays(), in.description(), in.justification(), in.negotiatedGround(), in.invitedSuppliers(), in.eligibilityRevised(), in.documentsStage(), in.items()), true);
         rfqs.flush();
         audit.record("updated", TYPE, r.getId(), "Edited RFQ " + r.getRfqNumber(), before, snapshot(r));
         return views(List.of(r), true).get(r);
@@ -266,6 +268,9 @@ public class RfqController {
         if (!Rfq.DRAFT.equals(r.getStatus())) throw ApiException.of(HttpStatus.CONFLICT, "Only draft RFQs can be issued.");
         if (r.getDeadline() == null) throw ApiException.validation("deadline", "Set the deadline for quotations before issuing.");
         if (!r.getDeadline().isAfter(Times.now())) throw ApiException.validation("deadline", "The deadline for quotations has to be in the future.");
+        if (EligibilityRules.covered(r.getProcurementMethod(), r.getNegotiatedGround()) && r.getDocumentsStage() == null) {
+            throw ApiException.validation("documents_stage", "State when the supplier submits its documents: with the offer, during evaluation or before the Notice of Award (GPPB Circular 06-2026, 4.2).");
+        }
         // Re-check against the PR in case it changed since the draft was saved; the lines themselves stay as they are.
         apply(r, inputOf(r), false);
         r.setStatus(Rfq.ISSUED);
@@ -295,12 +300,30 @@ public class RfqController {
     public record ReasonInput(String remarks) {
     }
 
+    /** A failure of Limited Source Bidding or Competitive Dialogue (IRR 64.1); it frees the lines for a re-bid and counts towards two failures. */
+    @PostMapping("/{id}/declare-failed")
+    @PreAuthorize("@perm.any('create_rfq')")
+    @Transactional
+    public RfqView declareFailed(@PathVariable Long id, @RequestBody(required = false) ReasonInput in) {
+        Rfq r = lock(id);
+        if (!Rfq.CAN_FAIL.contains(r.getProcurementMethod())) throw ApiException.of(HttpStatus.CONFLICT, "Only Limited Source Bidding and Competitive Dialogue fail as a bidding does; cancel this RFQ instead.");
+        if (!r.isOpenForQuotes()) throw ApiException.of(HttpStatus.CONFLICT, "Only an issued or closed RFQ can be declared failed.");
+        String why = in == null ? null : text(in.remarks());
+        if (why == null) throw ApiException.validation("remarks", "State the ground: no bids, all ineligible, no responsive bid, or the winning bidder refused the award (IRR 64.1).");
+        String was = r.getStatus();
+        r.setStatus(Rfq.FAILED);
+        r.setFailureReason(why);
+        rfqs.flush();
+        audit.record("declared_failed", TYPE, r.getId(), "RFQ " + r.getRfqNumber() + " (" + r.getProcurementMethod() + ") declared failed: " + why, Map.of("status", was), Map.of("status", Rfq.FAILED));
+        return views(List.of(r), true).get(r);
+    }
+
     @PostMapping("/{id}/cancel")
     @PreAuthorize("@perm.any('create_rfq')")
     @Transactional
     public RfqView cancel(@PathVariable Long id, @RequestBody(required = false) ReasonInput in) {
         Rfq r = lock(id);
-        if (Rfq.AWARDED.equals(r.getStatus()) || Rfq.CANCELLED.equals(r.getStatus())) throw ApiException.of(HttpStatus.CONFLICT, "This RFQ can no longer be cancelled.");
+        if (Rfq.AWARDED.equals(r.getStatus()) || Rfq.CANCELLED.equals(r.getStatus()) || Rfq.FAILED.equals(r.getStatus())) throw ApiException.of(HttpStatus.CONFLICT, "This RFQ can no longer be cancelled.");
         String why = in == null ? null : text(in.remarks());
         if (why == null && !Rfq.DRAFT.equals(r.getStatus())) throw ApiException.validation("remarks", "Say why an issued RFQ is cancelled (e.g. failure of quotations).");
         String was = r.getStatus();
@@ -415,11 +438,12 @@ public class RfqController {
         RfqQuotation q = r.getQuotations().stream().filter(x -> x.getId().equals(in.quotationId())).findFirst()
                 .orElseThrow(() -> ApiException.validation("quotation_id", "Choose a quotation on this RFQ."));
         if (!q.isResponsive()) throw ApiException.validation("quotation_id", "That quotation was found non-responsive.");
-        if (!awards.eligible(q.getSupplierId())) throw ApiException.validation("quotation_id", awards.supplierName(q.getSupplierId()) + " is inactive or not eligible.");
+        List<String> problems = problems(r, q.getSupplierId());
+        if (!problems.isEmpty()) throw ApiException.validation("quotation_id", awards.supplierName(q.getSupplierId()) + " is not eligible for " + r.getProcurementMethod() + ": " + String.join("; ", problems) + ".");
         if (r.getAbc().signum() > 0 && q.getTotalAmount().compareTo(r.getAbc()) > 0) {
             throw ApiException.validation("quotation_id", "₱" + ProcurementRules.peso(q.getTotalAmount()) + " exceeds the ABC of ₱" + ProcurementRules.peso(r.getAbc()) + " (RA 12009).");
         }
-        BigDecimal lowest = r.getQuotations().stream().filter(x -> x.isResponsive() && awards.eligible(x.getSupplierId())
+        BigDecimal lowest = r.getQuotations().stream().filter(x -> x.isResponsive() && problems(r, x.getSupplierId()).isEmpty()
                         && (r.getAbc().signum() == 0 || x.getTotalAmount().compareTo(r.getAbc()) <= 0))
                 .map(RfqQuotation::getTotalAmount).min(BigDecimal::compareTo).orElseThrow();
         if (q.getTotalAmount().compareTo(lowest) > 0) {
@@ -496,6 +520,7 @@ public class RfqController {
         if (title == null || title.length() > 255) throw ApiException.validation("title", "Give the RFQ a title of up to 255 characters.");
         String method = in.procurementMethod();
         if (ProcurementRules.SHOPPING.equals(method)) throw ApiException.validation("procurement_method", "Shopping is no longer a mode under RA 12009; use Small Value Procurement.");
+        if (ProcurementRules.UNSOLICITED.equals(method)) throw ApiException.validation("procurement_method", "An Unsolicited Offer follows its own steps (IRR Section 30); record it under Unsolicited Offers.");
         if (method == null || !Rfq.METHODS.contains(method)) throw ApiException.validation("procurement_method", "Choose an alternative mode of procurement.");
         boolean negotiated = ProcurementRules.NEGOTIATED.equals(method);
         String ground = negotiated ? text(in.negotiatedGround()) : null;
@@ -515,8 +540,7 @@ public class RfqController {
         if (in.items() == null || in.items().isEmpty()) throw ApiException.validation("items", "Add at least one line from the purchase request.");
         Map<Long, Integer> taken = usage.taken(in.purchaseRequestId(), r.getId(), null);
         // IRR 64.5 and 35.1: after two failed biddings, the bidding lines may go to Negotiated Procurement.
-        Integer failedBiddings = jdbc.queryForObject("select count(*) from biddings where purchase_request_id = ? and status = 'failed' and deleted_at is null",
-                Integer.class, in.purchaseRequestId());
+        Integer failedBiddings = usage.failedBiddings(in.purchaseRequestId());
         boolean twoFailed = failedBiddings != null && failedBiddings >= 2;
         boolean onTwoFailed = Rfq.TWO_FAILED.equals(ground);
         if (onTwoFailed && !twoFailed) {
@@ -526,9 +550,14 @@ public class RfqController {
         Map<Long, BigDecimal> failedAbc = new HashMap<>();
         if (onTwoFailed) {
             jdbc.query("""
-                    select bi.purchase_request_item_id, bi.abc_unit_cost from bidding_items bi join biddings b on b.id = bi.bidding_id
-                    where b.purchase_request_id = ? and b.status = 'failed' and b.deleted_at is null order by b.id""",
-                    rs -> { failedAbc.put(rs.getLong(1), rs.getBigDecimal(2)); }, in.purchaseRequestId());
+                    select line, cost from (
+                      select bi.purchase_request_item_id as line, bi.abc_unit_cost as cost, b.updated_at as at from bidding_items bi join biddings b on b.id = bi.bidding_id
+                      where b.purchase_request_id = ? and b.status = 'failed' and b.deleted_at is null
+                      union all
+                      select ri.purchase_request_item_id, ri.abc_unit_cost, r.updated_at from rfq_items ri join rfqs r on r.id = ri.rfq_id
+                      where r.purchase_request_id = ? and r.status = 'failed' and r.deleted_at is null
+                    ) t order by at""",
+                    rs -> { failedAbc.put(rs.getLong(1), rs.getBigDecimal(2)); }, in.purchaseRequestId(), in.purchaseRequestId());
         }
         Set<Long> seen = new HashSet<>();
         List<RfqItem> lines = new ArrayList<>();
@@ -538,7 +567,7 @@ public class RfqController {
             PrLine p = it == null || it.purchaseRequestItemId() == null ? null : prLines.get(it.purchaseRequestItemId());
             if (p == null) throw ApiException.validation(f + "purchase_request_item_id", "Line " + (i + 1) + " is not on the purchase request.");
             if (!seen.add(p.id())) throw ApiException.validation(f + "purchase_request_item_id", "\"" + p.description() + "\" is listed twice.");
-            boolean afterFailure = onTwoFailed && "Competitive Bidding".equals(p.mode());
+            boolean afterFailure = onTwoFailed && ("Competitive Bidding".equals(p.mode()) || Rfq.CAN_FAIL.contains(p.mode()));
             // Common-use supplies come from PS-DBM unless released on a ground of IRR 40.2; SVP and Direct Acquisition both cover those not available from it.
             boolean psOut = ProcurementRules.PS_DBM.equals(p.mode()) && List.of(ProcurementRules.SVP, "Direct Acquisition").contains(method) && usage.releasedFromPs(p.id());
             // A line approved as Shopping before the change is bought by SVP, which took its place.
@@ -576,9 +605,6 @@ public class RfqController {
         if (negotiated && !onTwoFailed && justification == null) {
             throw ApiException.validation("justification", "Record how this purchase meets the conditions of its Section 35 ground.");
         }
-        if (ProcurementRules.UNSOLICITED.equals(method) && justification == null) {
-            throw ApiException.validation("justification", "Record the new concept or technology that the HoPE determined the offer involves (IRR 30.1).");
-        }
         List<String> invited = in.invitedSuppliers() == null ? List.of() : in.invitedSuppliers().stream().map(RfqController::text).filter(Objects::nonNull).distinct().toList();
         if (onTwoFailed && invited.size() < MIN_QUOTATIONS) {
             throw ApiException.validation("invited_suppliers", "Invite at least " + MIN_QUOTATIONS + " suppliers, including those disqualified in the earlier biddings (IRR 35.1.1).");
@@ -586,6 +612,8 @@ public class RfqController {
         BigDecimal abc = lines.stream().map(RfqItem::getAbcTotal).reduce(BigDecimal.ZERO, BigDecimal::add);
         rules.checkCeiling("procurement_method", title, method, abc);
         if (in.deliveryLeadDays() != null && in.deliveryLeadDays() < 0) throw ApiException.validation("delivery_lead_days", "Delivery days cannot be negative.");
+        String stage = text(in.documentsStage());
+        if (stage != null && !EligibilityRules.STAGES.containsKey(stage)) throw ApiException.validation("documents_stage", "Unknown stage for submitting documents.");
         if (!replace) return;
         r.setTitle(title);
         r.setProcurementMethod(method);
@@ -597,6 +625,8 @@ public class RfqController {
         r.setJustification(justification);
         r.setNegotiatedGround(ground);
         r.setInvitedSuppliers(invited.isEmpty() ? null : String.join("\n", invited));
+        r.setEligibilityRevised(onTwoFailed && Boolean.TRUE.equals(in.eligibilityRevised()));
+        r.setDocumentsStage(stage);
         r.getItems().clear();
         rfqs.flush();
         r.getItems().addAll(lines);
@@ -605,8 +635,12 @@ public class RfqController {
 
     private static RfqInput inputOf(Rfq r) {
         return new RfqInput(r.getTitle(), r.getProcurementMethod(), r.getPurchaseRequestId(), r.getDeadline(), r.getDeliveryTerm(), r.getDeliveryLeadDays(),
-                r.getDescription(), r.getJustification(), r.getNegotiatedGround(), invitedList(r), r.getItems().stream().map(i -> new ItemInput(i.getPurchaseRequestItemId(), i.getQuantity(),
+                r.getDescription(), r.getJustification(), r.getNegotiatedGround(), invitedList(r), r.isEligibilityRevised(), r.getDocumentsStage(), r.getItems().stream().map(i -> new ItemInput(i.getPurchaseRequestItemId(), i.getQuantity(),
                 i.getAbcUnitCost(), i.getSpecifications(), i.getDeliveryLeadTime())).toList());
+    }
+
+    private List<String> problems(Rfq r, Long supplierId) {
+        return awards.awardProblems(supplierId, r.getProcurementMethod(), r.getNegotiatedGround(), r.isEligibilityRevised(), awards.rfqCategoryRank(r.getId()), r.getAbc());
     }
 
     private boolean awardable(QuotationView q) {
@@ -623,13 +657,10 @@ public class RfqController {
         Set<Long> supplierIds = list.stream().flatMap(r -> Stream.concat(Stream.of(r.getAwardedSupplierId()),
                 full ? r.getQuotations().stream().map(RfqQuotation::getSupplierId) : Stream.empty())).filter(Objects::nonNull).collect(Collectors.toSet());
         Map<Long, String> suppliers = new HashMap<>();
-        Map<Long, Boolean> okSupplier = new HashMap<>();
         if (!supplierIds.isEmpty()) {
             jdbc.query("select s.id, s.name from suppliers s where s.id in (" + supplierIds.stream().map(x -> "?").collect(Collectors.joining(",")) + ")", rs -> {
                 suppliers.put(rs.getLong(1), rs.getString(2));
             }, supplierIds.toArray());
-            // Eligibility through AwardSupport, which owns the (dialect-aware) rule.
-            suppliers.keySet().forEach(id -> okSupplier.put(id, awards.eligible(id)));
         }
         Map<Long, String[]> prs = new HashMap<>();
         List<Long> prIds = list.stream().map(Rfq::getPurchaseRequestId).filter(Objects::nonNull).distinct().toList();
@@ -651,31 +682,38 @@ public class RfqController {
             Map<Long, RfqItem> byLine = r.getItems().stream().collect(Collectors.toMap(RfqItem::getId, x -> x));
             List<LineView> items = !full ? null : r.getItems().stream().map(i -> new LineView(i.getId(), i.getPurchaseRequestItemId(), i.getGeneralDescription(),
                     i.getSpecifications(), i.getUnit(), i.getQuantity(), i.getAbcUnitCost(), i.getAbcTotal(), i.getDeliveryLeadTime())).toList();
-            List<QuotationView> quotes = !full ? null : r.getQuotations().stream().map(q -> new QuotationView(q.getId(), new Ref(q.getSupplierId(), suppliers.get(q.getSupplierId())),
+            int rank = full ? awards.rfqCategoryRank(r.getId()) : 0;
+            List<QuotationView> quotes = !full ? null : r.getQuotations().stream().map(q -> {
+                List<String> problems = awards.awardProblems(q.getSupplierId(), r.getProcurementMethod(), r.getNegotiatedGround(), r.isEligibilityRevised(), rank, r.getAbc());
+                return new QuotationView(q.getId(), new Ref(q.getSupplierId(), suppliers.get(q.getSupplierId())),
                     q.getQuotationNumber(), q.getSubmittedAt(), q.getTotalAmount(), q.isResponsive(), q.isWinner(),
-                    r.getAbc().signum() > 0 && q.getTotalAmount().compareTo(r.getAbc()) > 0, Boolean.TRUE.equals(okSupplier.get(q.getSupplierId())), q.getRemarks(),
+                    r.getAbc().signum() > 0 && q.getTotalAmount().compareTo(r.getAbc()) > 0, problems.isEmpty(), problems, q.getRemarks(),
                     q.getItems().stream().map(l -> {
                         RfqItem it = byLine.get(l.getRfqItemId());
                         return new QuoteLineView(l.getRfqItemId(), l.getUnitPrice(), l.getTotalPrice(), it != null && l.getUnitPrice().compareTo(it.getAbcUnitCost()) > 0);
-                    }).toList())).toList();
+                    }).toList());
+            }).toList();
+            List<String> requiredDocuments = !full ? null : EligibilityRules.required(r.getProcurementMethod(), r.getNegotiatedGround(), r.isEligibilityRevised(), rank, r.getAbc(), EligibilityRules.BUSINESS)
+                    .stream().map(EligibilityRules.Requirement::label).toList();
             String[] pr = r.getPurchaseRequestId() == null ? null : prs.get(r.getPurchaseRequestId());
             boolean own = me.getId().equals(r.getPreparedBy()) && !me.isSuperAdmin();
             boolean draft = Rfq.DRAFT.equals(r.getStatus());
             boolean pastDeadline = r.getDeadline() != null && !r.getDeadline().isAfter(now);
             out.put(r, new RfqView(r.getId(), r.getRfqNumber(), r.getTitle(), r.getProcurementMethod(), r.isSingleSource(), r.getStatus(), r.getAbc(),
                     Times.toOffset(r.getDeadline()), pastDeadline, r.getDeliveryTerm(), r.getDeliveryLeadDays(), r.getDescription(), r.getJustification(),
-                    r.getNegotiatedGround(), invitedList(r),
+                    r.getNegotiatedGround(), invitedList(r), r.isEligibilityRevised(), r.getDocumentsStage(), requiredDocuments, r.getFailureReason(),
                     pr == null ? null : new Ref(r.getPurchaseRequestId(), pr[0]), pr == null ? null : new Ref(Long.valueOf(pr[1]), pr[2]),
                     r.getPreparedBy() == null ? null : new Ref(r.getPreparedBy(), names.get(r.getPreparedBy())),
                     r.getAwardedSupplierId() == null ? null : new Ref(r.getAwardedSupplierId(), suppliers.get(r.getAwardedSupplierId())), Times.toOffset(r.getAwardedAt()),
                     r.getBacResolutionId() == null ? null : new Ref(r.getBacResolutionId(), resNumbers.get(r.getBacResolutionId())), r.getRemarks(),
                     r.getNoaNumber(), r.getNoaDate(), r.getNtpNumber(), r.getNtpDate(), r.getItems().size(), r.getQuotations().size(), items, quotes,
                     maker && draft, maker && draft, maker && Rfq.ISSUED.equals(r.getStatus()) && pastDeadline,
-                    maker && !Rfq.AWARDED.equals(r.getStatus()) && !Rfq.CANCELLED.equals(r.getStatus()), maker && draft,
+                    maker && !Rfq.AWARDED.equals(r.getStatus()) && !Rfq.CANCELLED.equals(r.getStatus()) && !Rfq.FAILED.equals(r.getStatus()), maker && draft,
                     maker && r.isOpenForQuotes() && !(r.isSingleSource() && !r.getQuotations().isEmpty()),
                     awarder && !own && Rfq.CLOSED.equals(r.getStatus()) && !r.getQuotations().isEmpty(),
                     awarder && Rfq.AWARDED.equals(r.getStatus()) && r.getNoaNumber() == null,
-                    awarder && r.getNoaNumber() != null && r.getNtpNumber() == null, Times.toOffset(r.getCreatedAt())));
+                    awarder && r.getNoaNumber() != null && r.getNtpNumber() == null,
+                    maker && Rfq.CAN_FAIL.contains(r.getProcurementMethod()) && r.isOpenForQuotes(), Times.toOffset(r.getCreatedAt())));
         }
         return out;
     }
