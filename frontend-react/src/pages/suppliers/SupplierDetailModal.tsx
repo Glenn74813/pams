@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, type ReactNode } from 'react'
 import { useMutation, useQuery } from '@tanstack/react-query'
 import { ApiError } from '../../api/client'
 import { supplierApi } from '../../api/endpoints'
@@ -7,6 +7,7 @@ import { useAuth } from '../../auth/AuthContext'
 import { ConfirmDialog, Modal } from '../../components/Modal'
 import { formatDate, formatPeso, today } from '../../lib/format'
 import { AttachmentsPanel } from '../documents/AttachmentsPanel'
+import './suppliers.css'
 
 const DOC_TYPES = [
   'PhilGEPS Certificate of Registration (Platinum)',
@@ -29,6 +30,22 @@ const DOC_TYPES = [
   'Other',
 ]
 const DOC_CLASS: Record<string, string> = { valid: 'st-ok', expiring: 'st-pending', expired: 'st-bad' }
+
+/** A section heading with an optional note and action, styled like the mode table above it. */
+function Section({ title, note, action, children }: { title: string; note?: string; action?: ReactNode; children: ReactNode }) {
+  return (
+    <section className="sd-section">
+      <div className="sd-head">
+        <div>
+          <h4 className="sd-title">{title}</h4>
+          {note && <p className="sd-note">{note}</p>}
+        </div>
+        {action}
+      </div>
+      {children}
+    </section>
+  )
+}
 
 interface Props {
   supplierId: number
@@ -55,7 +72,7 @@ export function SupplierDetailModal({ supplierId, onClose, onEdit, onChanged }: 
     <Modal title={s ? `${s.name} (${s.vendor_code ?? '—'})` : 'Supplier'} onClose={onClose} width={1000}>
       {q.isPending && <div className="page-loading">Loading…</div>}
       {s && (
-        <>
+        <div className="supplier-detail">
           {error && <div className="alert alert-error">{error}</div>}
           <div className={s.awardable ? 'alert alert-success' : 'alert alert-warning'}>
             {s.awardable
@@ -68,22 +85,38 @@ export function SupplierDetailModal({ supplierId, onClose, onEdit, onChanged }: 
                     ? 'PhilGEPS Platinum on file — not yet marked eligible for competitive selection. Other modes go by the table under Eligibility requirements.'
                     : `Not eligible: ${[s.eligibility.missing.length ? 'missing ' + s.eligibility.missing.join(', ') : '', s.eligibility.expired.length ? 'expired ' + s.eligibility.expired.join(', ') : ''].filter(Boolean).join('; ')}.`}
           </div>
-          <dl className="detail-grid">
-            <dt>TIN / PhilGEPS</dt>
-            <dd>
-              {s.tin ?? '—'} · {s.philgeps_reg_number ?? '—'} {s.is_msme && <span className="badge st-partial">MSME</span>}
-            </dd>
-            <dt>Contact</dt>
-            <dd>{[s.contact_person, s.email, s.phone, s.mobile_number].filter(Boolean).join(' · ') || '—'}</dd>
-            <dt>Address</dt>
-            <dd>{s.address ?? '—'}</dd>
-            {s.credit_terms && (
-              <>
-                <dt>Credit terms</dt>
-                <dd>{s.credit_terms}</dd>
-              </>
-            )}
-          </dl>
+          <Section title="Supplier details">
+            <div className="table-wrap">
+              <table className="table table-compact sd-facts">
+                <tbody>
+                  <tr>
+                    <th scope="row">TIN</th>
+                    <td>{s.tin ?? '—'}</td>
+                  </tr>
+                  <tr>
+                    <th scope="row">PhilGEPS reg. no.</th>
+                    <td>
+                      {s.philgeps_reg_number ?? '—'} {s.is_msme && <span className="badge st-partial">MSME</span>}
+                    </td>
+                  </tr>
+                  <tr>
+                    <th scope="row">Contact</th>
+                    <td>{[s.contact_person, s.email, s.phone, s.mobile_number].filter(Boolean).join(' · ') || '—'}</td>
+                  </tr>
+                  <tr>
+                    <th scope="row">Address</th>
+                    <td>{s.address ?? '—'}</td>
+                  </tr>
+                  {s.credit_terms && (
+                    <tr>
+                      <th scope="row">Credit terms</th>
+                      <td>{s.credit_terms}</td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </Section>
           <EligibilityPanel s={s} edit={edit} onOk={ok} onError={fail} />
           <DocumentsPanel s={s} edit={can('edit_suppliers', 'create_suppliers')} remove={edit} onOk={ok} onError={fail} />
           <PerformancePanel s={s} />
@@ -104,7 +137,7 @@ export function SupplierDetailModal({ supplierId, onClose, onEdit, onChanged }: 
           {deleting && (
             <ConfirmDialog title="Delete supplier" message={`Delete ${s.name}? Suppliers with any history are kept; deactivate them instead.`} confirmLabel="Delete" busy={remove.isPending} onConfirm={() => remove.mutate()} onCancel={() => setDeleting(false)} />
           )}
-        </>
+        </div>
       )}
       {s && <AttachmentsPanel type="Supplier" id={s.id} label={s.name} docType="OTHER" />}
     </Modal>
@@ -130,21 +163,30 @@ function EligibilityPanel({ s, edit, onOk, onError }: PanelProps & { edit: boole
   })
   return (
     <>
-      <h4 style={{ margin: '1rem 0 0.5rem' }}>Eligibility requirements</h4>
-      <ul className="chain">
-        {s.eligibility.required.map((r) => (
-          <li key={r.document_type} className={r.valid ? 'step-approved' : r.present ? 'step-returned' : ''}>
-            <span className="step-dot">{r.valid ? '✓' : r.present ? '!' : '–'}</span>
-            <span>
-              {r.document_type} <span className="muted small">{r.present ? (r.expiry_date ? `valid to ${formatDate(r.expiry_date)}` : 'no expiry') : 'not on file'}</span>
-            </span>
-          </li>
-        ))}
-      </ul>
+      <Section title="Eligibility requirements" note="What competitive selection needs on file before the supplier can be marked eligible.">
+        <div className="table-wrap">
+          <table className="table table-compact">
+            <thead>
+              <tr>
+                <th>Document</th>
+                <th>Valid until</th>
+                <th>Status</th>
+              </tr>
+            </thead>
+            <tbody>
+              {s.eligibility.required.map((r) => (
+                <tr key={r.document_type}>
+                  <td>{r.document_type}</td>
+                  <td className="sd-muted">{r.present ? (r.expiry_date ? formatDate(r.expiry_date) : 'No expiry') : '—'}</td>
+                  <td>{r.valid ? <span className="badge st-ok">Ready</span> : r.present ? <span className="badge st-bad">Expired</span> : <span className="badge st-pending">Not on file</span>}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </Section>
       {s.by_mode && (
-        <>
-          <h4 style={{ margin: '1rem 0 0.5rem' }}>Documents by mode (GPPB Circular 06-2026)</h4>
-          <p className="hint">For goods above ₱500,000. Infrastructure and consulting add their licenses, and lower amounts need less. Other modes ask for no documents here.</p>
+        <Section title="Documents by mode (GPPB Circular 06-2026)" note="For goods above ₱500,000. Infrastructure and consulting add their licenses, and lower amounts need less. Other modes ask for no documents here.">
           <div className="table-wrap">
             <table className="table table-compact">
               <thead>
@@ -158,17 +200,17 @@ function EligibilityPanel({ s, edit, onOk, onError }: PanelProps & { edit: boole
                 {s.by_mode.map((m) => (
                   <tr key={m.mode}>
                     <td>{m.mode}</td>
-                    <td className="small">{m.required.join(', ') || 'None'}</td>
-                    <td className="small">{m.missing.length === 0 ? <span className="badge st-ok">Ready</span> : m.missing.join(', ')}</td>
+                    <td>{m.required.join(', ') || 'None'}</td>
+                    <td className="sd-missing">{m.missing.length === 0 ? <span className="badge st-ok">Ready</span> : m.missing.join(', ')}</td>
                   </tr>
                 ))}
               </tbody>
             </table>
           </div>
-        </>
+        </Section>
       )}
       {edit && (
-        <div className="workflow-actions" style={{ marginTop: '0.5rem' }}>
+        <div className="workflow-actions" style={{ marginTop: '0.75rem' }}>
           {!s.is_eligible && (
             <button className="btn btn-primary btn-sm" disabled={set.isPending || !s.eligibility.ready || s.is_sanctioned || !s.is_active} onClick={() => set.mutate(true)}>
               Mark eligible
@@ -210,8 +252,7 @@ function DocumentsPanel({ s, edit, remove, onOk, onError }: PanelProps & { edit:
   })
   const drop = useMutation({ mutationFn: (id: number) => supplierApi.removeDocument(id), onSuccess: () => onOk('Document removed.'), onError })
   return (
-    <>
-      <h4 style={{ margin: '1rem 0 0.5rem' }}>Documents on file</h4>
+    <Section title="Documents on file">
       <div className="table-wrap">
         <table className="table table-compact">
           <thead>
@@ -227,12 +268,12 @@ function DocumentsPanel({ s, edit, remove, onOk, onError }: PanelProps & { edit:
             {s.documents?.map((d) => (
               <tr key={d.id}>
                 <td>{d.document_type}</td>
-                <td className="mono">{d.reference_number ?? '—'}</td>
+                <td className="mono sd-muted">{d.reference_number ?? '—'}</td>
                 <td>{formatDate(d.issued_date)}</td>
                 <td>
                   {d.expiry_date ? formatDate(d.expiry_date) : 'no expiry'} <span className={`badge ${DOC_CLASS[d.status]}`}>{d.status}</span>
                 </td>
-                <td>
+                <td className="sd-actions">
                   {remove && (
                     <button className="icon-btn delete" title={`Remove ${d.document_type}`} onClick={() => drop.mutate(d.id)}>
                       🗑
@@ -252,7 +293,7 @@ function DocumentsPanel({ s, edit, remove, onOk, onError }: PanelProps & { edit:
         </table>
       </div>
       {edit && (
-        <div className="toolbar" style={{ marginTop: '0.5rem' }}>
+        <div className="toolbar sd-form">
           <select aria-label="Document type" value={type} onChange={(e) => setType(e.target.value)}>
             {DOC_TYPES.map((t) => (
               <option key={t}>{t}</option>
@@ -266,7 +307,7 @@ function DocumentsPanel({ s, edit, remove, onOk, onError }: PanelProps & { edit:
           </button>
         </div>
       )}
-    </>
+    </Section>
   )
 }
 
@@ -280,8 +321,7 @@ function PerformancePanel({ s }: { s: Supplier }) {
     </div>
   )
   return (
-    <>
-      <h4 style={{ margin: '1rem 0 0.5rem' }}>Performance</h4>
+    <Section title="Performance" note="Worked out from the supplier's awards, deliveries and ratings.">
       <div className="kpi-row">
         {kpi('Awards', `${p.rfqs_won + p.biddings_won}`)}
         {kpi('Purchase orders', `${p.purchase_orders} · ${formatPeso(p.purchase_orders_value)}`)}
@@ -290,7 +330,7 @@ function PerformancePanel({ s }: { s: Supplier }) {
         {kpi('Rating', p.avg_overall == null ? '—' : `${p.avg_overall} / 5`, p.satisfactory === false)}
         {p.liquidated_damages > 0 && kpi('Liquidated damages', formatPeso(p.liquidated_damages), true)}
       </div>
-    </>
+    </Section>
   )
 }
 
@@ -325,24 +365,50 @@ function RatingsPanel({ s, rate, onOk, onError }: PanelProps & { rate: boolean }
     </div>
   )
   return (
-    <>
-      <h4 style={{ margin: '1rem 0 0.5rem' }}>Ratings</h4>
-      <ul>
-        {s.evaluations?.map((e) => (
-          <li key={e.id}>
-            <strong>{e.overall_rating}</strong>/5 · {formatDate(e.evaluation_date)} {e.reference && <span className="mono">{e.reference}</span>} <span className="muted">by {e.evaluator?.name}</span>
-            {e.remarks && <span className="muted"> — {e.remarks}</span>}{' '}
-            {e.can_delete && (
-              <button className="link-btn small" onClick={() => drop.mutate(e.id)}>
-                withdraw
-              </button>
+    <Section title="Ratings">
+      <div className="table-wrap">
+        <table className="table table-compact">
+          <thead>
+            <tr>
+              <th>Rating</th>
+              <th>Date</th>
+              <th>PO / contract</th>
+              <th>Rated by</th>
+              <th>Remarks</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody>
+            {s.evaluations?.map((e) => (
+              <tr key={e.id}>
+                <td>
+                  <strong>{e.overall_rating}</strong> / 5
+                </td>
+                <td>{formatDate(e.evaluation_date)}</td>
+                <td className="mono sd-muted">{e.reference ?? '—'}</td>
+                <td>{e.evaluator?.name ?? '—'}</td>
+                <td className="sd-muted">{e.remarks ?? '—'}</td>
+                <td className="sd-actions">
+                  {e.can_delete && (
+                    <button className="link-btn small" onClick={() => drop.mutate(e.id)}>
+                      Withdraw
+                    </button>
+                  )}
+                </td>
+              </tr>
+            ))}
+            {s.evaluations?.length === 0 && (
+              <tr>
+                <td colSpan={6} className="empty">
+                  Not rated yet.
+                </td>
+              </tr>
             )}
-          </li>
-        ))}
-        {s.evaluations?.length === 0 && <li className="muted">Not rated yet.</li>}
-      </ul>
+          </tbody>
+        </table>
+      </div>
       {rate && (
-        <div className="reject-box">
+        <div className="sd-panel sd-form">
           <div className="form-grid four">
             {sel('delivery', 'Delivery *')}
             {sel('quality', 'Quality *')}
@@ -365,7 +431,7 @@ function RatingsPanel({ s, rate, onOk, onError }: PanelProps & { rate: boolean }
           </div>
         </div>
       )}
-    </>
+    </Section>
   )
 }
 
@@ -388,17 +454,19 @@ function SanctionsPanel({ s, edit, onOk, onError }: PanelProps & { edit: boolean
   })
   const lift = useMutation({ mutationFn: () => supplierApi.lift(lifting!, why), onSuccess: () => { setLifting(null); onOk('Sanction lifted; verify eligibility again.') }, onError })
   return (
-    <>
-      <div className="section-header" style={{ marginTop: '1rem' }}>
-        <h4>Blacklisting &amp; suspension</h4>
-        {edit && !adding && (
+    <Section
+      title="Blacklisting & suspension"
+      action={
+        edit &&
+        !adding && (
           <button className="btn btn-outline btn-sm" onClick={() => setAdding(true)}>
             + Record sanction
           </button>
-        )}
-      </div>
+        )
+      }
+    >
       {adding && (
-        <div className="reject-box">
+        <div className="reject-box sd-form" style={{ marginBottom: '0.75rem' }}>
           <div className="form-grid three">
             <div className="field">
               <label htmlFor="sn-type">Sanction</label>
@@ -430,24 +498,54 @@ function SanctionsPanel({ s, edit, onOk, onError }: PanelProps & { edit: boolean
           </div>
         </div>
       )}
-      <ul className="chain">
-        {s.sanctions?.map((x) => (
-          <li key={x.id} className={x.in_force ? 'step-returned' : ''}>
-            <span className="step-dot">{x.in_force ? '!' : '–'}</span>
-            <span>
-              <strong>{x.sanction_type}</strong> {formatDate(x.start_date)} – {x.end_date ? formatDate(x.end_date) : 'until lifted'} {x.reference_number && <span className="mono small">{x.reference_number}</span>}
-              <div className="small">{x.grounds}</div>
-              {x.status === 'lifted' && <div className="muted small">Lifted {formatDate(x.lifted_at)}: {x.lifted_reason}</div>}
-              {edit && x.status === 'active' && (
-                <button className="link-btn small" onClick={() => { setWhy(''); setLifting(x.id) }}>
-                  Lift…
-                </button>
-              )}
-            </span>
-          </li>
-        ))}
-        {s.sanctions?.length === 0 && <li className="muted">None.</li>}
-      </ul>
+      <div className="table-wrap">
+        <table className="table table-compact">
+          <thead>
+            <tr>
+              <th>Sanction</th>
+              <th>Period</th>
+              <th>Reference</th>
+              <th>Grounds</th>
+              <th>Status</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody>
+            {s.sanctions?.map((x) => (
+              <tr key={x.id}>
+                <td>{x.sanction_type}</td>
+                <td>
+                  {formatDate(x.start_date)} – {x.end_date ? formatDate(x.end_date) : 'until lifted'}
+                </td>
+                <td className="mono sd-muted">{x.reference_number ?? '—'}</td>
+                <td>
+                  {x.grounds}
+                  {x.status === 'lifted' && (
+                    <div className="sd-note">
+                      Lifted {formatDate(x.lifted_at)}: {x.lifted_reason}
+                    </div>
+                  )}
+                </td>
+                <td>{x.in_force ? <span className="badge st-bad">In force</span> : x.status === 'lifted' ? <span className="badge badge-muted">Lifted</span> : <span className="badge badge-muted">Ended</span>}</td>
+                <td className="sd-actions">
+                  {edit && x.status === 'active' && (
+                    <button className="link-btn small" onClick={() => { setWhy(''); setLifting(x.id) }}>
+                      Lift…
+                    </button>
+                  )}
+                </td>
+              </tr>
+            ))}
+            {s.sanctions?.length === 0 && (
+              <tr>
+                <td colSpan={6} className="empty">
+                  None.
+                </td>
+              </tr>
+            )}
+          </tbody>
+        </table>
+      </div>
       {lifting && (
         <div className="reject-box">
           <div className="field">
@@ -464,6 +562,6 @@ function SanctionsPanel({ s, edit, onOk, onError }: PanelProps & { edit: boolean
           </div>
         </div>
       )}
-    </>
+    </Section>
   )
 }

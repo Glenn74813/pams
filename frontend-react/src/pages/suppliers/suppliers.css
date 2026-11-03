@@ -1,0 +1,35 @@
+/*
+ * The supplier window: every section is a compact table in the style of "Documents by mode", with the same
+ * text size, so the window reads as one document.
+ */
+.supplier-detail { font-size: 0.86rem; }
+.supplier-detail .alert { font-size: 0.86rem; }
+.supplier-detail .sd-section { margin-top: 1.4rem; }
+.supplier-detail .sd-head { display: flex; align-items: flex-end; justify-content: space-between; gap: 1rem; margin-bottom: 0.5rem; }
+.supplier-detail .sd-title { font-size: 0.95rem; font-weight: 600; color: var(--text-dark); }
+.supplier-detail .sd-note { margin-top: 0.15rem; font-size: 0.8rem; color: var(--text-light); }
+.supplier-detail .table-compact th, .supplier-detail .table-compact td { vertical-align: top; }
+.supplier-detail .table-compact td { font-size: 0.86rem; }
+.supplier-detail .sd-muted { color: var(--text-light); }
+.supplier-detail .sd-missing { color: #991b1b; }
+.supplier-detail .sd-actions { text-align: right; white-space: nowrap; width: 1%; }
+
+/* The supplier's own details: labels down the left, as table rows. */
+.supplier-detail .sd-facts th {
+  width: 11rem;
+  background: var(--table-header-bg);
+  text-transform: none;
+  letter-spacing: 0;
+  font-size: 0.86rem;
+  font-weight: 500;
+}
+.supplier-detail .sd-facts tbody tr:hover { background: none; }
+
+.supplier-detail .kpi-row { gap: 0.75rem; margin-bottom: 0; }
+.supplier-detail .kpi { padding: 0.7rem 0.9rem; box-shadow: none; border-radius: 8px; }
+.supplier-detail .kpi-value { font-size: 1.1rem; }
+.supplier-detail .kpi-label { font-size: 0.78rem; text-transform: uppercase; letter-spacing: 0.04em; font-weight: 600; }
+
+.supplier-detail .sd-form { margin-top: 0.75rem; }
+.supplier-detail .sd-form .field label { font-size: 0.8rem; }
+.supplier-detail .sd-panel { margin-top: 0.75rem; padding: 1rem; border: 1px solid var(--table-border); border-radius: 8px; background: var(--table-header-bg); }
