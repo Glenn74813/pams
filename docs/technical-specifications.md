@@ -84,7 +84,7 @@ Exact versions are in `backend-java/pom.xml` and `frontend-react/package.json`.
 | Bulk data | Import and full export through the data tools |
 | Single sign-on | OpenID Connect (Microsoft Entra ID, Google Workspace, Keycloak and others) |
 | Signing platform | Push of new requests; signatures posted back with a shared key |
-| Other systems' APIs | Read-only GET calls, set up in Settings → Integrations; payment records shown as a list or per PO and contract. No redirects, a time and size limit, and no calls to the server itself or metadata addresses; keys stored encrypted (AES-GCM) |
+| Other systems' APIs | Read-only GET calls, set up in Settings → Integrations; payment records shown as a list or per PO and contract. Sign-in by OAuth 2.0 client credentials (tokens kept until they expire), bearer token, header key or basic. No redirects, a time and size limit, and no calls to metadata addresses or the server itself unless listed in `PAMS_INTEGRATIONS_ALLOWED_HOSTS`; secrets stored encrypted (AES-GCM) |
 | QR labels | Signed links on asset tags, scanned with a phone during counts |
 
 PAMS has no live connection to PhilGEPS, the PS-DBM Virtual Store or the DBM BTMS. Staff record those transactions and references in PAMS.

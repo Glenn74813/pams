@@ -23,11 +23,14 @@ import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.SecureRandom;
 import java.time.Duration;
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Base64;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -35,6 +38,9 @@ import java.util.regex.Pattern;
  * Calls another system's API for PAMS, read-only: a GET with the configured credentials, no redirects, a time limit
  * and a size limit, and never to the server itself or cloud metadata addresses (so an administrator's URL cannot be
  * turned against PAMS's own network). The JSON that comes back is cut down to rows and named columns.
+ * Another system on the same machine is reached only when its host and port are in
+ * {@code pams.integrations.allowed-hosts}. With OAuth 2.0 client credentials, PAMS gets an access token from the
+ * token address and keeps it until shortly before it expires.
  */
 @Component
 public class ExternalApiClient {
@@ -46,14 +52,20 @@ public class ExternalApiClient {
 
     private final ObjectMapper json;
     private final SecretKeySpec key;
-    private final boolean allowLoopback;
+    private final Set<String> allowedHosts;
+    private final Map<String, Token> tokens = new ConcurrentHashMap<>();
     private final SecureRandom random = new SecureRandom();
-    private final HttpClient http = HttpClient.newBuilder().followRedirects(HttpClient.Redirect.NEVER).connectTimeout(Duration.ofSeconds(10)).build();
+    // HTTP/1.1: on plain http the default HTTP/2 upgrade request hangs some servers and proxies (e.g. Vite's).
+    private final HttpClient http = HttpClient.newBuilder().version(HttpClient.Version.HTTP_1_1).followRedirects(HttpClient.Redirect.NEVER)
+            .connectTimeout(Duration.ofSeconds(10)).build();
 
     public ExternalApiClient(ObjectMapper json, @Value("${pams.integrations.key:${pams.audit.seal-key:${pams.jwt.secret}}}") String secret,
-                             @Value("${pams.integrations.allow-loopback:false}") boolean allowLoopback) {
+                             @Value("${pams.integrations.allowed-hosts:}") String allowedHosts) {
         this.json = json;
-        this.allowLoopback = allowLoopback;
+        this.allowedHosts = new java.util.HashSet<>();
+        for (String h : allowedHosts.split(",")) {
+            if (!h.isBlank()) this.allowedHosts.add(h.trim().toLowerCase());
+        }
         try {
             this.key = new SecretKeySpec(MessageDigest.getInstance("SHA-256").digest(("pams-integrations:" + secret).getBytes(StandardCharsets.UTF_8)), "AES");
         } catch (Exception e) {
@@ -69,7 +81,14 @@ public class ExternalApiClient {
     public record Column(String label, String field) {
     }
 
-    public record Call(String baseUrl, String path, String authType, String authHeader, String secret, String dataPath, List<Column> columns, int timeoutSeconds) {
+    public record Call(String baseUrl, String path, String authType, String authHeader, String secret, String tokenUrl, String clientId,
+                       String dataPath, List<Column> columns, int timeoutSeconds) {
+    }
+
+    private record Token(String value, Instant expires) {
+    }
+
+    private record Answer(int status, byte[] body) {
     }
 
     // ───────────────────────── secrets ─────────────────────────
@@ -127,26 +146,51 @@ public class ExternalApiClient {
         return uri;
     }
 
-    /** http or https to a named host that is not this server, a link-local or a cloud metadata address. */
     public void checkAddress(URI uri) {
+        checkAddress(uri, "base_url");
+    }
+
+    /**
+     * http or https to a named host that is not a link-local or cloud metadata address, nor this machine unless its
+     * host and port are in pams.integrations.allowed-hosts.
+     */
+    public void checkAddress(URI uri, String field) {
         String scheme = uri.getScheme() == null ? "" : uri.getScheme().toLowerCase();
-        if (!scheme.equals("https") && !scheme.equals("http")) throw ApiException.validation("base_url", "Use an http or https address.");
-        if (uri.getHost() == null || uri.getHost().isBlank()) throw ApiException.validation("base_url", "The address needs a host name.");
-        if (uri.getUserInfo() != null) throw ApiException.validation("base_url", "Put credentials in the authentication fields, not in the address.");
+        if (!scheme.equals("https") && !scheme.equals("http")) throw ApiException.validation(field, "Use an http or https address.");
+        if (uri.getHost() == null || uri.getHost().isBlank()) throw ApiException.validation(field, "The address needs a host name.");
+        if (uri.getUserInfo() != null) throw ApiException.validation(field, "Put credentials in the sign-in fields, not in the address.");
+        int port = uri.getPort() != -1 ? uri.getPort() : scheme.equals("https") ? 443 : 80;
+        boolean listed = allowedHosts.contains(uri.getHost().toLowerCase() + ":" + port);
         try {
             for (InetAddress a : InetAddress.getAllByName(uri.getHost())) {
-                boolean local = a.isLoopbackAddress() || a.isAnyLocalAddress();
-                if ((local && !allowLoopback) || a.isLinkLocalAddress() || a.isMulticastAddress()) {
-                    throw ApiException.validation("base_url", "PAMS does not call its own server, link-local or metadata addresses.");
+                if (a.isLinkLocalAddress() || a.isMulticastAddress()) {
+                    throw ApiException.validation(field, "PAMS does not call link-local or cloud metadata addresses.");
+                }
+                if ((a.isLoopbackAddress() || a.isAnyLocalAddress()) && !listed) {
+                    throw ApiException.validation(field, uri.getHost() + ":" + port + " is on the PAMS server itself. If another system runs there, "
+                            + "add " + uri.getHost() + ":" + port + " to PAMS_INTEGRATIONS_ALLOWED_HOSTS in the server's .env and restart PAMS.");
                 }
             }
         } catch (UnknownHostException e) {
-            throw ApiException.validation("base_url", "The host " + uri.getHost() + " could not be found.");
+            throw ApiException.validation(field, "The host " + uri.getHost() + " could not be found.");
         }
     }
 
     public Result fetch(Call call, Map<String, String> values) {
         URI uri = address(call.baseUrl(), call.path(), values);
+        Answer res = send(request(call, uri, false), call.timeoutSeconds());
+        if ("oauth".equals(call.authType()) && res.status() == 401) {
+            // The token may have been revoked or expired early: get a new one once.
+            res = send(request(call, uri, true), call.timeoutSeconds());
+        }
+        if (res.status() >= 300 && res.status() < 400) throw ApiException.of(HttpStatus.BAD_GATEWAY, "The other system answered with a redirect (" + res.status() + "); enter the final address.");
+        if (res.status() == 401 || res.status() == 403) throw ApiException.of(HttpStatus.BAD_GATEWAY, "The other system refused the credentials (" + res.status() + ").");
+        if (res.status() == 404) throw ApiException.of(HttpStatus.BAD_GATEWAY, "The other system has nothing at " + uri.getPath() + " (404); check the path.");
+        if (res.status() >= 400) throw ApiException.of(HttpStatus.BAD_GATEWAY, "The other system answered with an error (" + res.status() + ").");
+        return table(parse(res.body(), "the address"), call.dataPath(), call.columns(), res.status());
+    }
+
+    private HttpRequest request(Call call, URI uri, boolean freshToken) {
         HttpRequest.Builder req = HttpRequest.newBuilder(uri).GET().timeout(Duration.ofSeconds(Math.max(1, Math.min(60, call.timeoutSeconds()))))
                 .header("Accept", "application/json").header("User-Agent", "PAMS-integration");
         String secret = call.secret();
@@ -154,18 +198,51 @@ public class ExternalApiClient {
             case "bearer" -> req.header("Authorization", "Bearer " + secret);
             case "basic" -> req.header("Authorization", "Basic " + Base64.getEncoder().encodeToString((secret == null ? "" : secret).getBytes(StandardCharsets.UTF_8)));
             case "header" -> req.header(call.authHeader(), secret == null ? "" : secret);
+            case "oauth" -> req.header("Authorization", "Bearer " + accessToken(call, freshToken));
             default -> {
             }
         }
-        HttpResponse<InputStream> res;
-        byte[] body;
+        return req.build();
+    }
+
+    /** An OAuth 2.0 client-credentials token (RFC 6749 4.4), kept until 30 seconds before it expires. */
+    private String accessToken(Call call, boolean fresh) {
+        String cacheKey = call.tokenUrl() + "\n" + call.clientId() + "\n" + digest(call.secret());
+        Token t = tokens.get(cacheKey);
+        if (!fresh && t != null && t.expires().isAfter(Instant.now().plusSeconds(30))) return t.value();
+        URI uri;
         try {
-            res = http.send(req.build(), HttpResponse.BodyHandlers.ofInputStream());
+            uri = URI.create(call.tokenUrl());
+        } catch (IllegalArgumentException e) {
+            throw ApiException.validation("token_url", "The token address is not valid.");
+        }
+        checkAddress(uri, "token_url");
+        String id = URLEncoder.encode(call.clientId() == null ? "" : call.clientId(), StandardCharsets.UTF_8);
+        String secret = URLEncoder.encode(call.secret() == null ? "" : call.secret(), StandardCharsets.UTF_8);
+        HttpRequest req = HttpRequest.newBuilder(uri).timeout(Duration.ofSeconds(Math.max(1, Math.min(60, call.timeoutSeconds()))))
+                .header("Content-Type", "application/x-www-form-urlencoded").header("Accept", "application/json").header("User-Agent", "PAMS-integration")
+                .header("Authorization", "Basic " + Base64.getEncoder().encodeToString((id + ":" + secret).getBytes(StandardCharsets.UTF_8)))
+                .POST(HttpRequest.BodyPublishers.ofString("grant_type=client_credentials")).build();
+        Answer res = send(req, call.timeoutSeconds());
+        if (res.status() == 400 || res.status() == 401) throw ApiException.of(HttpStatus.BAD_GATEWAY, "The other system refused the client id or secret (" + res.status() + ").");
+        if (res.status() >= 300) throw ApiException.of(HttpStatus.BAD_GATEWAY, "The token address answered with " + res.status() + "; check it.");
+        JsonNode root = parse(res.body(), "the token address");
+        JsonNode token = root.get("access_token");
+        if (token == null || !token.isString() || token.asString().isBlank()) throw ApiException.of(HttpStatus.BAD_GATEWAY, "The token address did not return an access_token.");
+        JsonNode expiresIn = root.get("expires_in");
+        long seconds = expiresIn != null && expiresIn.isNumber() ? expiresIn.asLong() : 300;
+        tokens.put(cacheKey, new Token(token.asString(), Instant.now().plusSeconds(Math.max(1, seconds))));
+        return token.asString();
+    }
+
+    private Answer send(HttpRequest req, int timeoutSeconds) {
+        try {
+            HttpResponse<InputStream> res = http.send(req, HttpResponse.BodyHandlers.ofInputStream());
             try (InputStream in = res.body()) {
-                body = readLimited(in);
+                return new Answer(res.statusCode(), readLimited(in));
             }
         } catch (java.net.http.HttpTimeoutException e) {
-            throw ApiException.of(HttpStatus.BAD_GATEWAY, "The other system did not answer within " + call.timeoutSeconds() + " seconds.");
+            throw ApiException.of(HttpStatus.BAD_GATEWAY, "The other system did not answer within " + timeoutSeconds + " seconds.");
         } catch (ApiException e) {
             throw e;
         } catch (InterruptedException e) {
@@ -174,16 +251,27 @@ public class ExternalApiClient {
         } catch (Exception e) {
             throw ApiException.of(HttpStatus.BAD_GATEWAY, "Could not reach the other system: " + e.getClass().getSimpleName() + ".");
         }
-        if (res.statusCode() >= 300 && res.statusCode() < 400) throw ApiException.of(HttpStatus.BAD_GATEWAY, "The other system answered with a redirect (" + res.statusCode() + "); enter the final address.");
-        if (res.statusCode() == 401 || res.statusCode() == 403) throw ApiException.of(HttpStatus.BAD_GATEWAY, "The other system refused the credentials (" + res.statusCode() + ").");
-        if (res.statusCode() >= 400) throw ApiException.of(HttpStatus.BAD_GATEWAY, "The other system answered with an error (" + res.statusCode() + ").");
-        JsonNode root;
+    }
+
+    private JsonNode parse(byte[] body, String where) {
+        String start = new String(body, 0, Math.min(body.length, 200), StandardCharsets.UTF_8).stripLeading();
+        if (start.startsWith("<")) {
+            throw ApiException.of(HttpStatus.BAD_GATEWAY, "Answered with a web page, not JSON: " + where + " is a page of the other system, not its API. "
+                    + "API addresses often end in /api or /api/v1.");
+        }
         try {
-            root = json.readTree(body);
+            return json.readTree(body);
         } catch (Exception e) {
             throw ApiException.of(HttpStatus.BAD_GATEWAY, "The other system did not answer with JSON.");
         }
-        return table(root, call.dataPath(), call.columns(), res.statusCode());
+    }
+
+    private static String digest(String s) {
+        try {
+            return Base64.getEncoder().encodeToString(MessageDigest.getInstance("SHA-256").digest((s == null ? "" : s).getBytes(StandardCharsets.UTF_8)));
+        } catch (Exception e) {
+            throw new IllegalStateException(e);
+        }
     }
 
     private static byte[] readLimited(InputStream in) throws java.io.IOException {

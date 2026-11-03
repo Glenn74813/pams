@@ -1,6 +1,6 @@
 import { api } from './client'
 
-export type AuthType = 'none' | 'bearer' | 'header' | 'basic'
+export type AuthType = 'none' | 'bearer' | 'header' | 'basic' | 'oauth'
 export type ApiContext = 'none' | 'payable'
 
 export interface ApiColumn {
@@ -18,6 +18,8 @@ export interface ExternalApi {
   path: string | null
   auth_type: AuthType | null
   auth_header: string | null
+  token_url: string | null
+  client_id: string | null
   has_secret: boolean
   data_path: string | null
   columns: ApiColumn[]
@@ -35,6 +37,8 @@ export interface ExternalApiInput {
   path?: string
   auth_type: AuthType
   auth_header?: string | null
+  token_url?: string | null
+  client_id?: string | null
   secret?: string
   clear_secret?: boolean
   data_path?: string | null

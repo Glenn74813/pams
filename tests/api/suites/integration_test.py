@@ -1,6 +1,7 @@
 """Settings → Integrations: PAMS reading another system's payment API, read-only. A small fake system runs here;
-the backend under test needs PAMS_INTEGRATIONS_ALLOW_LOOPBACK=true to call it."""
-import json, os, threading, time, urllib.request, urllib.error, uuid, datetime
+it listens on 127.0.0.1:$PAMS_FAKE_PORT (18765), which the backend under test must list in
+PAMS_INTEGRATIONS_ALLOWED_HOSTS. Other ports on this machine stay refused."""
+import base64, json, os, threading, time, urllib.request, urllib.error, uuid, datetime
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import urlparse, parse_qs
 from pams_db import sql
@@ -9,6 +10,7 @@ B = os.environ['PAMS_API']
 RUN = uuid.uuid4().hex[:6]
 TOKEN = 'tok-' + RUN
 seen = []
+oauth = {'issued': [], 'valid': set(), 'expires_in': 600}
 
 
 class Fake(BaseHTTPRequestHandler):
@@ -36,6 +38,11 @@ class Fake(BaseHTTPRequestHandler):
             return self.send(200, {'data': {'items': [
                 {'check_number': 'CHK-1', 'amount': 1500.5, 'payee': {'name': 'ZZ Payee'}, 'reference': ref, 'released': True},
                 {'check_number': 'CHK-2', 'amount': 99, 'payee': {'name': 'ZZ Payee'}, 'reference': ref, 'released': False}]}})
+        if u.path == '/api/oauth-payments':
+            h = self.headers.get('Authorization', '')
+            if not h.startswith('Bearer ') or h[7:] not in oauth['valid']:
+                return self.send(401, {'error': 'invalid_token'})
+            return self.send(200, {'items': [{'dvNumber': 'DV-OA-1', 'amount': 500}]})
         if u.path == '/api/released':
             if self.headers.get('X-API-Key') != TOKEN:
                 return self.send(403, {'error': 'no'})
@@ -53,8 +60,23 @@ class Fake(BaseHTTPRequestHandler):
             return self.send(200, [{'n': i} for i in range(600)])
         return self.send(404, {'error': 'not found'})
 
+    def do_POST(self):
+        u = urlparse(self.path)
+        body = self.rfile.read(int(self.headers.get('Content-Length', 0))).decode()
+        seen.append((self.command, self.path, dict(self.headers)))
+        if u.path != '/api/auth/token':
+            return self.send(404, {'error': 'not found'})
+        expected = 'Basic ' + base64.b64encode(f'pams-{RUN}:s3cret {RUN}'.replace(' ', '+').encode()).decode()
+        if parse_qs(body).get('grant_type') != ['client_credentials'] or self.headers.get('Authorization') != expected:
+            return self.send(401, {'error': 'invalid_client'})
+        t = f'oat-{len(oauth["issued"])}-{RUN}'
+        oauth['issued'].append(t)
+        oauth['valid'].add(t)
+        return self.send(200, {'access_token': t, 'token_type': 'Bearer', 'expires_in': oauth['expires_in']})
 
-server = ThreadingHTTPServer(('127.0.0.1', 0), Fake)
+
+PORT = int(os.environ.get('PAMS_FAKE_PORT', '18765'))
+server = ThreadingHTTPServer(('127.0.0.1', PORT), Fake)
 threading.Thread(target=server.serve_forever, daemon=True).start()
 FAKE = f'http://127.0.0.1:{server.server_address[1]}'
 
@@ -100,6 +122,11 @@ for label, patch, field in [
     ('a key is needed to sign in', {'secret': ''}, 'secret'),
     ('header sign-in needs the header name', {'auth_type': 'header', 'auth_header': 'Host'}, 'auth_header'),
     ('time limit at most 60 seconds', {'timeout_seconds': 120}, 'timeout_seconds'),
+    ('a whole address in the path', {'path': FAKE + '/api/payments'}, 'path'),
+    ('another port on this machine', {'base_url': f'http://127.0.0.1:{PORT + 1}/api'}, 'base_url'),
+    ('OAuth needs the token address', {'auth_type': 'oauth', 'client_id': 'x'}, 'token_url'),
+    ('OAuth needs the client id', {'auth_type': 'oauth', 'token_url': FAKE + '/api/auth/token'}, 'client_id'),
+    ('the token address is checked too', {'auth_type': 'oauth', 'client_id': 'x', 'token_url': 'http://169.254.169.254/token'}, 'token_url'),
 ]:
     s, d = call('POST', '/integrations', {**base, **patch}, SA)
     ok(f'refused: {label}', s == 422 and field in d.get('errors', {}), (s, d))
@@ -111,6 +138,9 @@ stored = sql(f'select secret_cipher from external_apis where id = {API}')
 ok('the key is stored encrypted', stored and TOKEN not in stored, stored)
 s, d = call('POST', '/integrations', base, SA)
 ok('names are unique', s == 422 and 'name' in d.get('errors', {}), d)
+
+s, d = call('POST', '/integrations', {**base, 'name': f'ZZ Local {RUN}', 'base_url': f'http://127.0.0.1:{PORT + 1}/api'}, SA)
+ok('the refusal says how to allow a system on this machine', 'PAMS_INTEGRATIONS_ALLOWED_HOSTS' in json.dumps(d), d)
 
 # ── test call
 s, t = call('POST', f'/integrations/{API}/test', {'values': {'reference': 'PO-TEST-1'}}, SA)
@@ -133,7 +163,8 @@ call('PUT', f'/integrations/{API}', {**base, 'secret': 'wrong'}, SA)
 ok('a refused key is explained', 'refused the credentials' in (call('POST', f'/integrations/{API}/test', {'values': {'reference': 'X'}}, SA)[1]['error'] or ''))
 call('PUT', f'/integrations/{API}', base, SA)
 ok('a redirect is not followed', 'redirect' in (failing({'base_url': FAKE, 'path': '/redirect', 'data_path': None})['error'] or '').lower())
-ok('an answer that is not JSON is explained', 'JSON' in (failing({'base_url': FAKE, 'path': '/text', 'data_path': None})['error'] or ''))
+ok('a web page instead of the API is explained', 'web page' in (failing({'base_url': FAKE, 'path': '/text', 'data_path': None})['error'] or ''))
+ok('a wrong path is explained', '404' in (failing({'base_url': FAKE, 'path': '/nothing-here', 'data_path': None})['error'] or ''))
 ok('a too-large answer is refused', '2 MB' in (failing({'base_url': FAKE, 'path': '/big', 'data_path': None})['error'] or ''))
 ok('a slow system times out', 'did not answer within 1' in (failing({'base_url': FAKE, 'path': '/slow', 'data_path': None, 'timeout_seconds': 1})['error'] or ''))
 d = failing({'base_url': FAKE, 'path': '/many', 'data_path': None, 'columns': []})
@@ -152,6 +183,26 @@ s, d = call('GET', f"/integrations/{L['id']}/data", tok=SA)
 ok('the list is read with the header key', s == 200 and d['result']['rows'] == [['DV-1', 10], ['DV-2', 20]], d)
 s, d = call('GET', f'/integrations/{API}/data', tok=SA)
 ok('a per-PO connection is not read as a list', s == 409, d)
+
+# ── OAuth 2.0 client credentials
+oa = {'name': f'ZZ OAuth {RUN}', 'base_url': FAKE + '/api', 'path': '/oauth-payments', 'auth_type': 'oauth', 'token_url': FAKE + '/api/auth/token',
+      'client_id': f'pams-{RUN}', 'secret': f's3cret {RUN}', 'data_path': 'items', 'context': 'none'}
+s, O = call('POST', '/integrations', oa, SA)
+ok('connect with OAuth client credentials', s == 201 and O['auth_type'] == 'oauth' and O['client_id'] == f'pams-{RUN}' and O['has_secret'], O)
+s, d = call('GET', f"/integrations/{O['id']}/data", tok=SA)
+ok('a token is fetched and used', s == 200 and d['error'] is None and d['result']['rows'] == [['DV-OA-1', 500]], d)
+token_posts = [x for x in seen if x[0] == 'POST']
+ok('the token request is a form POST with the client in Basic', token_posts and token_posts[-1][2].get('Content-Type', '').startswith('application/x-www-form-urlencoded'), token_posts[-1:])
+call('GET', f"/integrations/{O['id']}/data", tok=SA)
+ok('the token is kept while it is valid', len(oauth['issued']) == 1, oauth['issued'])
+oauth['valid'].clear()
+s, d = call('GET', f"/integrations/{O['id']}/data", tok=SA)
+ok('a revoked token is replaced once', d['error'] is None and len(oauth['issued']) == 2, (d, oauth['issued']))
+s, x = call('PUT', f"/integrations/{O['id']}", {**oa, 'secret': 'wrong'}, SA)
+s, d = call('GET', f"/integrations/{O['id']}/data", tok=SA)
+ok('a wrong client secret is explained', 'client id or secret' in (d['error'] or ''), d)
+s, x = call('GET', '/integrations', tok=SA)
+ok('the client secret is not sent back', all('secret' not in r for r in x['data']), x)
 
 # ── per purchase order
 # Tables with triggers on SQL Server cannot return the new id, so it is looked up after the insert.

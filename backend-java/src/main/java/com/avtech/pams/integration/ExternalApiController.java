@@ -44,7 +44,7 @@ public class ExternalApiController {
     private static final String TYPE = "App\\Models\\ExternalApi";
     private static final String ADMIN = "@perm.any('edit_settings', 'manage_system_settings')";
     private static final String VIEW = "@perm.any('view_payments', 'manage_payments', 'approve_payments', 'edit_settings', 'manage_system_settings')";
-    static final Set<String> AUTH_TYPES = Set.of("none", "bearer", "header", "basic");
+    static final Set<String> AUTH_TYPES = Set.of("none", "bearer", "header", "basic", "oauth");
     static final Set<String> CONTEXTS = Set.of("none", "payable");
     private static final Set<String> RESERVED_HEADERS = Set.of("host", "content-length", "connection", "expect", "upgrade");
 
@@ -65,7 +65,7 @@ public class ExternalApiController {
     }
 
     public record ApiView(Long id, String name, String description, String category, String baseUrl, String path, String authType, String authHeader,
-                          boolean hasSecret, String dataPath, List<ExternalApiClient.Column> columns, String context, int timeoutSeconds, boolean isActive,
+                          String tokenUrl, String clientId, boolean hasSecret, String dataPath, List<ExternalApiClient.Column> columns, String context, int timeoutSeconds, boolean isActive,
                           String lastStatus, OffsetDateTime lastCalledAt) {
     }
 
@@ -81,8 +81,8 @@ public class ExternalApiController {
         return Map.of("data", rows, "can_manage", admin);
     }
 
-    public record ApiInput(String name, String description, String baseUrl, String path, String authType, String authHeader, String secret,
-                           Boolean clearSecret, String dataPath, List<ExternalApiClient.Column> columns, String context, Integer timeoutSeconds, Boolean isActive) {
+    public record ApiInput(String name, String description, String baseUrl, String path, String authType, String authHeader, String tokenUrl,
+                           String clientId, String secret, Boolean clearSecret, String dataPath, List<ExternalApiClient.Column> columns, String context, Integer timeoutSeconds, Boolean isActive) {
     }
 
     @PostMapping
@@ -92,10 +92,10 @@ public class ExternalApiController {
         Map<String, Object> v = validate(in, null);
         Timestamp now = Timestamp.valueOf(Times.now());
         Long id = Inserts.insert(jdbc, """
-                insert into external_apis (name, description, category, base_url, path, auth_type, auth_header, secret_cipher, data_path, columns, context,
-                                           timeout_seconds, is_active, created_by, created_at, updated_at)
-                values (?, ?, 'payments', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""", v.get("name"), v.get("description"), v.get("base_url"), v.get("path"),
-                v.get("auth_type"), v.get("auth_header"), client.encrypt(in.secret()), v.get("data_path"), v.get("columns"), v.get("context"),
+                insert into external_apis (name, description, category, base_url, path, auth_type, auth_header, token_url, client_id, secret_cipher, data_path,
+                                           columns, context, timeout_seconds, is_active, created_by, created_at, updated_at)
+                values (?, ?, 'payments', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""", v.get("name"), v.get("description"), v.get("base_url"), v.get("path"),
+                v.get("auth_type"), v.get("auth_header"), v.get("token_url"), v.get("client_id"), client.encrypt(in.secret()), v.get("data_path"), v.get("columns"), v.get("context"),
                 v.get("timeout_seconds"), v.get("is_active"), current.user().getId(), now, now);
         audit.record("created", TYPE, id, "Connected the external API " + v.get("name") + " (" + v.get("base_url") + ")", null, Map.of("base_url", v.get("base_url")));
         return ResponseEntity.status(HttpStatus.CREATED).body(view(row(id)));
@@ -109,9 +109,9 @@ public class ExternalApiController {
         Map<String, Object> v = validate(in, id);
         String cipher = Boolean.TRUE.equals(in.clearSecret()) ? null : in.secret() != null && !in.secret().isEmpty() ? client.encrypt(in.secret()) : (String) before.get("secret_cipher");
         jdbc.update("""
-                update external_apis set name = ?, description = ?, base_url = ?, path = ?, auth_type = ?, auth_header = ?, secret_cipher = ?, data_path = ?,
-                       columns = ?, context = ?, timeout_seconds = ?, is_active = ?, updated_at = ? where id = ?""", v.get("name"), v.get("description"), v.get("base_url"),
-                v.get("path"), v.get("auth_type"), v.get("auth_header"), cipher, v.get("data_path"), v.get("columns"), v.get("context"), v.get("timeout_seconds"),
+                update external_apis set name = ?, description = ?, base_url = ?, path = ?, auth_type = ?, auth_header = ?, token_url = ?, client_id = ?,
+                       secret_cipher = ?, data_path = ?, columns = ?, context = ?, timeout_seconds = ?, is_active = ?, updated_at = ? where id = ?""", v.get("name"),
+                v.get("description"), v.get("base_url"), v.get("path"), v.get("auth_type"), v.get("auth_header"), v.get("token_url"), v.get("client_id"), cipher, v.get("data_path"), v.get("columns"), v.get("context"), v.get("timeout_seconds"),
                 v.get("is_active"), Timestamp.valueOf(Times.now()), id);
         audit.record("updated", TYPE, id, "Changed the external API " + v.get("name") + (cipher == null ? "" : in.secret() != null && !in.secret().isEmpty() ? " (new secret)" : ""),
                 Map.of("base_url", before.get("base_url"), "path", before.get("path")), Map.of("base_url", v.get("base_url"), "path", v.get("path")));
@@ -169,7 +169,7 @@ public class ExternalApiController {
         OffsetDateTime at = Times.toOffset(Times.now());
         try {
             ExternalApiClient.Result result = client.fetch(new ExternalApiClient.Call(v.baseUrl(), v.path(), v.authType(), v.authHeader(),
-                    client.decrypt((String) r.get("secret_cipher")), v.dataPath(), v.columns(), v.timeoutSeconds()), values);
+                    client.decrypt((String) r.get("secret_cipher")), v.tokenUrl(), v.clientId(), v.dataPath(), v.columns(), v.timeoutSeconds()), values);
             status(id, "OK: " + result.rows().size() + " record(s)");
             return new DataView(view(row(id)), result, null, at);
         } catch (ApiException e) {
@@ -215,6 +215,7 @@ public class ExternalApiController {
         if (base == null || base.length() > 500) throw ApiException.validation("base_url", "Enter the other system's address.");
         String path = in.path() == null ? "" : in.path().trim();
         if (path.length() > 500) throw ApiException.validation("path", "The path is too long.");
+        if (path.matches("(?i)[a-z][a-z0-9+.-]*://.*")) throw ApiException.validation("path", "Enter only the part after the address, e.g. /payments, not a whole address.");
         String context = in.context() == null ? "none" : in.context();
         if (!CONTEXTS.contains(context)) throw ApiException.validation("context", "Choose a list of its own, or by purchase order or contract.");
         Set<String> allowed = "payable".equals(context) ? Set.of("reference", "po_number", "contract_number", "supplier_tin", "supplier_name") : Set.of();
@@ -224,9 +225,26 @@ public class ExternalApiController {
                 throw ApiException.validation("path", "{" + m.group(1) + "} cannot be used here." + ("payable".equals(context) ? " Use {reference}, {po_number}, {contract_number}, {supplier_tin} or {supplier_name}." : " Read it by purchase order or contract to use placeholders."));
             }
         }
-        client.checkAddress(java.net.URI.create(base.replaceAll("/+$", "")));
+        try {
+            client.checkAddress(java.net.URI.create(base.replaceAll("/+$", "")));
+        } catch (IllegalArgumentException e) {
+            throw ApiException.validation("base_url", "That is not a valid address.");
+        }
         String auth = in.authType() == null ? "none" : in.authType();
-        if (!AUTH_TYPES.contains(auth)) throw ApiException.validation("auth_type", "Choose none, bearer token, header key or basic.");
+        if (!AUTH_TYPES.contains(auth)) throw ApiException.validation("auth_type", "Choose none, bearer token, header key, basic or OAuth client credentials.");
+        String tokenUrl = null;
+        String clientId = null;
+        if ("oauth".equals(auth)) {
+            tokenUrl = text(in.tokenUrl());
+            if (tokenUrl == null || tokenUrl.length() > 500) throw ApiException.validation("token_url", "Enter the address PAMS gets its access token from.");
+            try {
+                client.checkAddress(java.net.URI.create(tokenUrl), "token_url");
+            } catch (IllegalArgumentException e) {
+                throw ApiException.validation("token_url", "The token address is not valid.");
+            }
+            clientId = text(in.clientId());
+            if (clientId == null || clientId.length() > 200) throw ApiException.validation("client_id", "Enter the client id the other system gave PAMS.");
+        }
         String header = text(in.authHeader());
         if ("header".equals(auth)) {
             if (header == null || !header.matches("[A-Za-z0-9-]{1,100}") || RESERVED_HEADERS.contains(header.toLowerCase())) {
@@ -252,6 +270,8 @@ public class ExternalApiController {
         v.put("path", path);
         v.put("auth_type", auth);
         v.put("auth_header", header);
+        v.put("token_url", tokenUrl);
+        v.put("client_id", clientId);
         v.put("data_path", dataPath);
         v.put("columns", cols.isEmpty() ? null : json.writeValueAsString(cols));
         v.put("context", context);
@@ -271,7 +291,7 @@ public class ExternalApiController {
         List<ExternalApiClient.Column> columns = cols == null ? List.of() : json.readValue(cols, new TypeReference<List<ExternalApiClient.Column>>() { });
         Object last = r.get("last_called_at");
         return new ApiView(((Number) r.get("id")).longValue(), (String) r.get("name"), (String) r.get("description"), (String) r.get("category"), (String) r.get("base_url"),
-                (String) r.get("path"), (String) r.get("auth_type"), (String) r.get("auth_header"), r.get("secret_cipher") != null, (String) r.get("data_path"), columns,
+                (String) r.get("path"), (String) r.get("auth_type"), (String) r.get("auth_header"), (String) r.get("token_url"), (String) r.get("client_id"), r.get("secret_cipher") != null, (String) r.get("data_path"), columns,
                 (String) r.get("context"), ((Number) r.get("timeout_seconds")).intValue(), Boolean.TRUE.equals(bool(r.get("is_active"))), (String) r.get("last_status"),
                 last == null ? null : Times.toOffset(((Timestamp) last).toLocalDateTime()));
     }
@@ -279,7 +299,7 @@ public class ExternalApiController {
     /** People who only view payments see the name and data, not where it comes from or how PAMS signs in. */
     private ApiView hideSetup(ApiView v) {
         if (current.any("edit_settings", "manage_system_settings")) return v;
-        return new ApiView(v.id(), v.name(), v.description(), v.category(), null, null, null, null, false, null, v.columns(), v.context(), v.timeoutSeconds(),
+        return new ApiView(v.id(), v.name(), v.description(), v.category(), null, null, null, null, null, null, false, null, v.columns(), v.context(), v.timeoutSeconds(),
                 v.isActive(), null, v.lastCalledAt());
     }
 

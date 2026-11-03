@@ -7,7 +7,13 @@ import { useToast } from '../../components/toast-context'
 import { formatDateTime } from '../../lib/format'
 import { ApiDataTable } from './ApiDataTable'
 
-const AUTH_LABEL: Record<string, string> = { none: 'None', bearer: 'Bearer token', header: 'Key in a header', basic: 'Basic (user:password)' }
+const AUTH_LABEL: Record<string, string> = {
+  none: 'None',
+  oauth: 'OAuth client credentials',
+  bearer: 'Bearer token',
+  header: 'Key in a header',
+  basic: 'Basic (user:password)',
+}
 const PLACEHOLDERS = '{reference} {po_number} {contract_number} {supplier_tin} {supplier_name}'
 
 /** Settings → Integrations: other systems' APIs whose payment records PAMS shows, read-only. */
@@ -132,6 +138,8 @@ function ApiForm({ api, onClose, onSaved }: { api: ExternalApi | null; onClose: 
     path: api?.path ?? '',
     auth_type: api?.auth_type ?? 'bearer',
     auth_header: api?.auth_header ?? 'X-API-Key',
+    token_url: api?.token_url ?? '',
+    client_id: api?.client_id ?? '',
     secret: '',
     data_path: api?.data_path ?? '',
     context: api?.context ?? 'payable',
@@ -155,7 +163,7 @@ function ApiForm({ api, onClose, onSaved }: { api: ExternalApi | null; onClose: 
     setError(null)
     save.mutate()
   }
-  const input = (key: 'name' | 'description' | 'base_url' | 'path' | 'data_path' | 'auth_header', label: string, props: Record<string, unknown> = {}) => (
+  const input = (key: 'name' | 'description' | 'base_url' | 'path' | 'data_path' | 'auth_header' | 'token_url' | 'client_id', label: string, props: Record<string, unknown> = {}) => (
     <div className="field" {...(props.span ? { className: `field ${props.span}` } : {})}>
       <label htmlFor={`ia-${key}`}>{label}</label>
       <input id={`ia-${key}`} value={(f[key] as string) ?? ''} onChange={(e) => set({ [key]: e.target.value })} placeholder={props.placeholder as string | undefined} />
@@ -175,11 +183,19 @@ function ApiForm({ api, onClose, onSaved }: { api: ExternalApi | null; onClose: 
               <option value="none">As a list of their own</option>
             </select>
           </div>
-          {input('base_url', 'Address of the API *', { placeholder: 'https://accounting.agency.gov.ph/api', span: 'span-2' })}
+          {input('base_url', 'Address of the API *', {
+            placeholder: 'https://accounting.agency.gov.ph/api/v1',
+            span: 'span-2',
+            hint: "The other system's API, not the page you see in the browser. It often ends in /api or /api/v1.",
+          })}
           {input('path', 'Path', {
             placeholder: f.context === 'payable' ? '/payments?reference={reference}' : '/payments?status=released',
             span: 'span-2',
-            hint: f.context === 'payable' ? `Placeholders filled from the PO or contract: ${PLACEHOLDERS}` : 'Placeholders are only for records read by PO or contract.',
+            hint: /^[a-z][a-z0-9+.-]*:\/\//i.test(f.path ?? '')
+              ? 'Enter only the part after the address, e.g. /disbursement-vouchers, not a whole address.'
+              : f.context === 'payable'
+                ? `The part after the address. Placeholders filled from the PO or contract: ${PLACEHOLDERS}`
+                : 'The part after the address, e.g. /disbursement-vouchers. Placeholders are only for records read by PO or contract.',
           })}
           <div className="field">
             <label htmlFor="ia-auth">Sign-in</label>
@@ -192,9 +208,19 @@ function ApiForm({ api, onClose, onSaved }: { api: ExternalApi | null; onClose: 
             </select>
           </div>
           {f.auth_type === 'header' && input('auth_header', 'Header name *', { placeholder: 'X-API-Key' })}
+          {f.auth_type === 'oauth' && input('client_id', 'Client id *', { placeholder: 'From the other system, e.g. its API access page' })}
+          {f.auth_type === 'oauth' &&
+            input('token_url', 'Token address *', {
+              placeholder: 'https://accounting.agency.gov.ph/api/v1/auth/token',
+              span: 'span-2',
+              hint: 'Where PAMS gets a short-lived access token with the client id and secret. PAMS gets a new one when it expires.',
+            })}
           {f.auth_type !== 'none' && (
             <div className="field">
-              <label htmlFor="ia-secret">{f.auth_type === 'basic' ? 'user:password' : 'Key or token'}{api?.has_secret ? '' : ' *'}</label>
+              <label htmlFor="ia-secret">
+                {f.auth_type === 'basic' ? 'user:password' : f.auth_type === 'oauth' ? 'Client secret' : 'Key or token'}
+                {api?.has_secret ? '' : ' *'}
+              </label>
               <input id="ia-secret" type="password" autoComplete="new-password" value={f.secret ?? ''} onChange={(e) => set({ secret: e.target.value })}
                 placeholder={api?.has_secret ? 'Kept; type to replace' : ''} />
               <span className="hint">Stored encrypted. It is never shown again.</span>

@@ -2321,10 +2321,10 @@ A connection shows its records in one of two places: as a list on **Payments fro
 
 ### Connect a system
 
-1. Get from the other system's administrator: the API address, the path that lists payments, and a key or token for PAMS.
+1. Get from the other system's administrator: the API address, the path that lists payments, and a key, token, or OAuth client id and secret for PAMS. The API address is not the page you see in the browser; it often ends in `/api` or `/api/v1`.
 2. Open Settings → **Integrations** → **+ Connect a system**.
-3. Enter a **Name**, choose where to **Show the records**, and enter the **Address of the API** and the **Path**. To look records up by PO or contract, put a placeholder in the path, e.g. `/payments?reference={reference}`.
-4. Choose the **Sign-in**: a bearer token, a key in a named header (e.g. `X-API-Key`), or basic `user:password`, and enter it.
+3. Enter a **Name**, choose where to **Show the records**, and enter the **Address of the API** and the **Path**, the part after the address (e.g. `/disbursement-vouchers`). To look records up by PO or contract, put a placeholder in the path, e.g. `/payments?reference={reference}`.
+4. Choose the **Sign-in**: **OAuth client credentials** (a client id and secret, plus the **Token address** PAMS gets short-lived tokens from), a bearer token, a key in a named header (e.g. `X-API-Key`), or basic `user:password`, and enter it. Use OAuth when the other system's tokens expire; PAMS gets a new token by itself.
 5. If the records sit inside the answer, enter **Where the records are**, e.g. `data.items`. Add **Columns to show**, with a heading and the field of each record, e.g. `Check no.` and `check_number`.
 6. Click **Save and test**, enter sample values and click **Call it now**. The table shows what PAMS will display.
 
@@ -2340,7 +2340,7 @@ A connection shows its records in one of two places: as a list on **Payments fro
 
 - The key is stored encrypted, never shown again, and hidden from people who only view payments, as is the address.
 - PAMS only sends GET requests, does not follow redirects, waits at most the time you set (60 seconds at most), and reads at most 2 MB and 500 records.
-- It refuses addresses on the PAMS server itself, link-local addresses and cloud metadata addresses.
+- It refuses addresses on the PAMS server itself, link-local addresses and cloud metadata addresses. A system on the same machine as PAMS is allowed only when the server administrator lists its host and port in `PAMS_INTEGRATIONS_ALLOWED_HOSTS`.
 - Adding, changing and removing a connection is recorded in the audit trail; the last call's result shows on the Integrations tab.
 
 ### Statuses and what moves them

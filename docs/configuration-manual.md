@@ -69,7 +69,7 @@ Connections to other systems' APIs are set up in Settings → Integrations, not 
 | Setting | Meaning | Default |
 |---|---|---|
 | `PAMS_INTEGRATIONS_KEY` | Key that encrypts the stored API keys. Changing it makes them unreadable; enter them again | The audit seal key, else `PAMS_JWT_SECRET` |
-| `PAMS_INTEGRATIONS_ALLOW_LOOPBACK` | Let connections call the PAMS server's own address. Only for testing | `false` |
+| `PAMS_INTEGRATIONS_ALLOWED_HOSTS` | Systems on the PAMS server's own machine that connections may call, as comma-separated `host:port`, e.g. `localhost:5174`. Write the host as it appears in the connection's address | None |
 
 ### Digital signing platform (optional)
 
