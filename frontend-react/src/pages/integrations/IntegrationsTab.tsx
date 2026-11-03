@@ -208,7 +208,10 @@ function ApiForm({ api, onClose, onSaved }: { api: ExternalApi | null; onClose: 
             </select>
           </div>
           {f.auth_type === 'header' && input('auth_header', 'Header name *', { placeholder: 'X-API-Key' })}
-          {f.auth_type === 'oauth' && input('client_id', 'Client id *', { placeholder: 'From the other system, e.g. its API access page' })}
+          {f.auth_type === 'oauth' && input('client_id', 'Client id *', {
+              placeholder: 'e.g. cas_7k2m…',
+              hint: "The client's id, shown next to its name in the other system. Not the secret.",
+            })}
           {f.auth_type === 'oauth' &&
             input('token_url', 'Token address *', {
               placeholder: 'https://accounting.agency.gov.ph/api/v1/auth/token',

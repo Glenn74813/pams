@@ -244,6 +244,11 @@ public class ExternalApiController {
             }
             clientId = text(in.clientId());
             if (clientId == null || clientId.length() > 200) throw ApiException.validation("client_id", "Enter the client id the other system gave PAMS.");
+            String secret = in.secret() != null && !in.secret().isEmpty() ? in.secret()
+                    : id != null && !Boolean.TRUE.equals(in.clearSecret()) ? client.decrypt((String) row(id).get("secret_cipher")) : null;
+            if (clientId.equals(secret)) {
+                throw ApiException.validation("client_id", "The client id is the same as the secret. Enter the client's name or id here (e.g. cas_…), and the secret below.");
+            }
         }
         String header = text(in.authHeader());
         if ("header".equals(auth)) {
