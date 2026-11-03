@@ -7,6 +7,7 @@ const ARTICLE: Record<string, string> = {
   '/purchase-requests': 'purchase-requests',
   '/rfq': 'rfq',
   '/bidding': 'bidding',
+  '/external-payments': 'external-payments',
   '/unsolicited-offers': 'unsolicited-offers',
   '/bac': 'bac',
   '/procurement': 'purchase-orders',

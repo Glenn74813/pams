@@ -62,6 +62,15 @@ Off unless an issuer and client are set. Accounts are matched by email and must 
 | `PAMS_SSO_BUTTON_LABEL` | Text on the login button |
 | `PAMS_SSO_SCOPES` | Scopes requested; defaults to `openid email profile` |
 
+### Integrations with other systems (optional)
+
+Connections to other systems' APIs are set up in Settings → Integrations, not here. Two settings concern them:
+
+| Setting | Meaning | Default |
+|---|---|---|
+| `PAMS_INTEGRATIONS_KEY` | Key that encrypts the stored API keys. Changing it makes them unreadable; enter them again | The audit seal key, else `PAMS_JWT_SECRET` |
+| `PAMS_INTEGRATIONS_ALLOW_LOOPBACK` | Let connections call the PAMS server's own address. Only for testing | `false` |
+
 ### Digital signing platform (optional)
 
 | Setting | Meaning |
@@ -77,6 +86,7 @@ Off unless an issuer and client are set. Accounts are matched by email and must 
 | Settings → Locations | Buildings, floors and rooms for assets | `edit_settings` |
 | Administration → Roles | Roles and their permissions | Super Admin |
 | Administration → Users | Accounts, department and role | Users permission |
+| Settings → Integrations | Other systems' APIs whose payment records PAMS shows, read-only | `edit_settings` or `manage_system_settings` |
 | Digital Signatures → Trusted CAs | Certificate authorities the agency trusts | `edit_settings` |
 | Departments, categories | The libraries used across the system | Their own permissions |
 | Monitoring | Scheduled jobs; run one by hand after a failure | `manage_system_settings` |

@@ -3,13 +3,14 @@ import { useAuth } from '../../auth/AuthContext'
 import { AccountTab } from './AccountTab'
 import { AgencyTab } from './AgencyTab'
 import { DataTab } from './DataTab'
+import { IntegrationsTab } from '../integrations/IntegrationsTab'
 import { LocationsTab } from './LocationsTab'
 import { SignatoriesTab } from './SignatoriesTab'
 import { SystemTab } from './SystemTab'
 import '../inventory/inventory.css'
 import './settings.css'
 
-type Tab = 'account' | 'agency' | 'signatories' | 'locations' | 'system' | 'data'
+type Tab = 'account' | 'agency' | 'signatories' | 'locations' | 'system' | 'data' | 'integrations'
 
 export function SettingsPage() {
   const { can } = useAuth()
@@ -20,6 +21,7 @@ export function SettingsPage() {
     ['locations', 'Locations', can('view_settings', 'edit_settings', 'view_properties')],
     ['system', 'System', can('view_settings', 'edit_settings', 'manage_system_settings')],
     ['data', 'Data import/export', can('manage_system_settings')],
+    ['integrations', 'Integrations', can('edit_settings', 'manage_system_settings')],
   ]
   const [tab, setTab] = useState<Tab>('account')
   const shown = tabs.filter(([, , ok]) => ok)
@@ -41,6 +43,7 @@ export function SettingsPage() {
       {tab === 'locations' && <LocationsTab />}
       {tab === 'system' && <SystemTab />}
       {tab === 'data' && <DataTab />}
+      {tab === 'integrations' && <IntegrationsTab />}
     </div>
   )
 }

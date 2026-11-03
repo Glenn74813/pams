@@ -17,17 +17,17 @@ ports (5432, 8095, 8096) and the SQL Server database `pams`.
 
 1. Make the disposable copies: `tests/api/throwaway-db.sh up`. This creates a PostgreSQL container on port 55432,
    loaded from the local `inventory` database, and a SQL Server database `pams_test` restored from `pams`.
-2. Start a backend on each copy, with the login limit raised so the suites can sign in as often as they need:
+2. Start a backend on each copy, with the login limit raised so the suites can sign in as often as they need, and loopback calls allowed so `integration_test` can reach the fake system it runs:
 
    ```bash
    cd backend-java
-   export PAMS_SECURITY_LOGIN_REQUESTS_PER_MINUTE=100000
+   export PAMS_SECURITY_LOGIN_REQUESTS_PER_MINUTE=100000 PAMS_INTEGRATIONS_ALLOW_LOOPBACK=true
    DB_URL=jdbc:postgresql://127.0.0.1:55432/inventory SERVER_PORT=8097 PAMS_STORAGE_DIR=/tmp/pams-test-pg ./mvnw -q spring-boot:run
    ```
 
    ```bash
    cd backend-java
-   export PAMS_SECURITY_LOGIN_REQUESTS_PER_MINUTE=100000
+   export PAMS_SECURITY_LOGIN_REQUESTS_PER_MINUTE=100000 PAMS_INTEGRATIONS_ALLOW_LOOPBACK=true
    MSSQL_URL="jdbc:sqlserver://127.0.0.1:14330;databaseName=pams_test;encrypt=true;trustServerCertificate=true;sendTimeAsDatetime=false" \
      SPRING_PROFILES_ACTIVE=sqlserver SERVER_PORT=18099 PAMS_STORAGE_DIR=/tmp/pams-test-mssql ./mvnw -q spring-boot:run
    ```
@@ -60,6 +60,7 @@ ports (5432, 8095, 8096) and the SQL Server database `pams`.
 | `tor_test`, `period_test` | TOR reports and their Excel, CSV and PDF output |
 | `gaps_test` | GPPB Circular 06-2026 documents, sealed prices, failed LSB and Dialogue, partial PS stock, Unsolicited Offers |
 | `cnas_test` | Lines released from PS-DBM, with no CNAS time limit |
+| `integration_test` | Settings → Integrations against a fake payment system: refused addresses, encrypted keys, failures, who sees what |
 | `alert_test` | Scheduled-job failure alerts; needs a second backend whose backup fails (`PAMS_API_FAILING_BACKUP`), so it is not in the default run |
 
 ## Fixtures

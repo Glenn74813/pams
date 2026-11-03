@@ -11,6 +11,7 @@ import { ACCEPTANCE, PO_STATUS } from './labels'
 import { PoSlip } from './PoSlip'
 import { AttachmentsPanel } from '../documents/AttachmentsPanel'
 import { PaymentsPanel } from '../payments/PaymentsPanel'
+import { ExternalPaymentsSection } from '../integrations/ExternalPaymentsPage'
 
 interface Props {
   poId: number
@@ -206,6 +207,7 @@ export function PoDetailModal({ poId, onClose, onEdit, onReceive, onChanged }: P
         </>
       )}
       {po && !printing && can('view_payments', 'manage_payments', 'approve_payments') && <PaymentsPanel type="purchase_order" id={po.id} amount={po.total_amount} />}
+      {po && !printing && can('view_payments', 'manage_payments', 'approve_payments') && <ExternalPaymentsSection type="purchase_order" id={po.id} />}
       {po && !printing && <AttachmentsPanel type="PurchaseOrder" id={po.id} label={po.po_number} docType="PO" />}
     </Modal>
   )

@@ -35,6 +35,7 @@ import { ApcpiPage } from './pages/apcpi/ApcpiPage'
 import { PublicScanPage } from './pages/scan/PublicScanPage'
 import { HelpPage } from './pages/help/HelpPage'
 import { PettyCashPage } from './pages/payments/PettyCashPage'
+import { ExternalPaymentsPage } from './pages/integrations/ExternalPaymentsPage'
 import { BacPage } from './pages/bac/BacPage'
 import { PurchaseRequestsPage } from './pages/procurement/PurchaseRequestsPage'
 import { LoginPage } from './pages/LoginPage'
@@ -81,6 +82,7 @@ const ported: Record<string, React.ReactNode> = {
   '/procurement-reports': <ProcurementReportsPage />,
   '/apcpi': <ApcpiPage />,
   '/petty-cash': <PettyCashPage />,
+  '/external-payments': <ExternalPaymentsPage />,
 }
 
 export function App() {

@@ -26,7 +26,7 @@ sqlfile() {
 }
 db=$([ "${PAMS_DB:-}" = mssql ] && echo mssql || echo pg)
 sqlfile sql/fixtures_$db.sql
-suites=${*:-rfq_test bid_test po_test con_test sup_test ps_test proc_test iss_test asset_test asm_test fix_test fix2_test tor_test period_test gaps_test cnas_test}
+suites=${*:-rfq_test bid_test po_test con_test sup_test ps_test proc_test iss_test asset_test asm_test fix_test fix2_test tor_test period_test gaps_test cnas_test integration_test}
 mkdir -p out  # also made by callers that redirect into it
 export PYTHONPATH=$PWD
 status=0

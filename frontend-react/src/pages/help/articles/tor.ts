@@ -92,6 +92,56 @@ export const torArticles: Article[] = [
     ],
   },
   {
+    slug: 'external-payments',
+    title: 'Payments from Other Systems (Integrations)',
+    area: 'admin',
+    route: '/external-payments',
+    keywords: ['integration', 'API', 'external system', 'accounting system', 'eNGAS', 'disbursement', 'check', 'LDDAP-ADA', 'payments'],
+    summary: 'Connect PAMS to another system\'s API, such as the accounting or disbursement system, and show its payment records in PAMS, read-only.',
+    sections: [
+      who('Connect, change, test or remove a system: edit_settings or manage_system_settings (Settings → **Integrations**).', 'See the records: view_payments, manage_payments or approve_payments.'),
+      purpose(
+        p('PAMS calls the other system\'s API and shows what it returns. It only reads: nothing in PAMS is sent to the other system, and nothing there can be changed from PAMS.'),
+        p('A connection shows its records in one of two places: as a list on **Payments from Other Systems**, or in each purchase order and contract window under **Payments recorded in other systems**, looked up by that PO or contract.'),
+      ),
+      sec(
+        'connect',
+        'Connect a system',
+        steps(
+          'Get from the other system\'s administrator: the API address, the path that lists payments, and a key or token for PAMS.',
+          'Open Settings → **Integrations** → **+ Connect a system**.',
+          'Enter a **Name**, choose where to **Show the records**, and enter the **Address of the API** and the **Path**. To look records up by PO or contract, put a placeholder in the path, e.g. `/payments?reference={reference}`.',
+          'Choose the **Sign-in**: a bearer token, a key in a named header (e.g. `X-API-Key`), or basic `user:password`, and enter it.',
+          'If the records sit inside the answer, enter **Where the records are**, e.g. `data.items`. Add **Columns to show**, with a heading and the field of each record, e.g. `Check no.` and `check_number`.',
+          'Click **Save and test**, enter sample values and click **Call it now**. The table shows what PAMS will display.',
+        ),
+        table(
+          ['Placeholder', 'Filled with'],
+          [
+            ['{reference}', 'The PO number on a purchase order, the contract number on a contract'],
+            ['{po_number}', 'The PO number (a contract\'s own PO, if any)'],
+            ['{contract_number}', 'The contract number'],
+            ['{supplier_tin}', 'The supplier\'s TIN'],
+            ['{supplier_name}', 'The supplier\'s name'],
+          ],
+        ),
+      ),
+      sec(
+        'safety',
+        'What PAMS guards against',
+        list(
+          'The key is stored encrypted, never shown again, and hidden from people who only view payments, as is the address.',
+          'PAMS only sends GET requests, does not follow redirects, waits at most the time you set (60 seconds at most), and reads at most 2 MB and 500 records.',
+          'It refuses addresses on the PAMS server itself, link-local addresses and cloud metadata addresses.',
+          'Adding, changing and removing a connection is recorded in the audit trail; the last call\'s result shows on the Integrations tab.',
+        ),
+      ),
+      statuses(table(['Status', 'Meaning'], [['On', 'PAMS reads from it'], ['Off', 'Kept, but not read']])),
+      forms(p('None; the records stay in the other system.')),
+      tips('If a call fails, the message says why: the address, the credentials, the time limit, or the answer not being JSON.', 'Changing PAMS_JWT_SECRET (or PAMS_INTEGRATIONS_KEY) makes stored keys unreadable; enter them again.'),
+    ],
+  },
+  {
     slug: 'locations-sso',
     title: 'Locations, photos and single sign-on',
     area: 'admin',

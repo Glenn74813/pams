@@ -1,5 +1,5 @@
 import {
-  Activity, Armchair, BadgeCheck, CalendarRange, ChartColumn, ClipboardCheck, DoorOpen, FileChartColumn, FilePlus2, FileQuestion, FileSignature,
+  Activity, Armchair, Cable, BadgeCheck, CalendarRange, ChartColumn, ClipboardCheck, DoorOpen, FileChartColumn, FilePlus2, FileQuestion, FileSignature,
   FolderOpen, Gavel, PenLine, UserRoundCheck, Wrench, LayoutDashboard, Laptop, Package, PackageCheck, ScanLine, ScrollText, Settings, ShieldCheck, ShoppingCart,
   SlidersHorizontal, Store, Trash2, Truck, UserCheck, Users, UsersRound, Wallet, Warehouse, type LucideIcon,
 } from 'lucide-react'
@@ -55,6 +55,7 @@ export const menuGroups: MenuGroup[] = [
       { path: '/procurement', icon: ShoppingCart, label: 'Purchase Orders', module: 'procurement', ported: true },
       { path: '/contracts', icon: FileSignature, label: 'Contracts', module: 'contracts', ported: true },
       { path: '/petty-cash', icon: Wallet, label: 'Petty Cash', module: 'payments', ported: true },
+      { path: '/external-payments', icon: Cable, label: 'Payments from Other Systems', module: 'payments', ported: true },
     ],
   },
   {

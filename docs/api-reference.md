@@ -68,7 +68,7 @@ It fetches `file_url` and posts the detached signature over the file's exact byt
 
 ## Endpoints
 
-485 endpoints in 50 groups.
+492 endpoints in 51 groups.
 
 - [Adjustment](#adjustment)
 - [Analytics](#analytics)
@@ -88,6 +88,7 @@ It fetches `file_url` and posts the detached signature over the file's exact byt
 - [Department](#department)
 - [Disposal](#disposal)
 - [Document](#document)
+- [External Api](#external-api)
 - [Gate Pass](#gate-pass)
 - [Inventory](#inventory)
 - [Issuance](#issuance)
@@ -1236,6 +1237,55 @@ Soft delete: the row and its files are kept for audit.
 
 - Requires: `view_documents`, `upload_documents`
 - Returns: a file download
+
+### External Api
+
+Other systems' APIs, set up by an administrator and shown read-only in PAMS (TOR: integration with the agency's other systems). First for payments: the accounting or disbursement system's records, either as a list of their own or matched to a PAMS purchase order or contract through {reference}, {po_number}, {contract_number}, {supplier_tin} or {supplier_name} in the path.
+
+**`GET /api/integrations`**
+
+- Requires: `view_payments`, `manage_payments`, `approve_payments`, `edit_settings`, `manage_system_settings`
+- Returns: a JSON object
+
+**`POST /api/integrations`**
+
+- Requires: `edit_settings`, `manage_system_settings`
+- Body: `name` string, `description` string, `base_url` string, `path` string, `auth_type` string, `auth_header` string, `secret` string, `clear_secret` boolean, `data_path` string, `columns` Column[], `context` string, `timeout_seconds` integer, `is_active` boolean
+- Returns: [`ApiView`](#apiview)
+
+**`GET /api/integrations/payable`**
+
+What every active payment API holds for one purchase order or contract.
+
+- Requires: `view_payments`, `manage_payments`, `approve_payments`, `edit_settings`, `manage_system_settings`
+- Query: `type`, `id` integer
+- Returns: a JSON object
+
+**`DELETE /api/integrations/{id}`**
+
+- Requires: `edit_settings`, `manage_system_settings`
+- Returns: a JSON object
+
+**`PUT /api/integrations/{id}`**
+
+- Requires: `edit_settings`, `manage_system_settings`
+- Body: `name` string, `description` string, `base_url` string, `path` string, `auth_type` string, `auth_header` string, `secret` string, `clear_secret` boolean, `data_path` string, `columns` Column[], `context` string, `timeout_seconds` integer, `is_active` boolean
+- Returns: [`ApiView`](#apiview)
+
+**`GET /api/integrations/{id}/data`**
+
+The records of an API with no PAMS context: a list of its own.
+
+- Requires: `view_payments`, `manage_payments`, `approve_payments`, `edit_settings`, `manage_system_settings`
+- Returns: [`DataView`](#dataview)
+
+**`POST /api/integrations/{id}/test`**
+
+Calls the API once with sample values for its placeholders, to check the address, credentials and columns.
+
+- Requires: `edit_settings`, `manage_system_settings`
+- Body: `values` object
+- Returns: [`DataView`](#dataview)
 
 ### Gate Pass
 
@@ -3389,6 +3439,10 @@ Ends a lockout from failed sign-ins before it times out.
 
 `id` integer, `amendment_number` integer, `title` string, `description` string, `amount_change` number, `new_end_date` date, `status` string, `preparer` Ref, `approver` Ref, `approved_at` date-time, `remarks` string, `can_approve` boolean
 
+### ApiView
+
+`id` integer, `name` string, `description` string, `category` string, `base_url` string, `path` string, `auth_type` string, `auth_header` string, `has_secret` boolean, `data_path` string, `columns` Column[], `context` string, `timeout_seconds` integer, `is_active` boolean, `last_status` string, `last_called_at` date-time
+
 ### AppLineView
 
 `id` integer, `ppmp_id` integer, `ppmp_number` string, `department` Ref, `general_description` string, `specifications` string, `unit` string, `procurement_mode` string, `procurement_category` string, `quantity` integer, `estimated_budget` number, `unit_cost` number, `schedule` string, `fund_source` string, `requested_quantity` integer, `remaining_quantity` integer, `requested_amount` number, `utilized_amount` number, `remaining_budget` number, `utilization_rate` number, `status` string
@@ -3453,6 +3507,10 @@ Ends a lockout from failed sign-ins before it times out.
 
 `id` integer, `certificate_number` string, `user_id` integer, `employee` string, `department` string, `purpose` string, `purpose_details` string, `effective_date` date, `status` string, `outstanding` integer, `assets_turned_over` integer, `requested_by` string, `issued_by` string, `issued_at` date-time, `remarks` string, `created_at` date-time, `outstanding_assets` AssetLine[]
 
+### Column (ExternalApiClient)
+
+`label` string, `field` string
+
 ### Compliance
 
 `has_chairperson` boolean, `has_vice_chairperson` boolean, `voting_members` integer, `has_secretariat` boolean, `has_twg` boolean, `is_properly_constituted` boolean, `issues` string[]
@@ -3468,6 +3526,10 @@ Ends a lockout from failed sign-ins before it times out.
 ### CriterionView
 
 `id` integer, `name` string, `weight` number, `is_environmental` boolean
+
+### DataView
+
+`api` ApiView, `result` Result, `error` string, `fetched_at` date-time
 
 ### Delivery
 
@@ -3752,6 +3814,10 @@ Ends a lockout from failed sign-ins before it times out.
 ### ResolutionView
 
 `id` integer, `resolution_number` string, `title` string, `resolution_type` string, `content` string, `status` string, `meeting` Ref, `purchase_request` Ref, `preparer` Ref, `approver` Ref, `approved_at` date-time, `remarks` string, `used_by` string[], `can_edit` boolean, `can_submit` boolean, `can_approve` boolean, `can_archive` boolean, `can_delete` boolean, `created_at` date-time
+
+### Result
+
+`columns` string[], `rows` Object[][], `truncated` boolean, `status` integer
 
 ### RfqView
 

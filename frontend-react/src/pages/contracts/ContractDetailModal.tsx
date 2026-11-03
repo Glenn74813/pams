@@ -11,6 +11,7 @@ import { AmendmentsPanel, CalloffsPanel, DeliveryPanel, SecuritiesPanel } from '
 import { CONTRACT_STATUS } from './labels'
 import { AttachmentsPanel } from '../documents/AttachmentsPanel'
 import { PaymentsPanel } from '../payments/PaymentsPanel'
+import { ExternalPaymentsSection } from '../integrations/ExternalPaymentsPage'
 
 interface Props {
   contractId: number
@@ -151,6 +152,7 @@ export function ContractDetailModal({ contractId, onClose, onEdit, onChanged }: 
         </>
       )}
       {c && can('view_payments', 'manage_payments', 'approve_payments') && <PaymentsPanel type="contract" id={c.id} amount={c.amount} />}
+      {c && can('view_payments', 'manage_payments', 'approve_payments') && <ExternalPaymentsSection type="contract" id={c.id} />}
       {c && <AttachmentsPanel type="Contract" id={c.id} label={c.contract_number} docType="CONTRACT" />}
     </Modal>
   )

@@ -51,6 +51,7 @@ How to use each page of PAMS. This file is generated from the in-app help (the *
   - [Users and Roles](#users-roles)
   - [Settings](#settings)
   - [Roles and Permissions](#roles-and-permissions)
+  - [Payments from Other Systems (Integrations)](#external-payments)
   - [Locations, photos and single sign-on](#locations-sso)
 
 # Getting started
@@ -2300,6 +2301,63 @@ None.
 
 - If someone cannot see a module, check which permissions open it in the table above, then edit their role.
 - Give each person the smallest role that lets them do their job, and keep makers and approvers in different roles.
+
+<a id="external-payments"></a>
+
+## Payments from Other Systems (Integrations)
+
+Connect PAMS to another system's API, such as the accounting or disbursement system, and show its payment records in PAMS, read-only.
+
+### Who can use it
+
+- Connect, change, test or remove a system: edit_settings or manage_system_settings (Settings → **Integrations**).
+- See the records: view_payments, manage_payments or approve_payments.
+
+### What it is for
+
+PAMS calls the other system's API and shows what it returns. It only reads: nothing in PAMS is sent to the other system, and nothing there can be changed from PAMS.
+
+A connection shows its records in one of two places: as a list on **Payments from Other Systems**, or in each purchase order and contract window under **Payments recorded in other systems**, looked up by that PO or contract.
+
+### Connect a system
+
+1. Get from the other system's administrator: the API address, the path that lists payments, and a key or token for PAMS.
+2. Open Settings → **Integrations** → **+ Connect a system**.
+3. Enter a **Name**, choose where to **Show the records**, and enter the **Address of the API** and the **Path**. To look records up by PO or contract, put a placeholder in the path, e.g. `/payments?reference={reference}`.
+4. Choose the **Sign-in**: a bearer token, a key in a named header (e.g. `X-API-Key`), or basic `user:password`, and enter it.
+5. If the records sit inside the answer, enter **Where the records are**, e.g. `data.items`. Add **Columns to show**, with a heading and the field of each record, e.g. `Check no.` and `check_number`.
+6. Click **Save and test**, enter sample values and click **Call it now**. The table shows what PAMS will display.
+
+| Placeholder | Filled with |
+|---|---|
+| {reference} | The PO number on a purchase order, the contract number on a contract |
+| {po_number} | The PO number (a contract's own PO, if any) |
+| {contract_number} | The contract number |
+| {supplier_tin} | The supplier's TIN |
+| {supplier_name} | The supplier's name |
+
+### What PAMS guards against
+
+- The key is stored encrypted, never shown again, and hidden from people who only view payments, as is the address.
+- PAMS only sends GET requests, does not follow redirects, waits at most the time you set (60 seconds at most), and reads at most 2 MB and 500 records.
+- It refuses addresses on the PAMS server itself, link-local addresses and cloud metadata addresses.
+- Adding, changing and removing a connection is recorded in the audit trail; the last call's result shows on the Integrations tab.
+
+### Statuses and what moves them
+
+| Status | Meaning |
+|---|---|
+| On | PAMS reads from it |
+| Off | Kept, but not read |
+
+### Forms and documents produced
+
+None; the records stay in the other system.
+
+### Tips
+
+- If a call fails, the message says why: the address, the credentials, the time limit, or the answer not being JSON.
+- Changing PAMS_JWT_SECRET (or PAMS_INTEGRATIONS_KEY) makes stored keys unreadable; enter them again.
 
 <a id="locations-sso"></a>
 
