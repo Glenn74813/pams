@@ -698,7 +698,6 @@ public class RfqController {
         return text(s);
     }
 
-    /** A PS Certificate of Non-Availability of Stock for this PR line, issued within the last 15 days. */
     private static List<String> invitedList(Rfq r) {
         return r.getInvitedSuppliers() == null ? List.of() : List.of(r.getInvitedSuppliers().split("\n"));
     }

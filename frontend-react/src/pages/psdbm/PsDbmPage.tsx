@@ -396,7 +396,6 @@ function OrderDetail({ id, onClose, onEdit, onChanged }: { id: number; onClose: 
                       ) : (
                         <span className="small">
                           {PS_RELEASE_GROUNDS[l.release_ground ?? 'zero_inventory'].label}: {l.cnas_number}, {formatDate(l.cnas_date)} — may be bought elsewhere
-                          {l.cnas_valid_until ? ` until ${formatDate(l.cnas_valid_until)}` : ''}
                         </span>
                       )}
                     </td>
@@ -471,7 +470,7 @@ function OrderDetail({ id, onClose, onEdit, onChanged }: { id: number; onClose: 
             <div className="reject-box">
               <p>
                 <strong>{step.cnas.description}</strong>: record why this line cannot come from PS-DBM. It can then go to Small Value Procurement or Direct
-                Acquisition, or to Competitive Bidding if above their ceilings. A CNAS holds for 15 days.
+                Acquisition, or to Competitive Bidding if above their ceilings.
               </p>
               <div className="form-grid">
                 <div className="field span-2">

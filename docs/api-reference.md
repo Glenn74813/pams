@@ -2131,7 +2131,7 @@ Assets the signed-in person is accountable for. Everyone can see their own.
 
 ### Ps Dbm
 
-Common-use supplies and equipment (CSE) bought from the Procurement Service of the DBM, without bidding (LOI 755, EO 359 s. 1989, AO 17 s. 2011). The PS price catalogue; and the Agency Procurement Request (APR) raised from the PS-DBM lines of an approved PR: placed through the PhilGEPS Virtual Store, paid ahead (cash, LDDAP-ADA, check, or funds already with PS), then delivered or picked up against a PS Delivery Receipt. Recording the DR opens a confirmed order to PS-DBM, so the delivery is inspected and taken into stock through Receiving like any other. A line PS cannot supply takes PS's Certificate of Non-Availability of Stock (CNAS); for 15 days that line may then be bought by Shopping or SVP.
+Common-use supplies and equipment (CSE) bought from the Procurement Service of the DBM, without bidding (LOI 755, EO 359 s. 1989, AO 17 s. 2011). The PS price catalogue; and the Agency Procurement Request (APR) raised from the PS-DBM lines of an approved PR: placed through the PhilGEPS Virtual Store, paid ahead (cash, LDDAP-ADA, check, or funds already with PS), then delivered or picked up against a PS Delivery Receipt. Recording the DR opens a confirmed order to PS-DBM, so the delivery is inspected and taken into stock through Receiving like any other. A line PS cannot supply is released on a ground of IRR 40.2, such as a Certificate of Non-Availability of Stock (CNAS) downloaded from the PhilGEPS Electronic Catalogue, and may then be bought elsewhere.
 
 **`GET /api/ps-dbm/catalogue`**
 
@@ -2204,7 +2204,7 @@ PS issued its Delivery Receipt: the goods are picked up or delivered in one lot.
 
 **`POST /api/ps-dbm/orders/{id}/items/{lineId}/not-available`**
 
-This line cannot come from PS on a ground of IRR 40.2. It frees the quantity for other sources; a Certificate of Non-Availability of Stock does so while it is valid (15 days), the other grounds without a limit.
+This line cannot come from PS on a ground of IRR 40.2. It frees the quantity for other sources.
 
 - Requires: `edit_procurement`
 - Body: `release_ground` string, `cnas_number` string, `cnas_date` date
@@ -3458,7 +3458,7 @@ Ends a lockout from failed sign-ins before it times out.
 
 ### Line (PsDbm)
 
-`id` integer, `purchase_request_item_id` integer, `ps_catalogue_item_id` integer, `catalogue_code` string, `description` string, `unit` string, `quantity` integer, `unit_price` number, `amount` number, `availability` string, `release_ground` string, `cnas_number` string, `cnas_date` date, `cnas_valid_until` date
+`id` integer, `purchase_request_item_id` integer, `ps_catalogue_item_id` integer, `catalogue_code` string, `description` string, `unit` string, `quantity` integer, `unit_price` number, `amount` number, `availability` string, `release_ground` string, `cnas_number` string, `cnas_date` date
 
 ### LineView (Bidding)
 

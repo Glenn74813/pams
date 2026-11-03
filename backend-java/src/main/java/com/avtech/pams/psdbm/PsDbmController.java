@@ -50,8 +50,8 @@ import java.util.Set;
  * PhilGEPS Virtual Store, paid ahead (cash, LDDAP-ADA, check, or funds already with PS), then
  * delivered or picked up against a PS Delivery Receipt. Recording the DR opens a confirmed order to
  * PS-DBM, so the delivery is inspected and taken into stock through Receiving like any other.
- * A line PS cannot supply takes PS's Certificate of Non-Availability of Stock (CNAS); for 15 days
- * that line may then be bought by Shopping or SVP.
+ * A line PS cannot supply is released on a ground of IRR 40.2, such as a Certificate of Non-Availability
+ * of Stock (CNAS) downloaded from the PhilGEPS Electronic Catalogue, and may then be bought elsewhere.
  */
 @RestController
 @RequestMapping("/api/ps-dbm")
@@ -63,7 +63,6 @@ public class PsDbmController {
     private static final String MANAGE = "@perm.any('edit_procurement')";
     public static final String SUPPLIER_NAME = "Procurement Service - DBM";
     static final List<String> PAYMENT_MODES = List.of("cash", "lddap_ada", "check", "unutilized_funds");
-    static final int CNAS_DAYS = PrLineUsage.CNAS_DAYS;
     /** Why a common-use line may be bought outside PS-DBM (IRR 40.2), and what document supports each. */
     static final Map<String, String> RELEASE_GROUNDS = new java.util.LinkedHashMap<>();
     private static final String ZERO_INVENTORY = "zero_inventory";
@@ -217,7 +216,7 @@ public class PsDbmController {
     }
 
     public record Line(Long id, Long purchaseRequestItemId, Long psCatalogueItemId, String catalogueCode, String description, String unit, int quantity,
-                       BigDecimal unitPrice, BigDecimal amount, String availability, String releaseGround, String cnasNumber, LocalDate cnasDate, LocalDate cnasValidUntil) {
+                       BigDecimal unitPrice, BigDecimal amount, String availability, String releaseGround, String cnasNumber, LocalDate cnasDate) {
     }
 
     public record OrderView(Long id, String aprNumber, String status, Ref purchaseRequest, String department, String vsReference, LocalDate submittedDate,
@@ -380,8 +379,7 @@ public class PsDbmController {
     }
 
     /**
-     * This line cannot come from PS on a ground of IRR 40.2. It frees the quantity for other sources; a Certificate of
-     * Non-Availability of Stock does so while it is valid (15 days), the other grounds without a limit.
+     * This line cannot come from PS on a ground of IRR 40.2. It frees the quantity for other sources.
      */
     @PostMapping("/orders/{id}/items/{lineId}/not-available")
     @PreAuthorize(MANAGE)
@@ -626,8 +624,7 @@ public class PsDbmController {
             Date cnas = rs.getDate(12);
             String ground = rs.getString(13) == null && cnas != null ? ZERO_INVENTORY : rs.getString(13);
             return new Line(rs.getLong(1), rs.getLong(2), rs.getObject(3, Long.class), rs.getString(4), rs.getString(5), rs.getString(6), rs.getInt(7),
-                    rs.getBigDecimal(8), rs.getBigDecimal(9), rs.getString(10), ground, rs.getString(11), cnas == null ? null : cnas.toLocalDate(),
-                    cnas == null || !ZERO_INVENTORY.equals(ground) ? null : cnas.toLocalDate().plusDays(CNAS_DAYS));
+                    rs.getBigDecimal(8), rs.getBigDecimal(9), rs.getString(10), ground, rs.getString(11), cnas == null ? null : cnas.toLocalDate());
         }, id);
         String status = (String) o.get("status");
         boolean manage = current.any("edit_procurement");

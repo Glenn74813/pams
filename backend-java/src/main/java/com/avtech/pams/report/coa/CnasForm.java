@@ -14,14 +14,12 @@ import java.util.Map;
 /**
  * Certificate of Non-Availability of Stock (CNAS) in the PS-DBM format, for the Agency Procurement
  * Request lines PS-DBM could not supply under one CNAS number — the basis for buying them through
- * another procurement mode. Valid for 15 days from its date, as the PS-DBM module tracks.
+ * another procurement mode.
  */
 @Component
 public class CnasForm {
 
     private static final String FONT = "Arial";
-    /** Same validity as PsDbmController.CNAS_DAYS. */
-    private static final int VALID_DAYS = 15;
 
     private final JdbcTemplate jdbc;
 
@@ -121,8 +119,7 @@ public class CnasForm {
         row += 2;
         x.merge("A" + row + ":F" + (row + 2));
         x.set("A" + row, "This certification is issued to allow the agency to procure the above item(s) through other modes of procurement under "
-                + "R.A. No. 12009 and its IRR. It is valid for " + VALID_DAYS + " calendar days from the date of issue"
-                + (date == null ? "." : ", until " + PropertyCardForm.mdy(date.plusDays(VALID_DAYS)) + "."));
+                + "R.A. No. 12009 and its IRR.");
         x.style("A" + row).wrap().valign(Xlsx.V.TOP);
 
         row += 5;

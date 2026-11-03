@@ -191,7 +191,7 @@ export const procurementArticles: Article[] = [
         'Place, pay and receive',
         steps(
           'Order the same items in the Virtual Store, then click **Placed in Virtual Store…** and enter its order reference.',
-          'If a line cannot come from PS, click **Cannot buy from PS…** and choose the ground: zero inventory (CNAS), specifications that do not meet the need, too little stock, or a BAC resolution on efficiency, practicality or economic viability. Enter the supporting document. The line drops off the request and can go to Small Value Procurement, Direct Acquisition or Competitive Bidding. A CNAS holds for 15 days; the others have no limit.',
+          'If a line cannot come from PS, click **Cannot buy from PS…** and choose the ground: zero inventory (the CNAS, downloaded from the PhilGEPS Electronic Catalogue), specifications that do not meet the need, too little stock, or a BAC resolution on efficiency, practicality or economic viability. Enter the supporting document. The line drops off the request and can go to Small Value Procurement, Direct Acquisition or Competitive Bidding.',
           'Pay PS (cash, LDDAP-ADA, check, or funds already with PS) and click **Record payment…**. The amount must equal the request total.',
           'When PS issues its Delivery Receipt, click **Record Delivery Receipt…**: pick-up at the depot or delivery. PS releases a request in one lot.',
           'An order to PS-DBM opens in **Receiving**, numbered as the APR. Inspect, accept and take the items into stock there as with any delivery.',
@@ -211,7 +211,7 @@ export const procurementArticles: Article[] = [
         ),
       ),
       tips(
-        'PS-DBM lines cannot go on an RFQ or bidding unless PS issued a CNAS within the last 15 days.',
+        'PS-DBM lines cannot go on an RFQ or bidding unless they were first marked as not available from PS on one of those grounds.',
         'The Agency Procurement Report (Procurement Reports) counts these requests under "Procurement from PS-DBM".',
       ),
     ],

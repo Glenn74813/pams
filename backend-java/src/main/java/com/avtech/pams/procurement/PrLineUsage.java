@@ -14,9 +14,6 @@ import java.util.Map;
 @Component
 public class PrLineUsage {
 
-    /** How long a Certificate of Non-Availability of Stock frees a common-use line for other sources. */
-    public static final int CNAS_DAYS = 15;
-
     private final JdbcTemplate jdbc;
 
     public PrLineUsage(JdbcTemplate jdbc) {
@@ -24,15 +21,14 @@ public class PrLineUsage {
     }
 
     /**
-     * True when a common-use line may be bought outside PS-DBM (IRR 40.2): its CNAS is still valid, or it left on
-     * one of the other grounds, which carry no time limit.
+     * True when a common-use line may be bought outside PS-DBM: it left PS on a ground of IRR 40.2, none of which
+     * sets a time limit.
      */
     public boolean releasedFromPs(Long prItemId) {
         Integer n = jdbc.queryForObject("""
                 select count(*) from ps_order_items pi join ps_orders o on o.id = pi.ps_order_id
-                where pi.purchase_request_item_id = ? and pi.availability = 'not_available' and o.deleted_at is null
-                  and (coalesce(pi.release_ground, 'zero_inventory') <> 'zero_inventory' or pi.cnas_date >= ?)""",
-                Integer.class, prItemId, java.sql.Date.valueOf(java.time.LocalDate.now(com.avtech.pams.common.Times.ZONE).minusDays(CNAS_DAYS)));
+                where pi.purchase_request_item_id = ? and pi.availability = 'not_available' and o.deleted_at is null""",
+                Integer.class, prItemId);
         return n != null && n > 0;
     }
 

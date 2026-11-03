@@ -106,7 +106,7 @@ Virtual Store: draft → submitted (Virtual Store order reference) → paid (cas
 the whole request) → delivered (PS Delivery Receipt). The DR opens a confirmed purchase order to the "Procurement
 Service - DBM" supplier, numbered as the APR and linked by `purchase_orders.ps_order_id`, which Receiving inspects
 and takes into stock; that order cannot be edited or cancelled from Purchase Orders. A line PS cannot supply takes
-the Certificate of Non-Availability of Stock: it leaves the request and, for 15 days, may go on a Shopping or SVP RFQ.
+the Certificate of Non-Availability of Stock: it leaves the request and may go on an SVP or Direct Acquisition RFQ.
 PS-DBM lines cannot otherwise go to an RFQ or bidding. The Agency Procurement Report counts the requests.
 
 NPC IMS Terms of Reference (V23):
@@ -141,8 +141,7 @@ infrastructure, ₱2M consulting (49.1); 7-day ITB posting (50), bid deadline pe
 to award (67.1); the modes of Section 26, with Shopping refused on new lines and RFQs while lines already approved under it go
 to SVP; Direct Acquisition ceiling ₱200,000 (32.1); Negotiated Procurement only with a recorded ground, and after two failed
 biddings at least three invited suppliers and at most 20% over the last ABC (35.1.1); five or seven voting BAC members
-(41.2.1); all four grounds for buying common-use items outside PS-DBM (40.2). The 15-day CNAS validity is not in the IRR
-sections read and should be confirmed. Eligibility documents are still one list for every mode, not by mode as GPPB Circular
+(41.2.1); all four grounds for buying common-use items outside PS-DBM (40.2), with no time limit, since the IRR sets none. Eligibility documents are still one list for every mode, not by mode as GPPB Circular
 06-2026 sets out. Suppliers (V25): view access for the BAC, supply, property, accounting and audit roles.
 
 Issuance assigns RIS numbers (plus ICS for semi-expendable and PAR for PPE) when stock goes out; both "approve all" and

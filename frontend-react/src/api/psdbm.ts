@@ -53,7 +53,6 @@ export interface PsOrderLine {
   release_ground: PsReleaseGround | null
   cnas_number: string | null
   cnas_date: string | null
-  cnas_valid_until: string | null
 }
 
 export interface PsOrder {
