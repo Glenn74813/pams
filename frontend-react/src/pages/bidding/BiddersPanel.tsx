@@ -296,7 +296,7 @@ function ScoreForm({ b, bidder, onCancel, onSaved, onError }: { b: Bidding; bidd
   })
   return (
     <div className="reject-box">
-      <h4 style={{ margin: '0 0 0.5rem' }}>Rated scores — {bidder.supplier.name}</h4>
+      <h4>Rated scores — {bidder.supplier.name}</h4>
       <div className="form-grid three">
         {b.criteria?.map((c) => (
           <div key={c.id} className="field">

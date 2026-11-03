@@ -293,7 +293,7 @@ export function DeliveryPanel({ c, manage, edit, onChanged, onError }: Props) {
   const ld = c.ld_estimate
   return (
     <>
-      <h4 style={{ margin: '1rem 0 0.5rem' }}>Delivery &amp; liquidated damages</h4>
+      <h4>Delivery &amp; liquidated damages</h4>
       <dl className="detail-grid">
         <dt>Deadline</dt>
         <dd>
@@ -430,7 +430,7 @@ export function CalloffsPanel({ c, manage, onChanged, onError }: Props) {
   const next: Record<string, [string, string][]> = { draft: [['issued', 'Issue'], ['cancelled', 'Cancel']], issued: [['completed', 'Complete'], ['cancelled', 'Cancel']] }
   return (
     <>
-      <h4 style={{ margin: '1rem 0 0.5rem' }}>
+      <h4>
         Call-offs <span className="muted small">{formatPeso(c.calloffs_total)} of {formatPeso(c.amount)} used</span>
       </h4>
       <div className="table-wrap">

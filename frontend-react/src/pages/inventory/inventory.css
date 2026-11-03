@@ -41,9 +41,6 @@
 .lot-grid .lot-wide { grid-column: span 4; }
 
 /* Item detail */
-.detail-grid { display: grid; grid-template-columns: max-content 1fr; gap: 0.5rem 1.5rem; font-size: 0.92rem; }
-.detail-grid dt { color: var(--text-light); }
-.detail-grid dd { display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap; }
 .stock-card-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 1rem; margin-bottom: 0.75rem; }
 
 /* Categories */

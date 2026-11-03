@@ -74,7 +74,7 @@ export function ItemDetailModal({ itemId, onClose }: { itemId: number; onClose: 
               </dl>
               </div>
 
-              <h4 style={{ margin: '1.25rem 0 0.6rem' }}>Stock lots</h4>
+              <h4>Stock lots</h4>
               <div className="table-wrap">
                 <table className="table table-compact">
                   <thead>

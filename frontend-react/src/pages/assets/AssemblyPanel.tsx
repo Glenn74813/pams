@@ -171,7 +171,7 @@ export function AssemblyPanel({ asset }: { asset: Asset }) {
       )}
       {(a.is_assembly || a.linked.length > 0) && (
         <>
-          <h4 style={{ marginTop: '1rem' }}>Attached assets</h4>
+          <h4>Attached assets</h4>
           {a.linked.length === 0 && <p className="muted small">None.</p>}
           <ul className="stat-list" style={{ listStyle: 'none' }}>
             {a.linked.map((l) => (

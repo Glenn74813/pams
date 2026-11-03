@@ -303,7 +303,7 @@ function MeetingBody({ m, onChanged }: { m: BacMeeting; onChanged: (msg: string,
 
       {m.resolutions && m.resolutions.length > 0 && (
         <>
-          <h4 style={{ margin: '1rem 0 0.5rem' }}>Resolutions adopted</h4>
+          <h4>Resolutions adopted</h4>
           <ul>
             {m.resolutions.map((r) => (
               <li key={r.id}>

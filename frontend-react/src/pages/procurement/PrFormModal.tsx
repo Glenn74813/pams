@@ -130,7 +130,7 @@ export function PrFormModal({ pr, options, onClose, onSaved }: Props) {
 
         {appId && (
           <>
-            <h4 style={{ margin: '1.25rem 0 0.5rem' }}>Add from {app.data?.app_number ?? 'the APP'}</h4>
+            <h4>Add from {app.data?.app_number ?? 'the APP'}</h4>
             {app.isPending && <p className="muted">Loading APP lines…</p>}
             {app.data && open.length === 0 && <p className="muted">No APP lines with a balance left for this office.</p>}
             {open.length > 0 && (

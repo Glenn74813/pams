@@ -25,11 +25,8 @@
 }
 .supplier-detail .sd-facts tbody tr:hover { background: none; }
 
-.supplier-detail .kpi-row { gap: 0.75rem; margin-bottom: 0; }
-.supplier-detail .kpi { padding: 0.7rem 0.9rem; box-shadow: none; border-radius: 8px; }
-.supplier-detail .kpi-value { font-size: 1.1rem; }
-.supplier-detail .kpi-label { font-size: 0.78rem; text-transform: uppercase; letter-spacing: 0.04em; font-weight: 600; }
 
+.supplier-detail .kpi-row { margin-bottom: 0; }
 .supplier-detail .sd-form { margin-top: 0.75rem; }
 .supplier-detail .sd-form .field label { font-size: 0.8rem; }
 .supplier-detail .sd-panel { margin-top: 0.75rem; padding: 1rem; border: 1px solid var(--table-border); border-radius: 8px; background: var(--table-header-bg); }

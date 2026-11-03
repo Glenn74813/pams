@@ -103,7 +103,7 @@ export function RequestFormModal({ request, onClose, onSaved }: Props) {
           </div>
         </div>
 
-        <h4 style={{ margin: '1.25rem 0 0.5rem' }}>Items *</h4>
+        <h4>Items *</h4>
         <ItemPicker id="rq-item" requireStock exclude={lines.map((l) => l.item_id)} onPick={(i) =>
           setLines((ls) => [...ls, { item_id: i.id, code: i.code, name: i.name, unit: i.unit_of_measure, stock: i.current_stock, quantity: '1' }])
         } />

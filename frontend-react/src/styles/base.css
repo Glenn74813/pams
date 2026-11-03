@@ -263,3 +263,37 @@ button.kpi:hover { border-color: var(--primary-accent); }
 .form-grid .full { grid-column: 1 / -1; }
 .link-btn { background: none; border: none; padding: 0; color: var(--primary-accent); cursor: pointer; text-align: left; font-weight: 500; }
 .link-btn:hover { text-decoration: underline; }
+
+/* ── Detail windows: one look for every module ──
+ * Facts about a record (label and value) read as a compact table: labels in a shaded column, a rule under each row.
+ * Section headings, notes and tables keep one size, so a window reads as one document. */
+.detail-grid {
+  display: grid;
+  grid-template-columns: minmax(9rem, max-content) 1fr;
+  border: 1px solid var(--table-border);
+  border-bottom: none;
+  border-radius: 8px;
+  overflow: hidden;
+  background: var(--card-bg);
+  font-size: 0.86rem;
+}
+.detail-grid > dt, .detail-grid > dd, .detail-grid > div > dt, .detail-grid > div > dd {
+  padding: 0.5rem 0.75rem;
+  border-bottom: 1px solid var(--table-border);
+}
+.detail-grid dt { background: var(--table-header-bg); color: var(--text-light); font-weight: 500; }
+.detail-grid dd { display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap; min-width: 0; overflow-wrap: anywhere; }
+.modal-body h4 { font-size: 0.95rem; font-weight: 600; color: var(--text-dark); margin: 1.4rem 0 0.5rem; }
+.modal-body > h4:first-child { margin-top: 0; }
+.hint { font-size: 0.8rem; color: var(--text-light); }
+.modal-body .table th, .modal-body .table td { padding: 0.5rem 0.75rem; vertical-align: top; }
+.modal-body .table td { font-size: 0.86rem; }
+.modal-body .table .empty { padding: 1.25rem; }
+/* Lists of linked records inside a window read as table rows too; summary figures are compact. */
+.modal-body ul:not([class]) { list-style: none; border: 1px solid var(--table-border); border-radius: 8px; overflow: hidden; font-size: 0.86rem; }
+.modal-body ul:not([class]) > li { padding: 0.5rem 0.75rem; border-bottom: 1px solid var(--table-border); }
+.modal-body ul:not([class]) > li:last-child { border-bottom: none; }
+.modal-body .kpi-row { gap: 0.75rem; margin-bottom: 1rem; }
+.modal-body .kpi { padding: 0.7rem 0.9rem; box-shadow: none; border-radius: 8px; }
+.modal-body .kpi-value { font-size: 1.1rem; }
+.modal-body .kpi-label { font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.04em; font-weight: 600; }

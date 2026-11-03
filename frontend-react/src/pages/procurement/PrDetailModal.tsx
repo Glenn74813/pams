@@ -144,7 +144,7 @@ function Details({ p, onPrint, onEdit, onChanged }: { p: PurchaseRequest; onPrin
 
       {p.approvals && p.approvals.length > 0 && (
         <>
-          <h4 style={{ margin: '1rem 0 0' }}>Approval routing</h4>
+          <h4>Approval routing</h4>
           <ol className="chain">
             {p.approvals.map((a) => (
               <li key={a.step} className={`step-${a.status}${a.step === p.current_step ? ' step-current' : ''}`}>

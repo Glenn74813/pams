@@ -301,7 +301,7 @@ function NewItemForm({ line, onCancel, onCreated, onError }: { line: IarLine; on
   })
   return (
     <div className="line-card">
-      <h4 style={{ margin: '0 0 0.5rem' }}>New catalogue item for “{line.description}”</h4>
+      <h4>New catalogue item for “{line.description}”</h4>
       <div className="form-grid four">
         <div className="field span-2">
           <label htmlFor="ni-name">Name *</label>

@@ -228,7 +228,7 @@ function ClearanceDetail({ id, manage, onClose, onChanged }: { id: number; manag
 
           {d.status === 'pending' && (
             <>
-              <h4 style={{ margin: '1rem 0 0.5rem' }}>Still accountable for</h4>
+              <h4>Still accountable for</h4>
               {d.outstanding_assets && d.outstanding_assets.length > 0 ? (
                 <div className="table-wrap">
                   <table className="table table-compact">

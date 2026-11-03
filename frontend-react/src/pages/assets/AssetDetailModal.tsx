@@ -295,7 +295,7 @@ export function AssetDetailModal({ assetId, onClose, onChanged }: Props) {
                     {formatPeso(dep.data.accumulated_depreciation)} ({dep.data.postings.length} months) — book value {formatPeso(dep.data.book_value)}
                   </dd>
                 </dl>
-                <h4 style={{ margin: '1rem 0 0.5rem' }}>Schedule</h4>
+                <h4>Schedule</h4>
                 <div className="table-wrap">
                   <table className="table table-compact">
                     <thead>

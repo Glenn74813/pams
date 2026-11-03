@@ -207,7 +207,7 @@ export function ObserversPanel({ b, manage, onChanged, onError }: Props) {
 export function TimelinePanel({ b }: { b: Bidding }) {
   return (
     <>
-      <h4 style={{ margin: '1rem 0 0.5rem' }}>Timeline (maximum period per stage)</h4>
+      <h4>Timeline (maximum period per stage)</h4>
       <div className="table-wrap">
         <table className="table table-compact">
           <thead>

@@ -136,7 +136,7 @@ export function PoDetailModal({ poId, onClose, onEdit, onReceive, onChanged }: P
           </div>
           {po.inspections && po.inspections.length > 0 && (
             <>
-              <h4 style={{ margin: '1rem 0 0.5rem' }}>Deliveries</h4>
+              <h4>Deliveries</h4>
               <ul>
                 {po.inspections.map((r) => (
                   <li key={r.id}>
