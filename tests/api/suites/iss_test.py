@@ -83,3 +83,18 @@ _,pi=call('GET',f'/inventory/items/{P}',tok=SA); ok('increase created a costed l
 _,card=call('GET',f'/reports/stock-card/{P}/preview',tok=SA); ok('stock card ends at on-hand', card['rows'][-1]['balance']==5, card['rows'][-3:])
 print('CARD', [(x['reference'][:38],x['receipt'],x['issue'],x['balance']) for x in card['rows']])
 s,d=call('GET','/stock-adjustments',tok=REQ); ok('requester cannot list adjustments', s==403, d)
+# PAR for a request: PPE lines only (semi-expendable goes on the ICS, supplies on the RIS), at the cost at issue
+import subprocess, tempfile
+s,r4=call('POST','/requests',{'purpose':'Laptop and stapler','items':[{'item_id':L,'quantity':1},{'item_id':ST,'quantity':1},{'item_id':P,'quantity':1}]},REQ); R4=r4['id']
+s,d=call('PUT',f'/requests/{R4}/approve',None,APPR); ok('PPE, semi-expendable and supply issued', s==200 and d['data'].get('par_number') and d['data'].get('ics_number'), d)
+def pdf_text(path):
+    rq=urllib.request.Request(B+path, headers={'Authorization':'Bearer '+SA})
+    with urllib.request.urlopen(rq) as x, tempfile.NamedTemporaryFile(suffix='.pdf') as f:
+        f.write(x.read()); f.flush()
+        return subprocess.run(['pdftotext','-raw',f.name,'-'],capture_output=True,text=True).stdout
+par=pdf_text(f'/requests/{R4}/export-par?format=pdf')
+ok('PAR lists the PPE line', 'ZZ Laptop' in par and '65,000.00' in par, par[:600])
+ok('PAR leaves out semi-expendable and supplies', 'ZZ Stapler' not in par and 'ZZ Ballpen' not in par, par[:600])
+ok('PAR carries the request PAR number', d['data'].get('par_number','?') in par, par[:300])
+ics=pdf_text(f'/requests/{R4}/export-ics?format=pdf')
+ok('ICS still lists the semi-expendable line only', 'ZZ Stapler' in ics and 'ZZ Laptop' not in ics, ics[:600])

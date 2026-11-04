@@ -15,8 +15,9 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * Property Acknowledgment Receipt — COA GAM Appendix 71, for one request. Only includes
- * non-expendable and semi-expendable items.
+ * Property Acknowledgment Receipt — COA GAM Appendix 71, for one request: its PPE lines only
+ * (semi-expendable items go on the ICS). Issuing a request does not tie a line to a registered
+ * asset, so the property number is left for the property officer to write in.
  */
 @Component
 public class ParForm {
@@ -116,19 +117,13 @@ public class ParForm {
         applyRowVerticalBorders(x, 9);
 
         // ROWS 10-43 — Data Rows
-        // Filter only non-expendable and semi-expendable items; the item's first recorded property
-        // supplies the property number, acquisition date (its stock lot's received date first) and cost.
         List<Map<String, Object>> parItems = jdbc.queryForList("""
                 select ri.quantity, ri.approved_quantity, i.name, i.description, i.unit_of_measure,
-                       coalesce(ri.unit_cost, i.weighted_average_cost) as weighted_average_cost,
-                       p.id as property_id, p.serial_number, p.tag_number, p.acquisition_cost,
-                       coalesce(s.received_date, p.acquisition_date) as acquisition_date
+                       coalesce(ri.unit_cost, i.weighted_average_cost) as unit_cost
                 from request_items ri
                 join items i on i.id = ri.item_id
-                left join properties p on p.id = (select min(pp.id) from properties pp where pp.item_id = i.id)
-                left join stocks s on s.id = p.stock_id
                 where ri.request_id = ? and i.is_expandable = ?
-                order by ri.id""", requestId, false);
+                order by ri.id""", requestId, true);
 
         int dataStartRow = 10;
         int dataEndRow = 43;
@@ -138,7 +133,6 @@ public class ParForm {
 
             if (idx < parItems.size()) {
                 Map<String, Object> ri = parItems.get(idx);
-                boolean hasProperty = ri.get("property_id") != null;
 
                 // Quantity
                 int qty = ((Number) (ri.get("approved_quantity") != null ? ri.get("approved_quantity") : ri.get("quantity"))).intValue();
@@ -156,31 +150,18 @@ public class ParForm {
                 x.set("C" + row, description);
                 x.style("C" + row).wrap();
 
-                // Property Number — look for assigned property
-                String propertyNumber = "";
-                if (hasProperty) {
-                    propertyNumber = str(ri.get("serial_number") != null ? ri.get("serial_number") : ri.get("tag_number"));
-                }
-                x.set("D" + row, propertyNumber);
+                // Property Number: written in by the property officer once the unit is tagged.
+                x.set("D" + row, "");
 
                 // Date Acquired
-                String dateAcquired = "";
-                if (hasProperty && ri.get("acquisition_date") instanceof Date d) {
-                    dateAcquired = d.toLocalDate().format(MDY);
-                } else if (request.get("request_date") instanceof Date d) {
-                    dateAcquired = d.toLocalDate().format(MDY);
+                if (request.get("request_date") instanceof Date d) {
+                    x.set("E" + row, d.toLocalDate().format(MDY));
                 }
-                x.set("E" + row, dateAcquired);
 
                 // Amount
-                BigDecimal amount = BigDecimal.ZERO;
-                BigDecimal cost = (BigDecimal) ri.get("acquisition_cost");
-                BigDecimal wac = (BigDecimal) ri.get("weighted_average_cost");
-                if (hasProperty && cost != null && cost.signum() > 0) {
-                    amount = cost.multiply(BigDecimal.valueOf(qty));
-                } else if (wac != null && wac.signum() > 0) {
-                    amount = wac.multiply(BigDecimal.valueOf(qty));
-                }
+                // The unit cost at issue, as on the RIS.
+                BigDecimal unitCost = (BigDecimal) ri.get("unit_cost");
+                BigDecimal amount = unitCost == null ? BigDecimal.ZERO : unitCost.multiply(BigDecimal.valueOf(qty));
                 if (amount.signum() > 0) {
                     x.set("F" + row, amount);
                     x.style("F" + row).numberFormat("#,##0.00");
