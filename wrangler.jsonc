@@ -1,0 +1,11 @@
+// Cloudflare Workers deployment of the React frontend as static assets.
+// Build first: cd frontend-react && npm ci && npm run build
+// The Spring Boot backend is not deployed here; /api must reach a running backend separately.
+{
+  "name": "pams",
+  "compatibility_date": "2026-11-01",
+  "assets": {
+    "directory": "./frontend-react/dist",
+    "not_found_handling": "single-page-application"
+  }
+}
