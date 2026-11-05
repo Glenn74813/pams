@@ -67,6 +67,10 @@ pams:
     platform-key: ${PAMS_SIGNING_PLATFORM_KEY:}
   # Other systems' APIs read in Settings → Integrations. The key encrypts their stored secrets. PAMS does not call
   # its own machine, except the host:port pairs listed (comma-separated), e.g. localhost:5174 for a system beside it.
+  # Published through Cloudflare (cloudflare/worker.js and a Cloudflare Tunnel): the secret the Worker sends with
+  # every call. Requests through Cloudflare without it are refused; the local network is not affected. Empty: off.
+  proxy:
+    shared-secret: ${PAMS_PROXY_SHARED_SECRET:}
   integrations:
     key: ${PAMS_INTEGRATIONS_KEY:${pams.audit.seal-key:${pams.jwt.secret}}}
     allowed-hosts: ${PAMS_INTEGRATIONS_ALLOWED_HOSTS:}

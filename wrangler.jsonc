@@ -1,11 +1,17 @@
-// Cloudflare Workers deployment of the React frontend as static assets.
+// Cloudflare Workers deployment of PAMS: the React app as static assets, and /api/* forwarded by
+// cloudflare/worker.js to the backend behind a Cloudflare Tunnel. See docs/deployment-cloudflare.md.
 // Build first: cd frontend-react && npm ci && npm run build
-// The Spring Boot backend is not deployed here; /api must reach a running backend separately.
 {
   "name": "pams",
+  "main": "./cloudflare/worker.js",
   "compatibility_date": "2026-11-01",
   "assets": {
     "directory": "./frontend-react/dist",
-    "not_found_handling": "single-page-application"
-  }
+    "binding": "ASSETS",
+    "not_found_handling": "single-page-application",
+    "run_worker_first": ["/api/*"]
+  },
+  // PAMS_API_ORIGIN (variable) and PAMS_PROXY_SECRET (secret) are set in the Cloudflare dashboard;
+  // keep them when deploying.
+  "keep_vars": true
 }

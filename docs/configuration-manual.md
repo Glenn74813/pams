@@ -62,6 +62,14 @@ Off unless an issuer and client are set. Accounts are matched by email and must 
 | `PAMS_SSO_BUTTON_LABEL` | Text on the login button |
 | `PAMS_SSO_SCOPES` | Scopes requested; defaults to `openid email profile` |
 
+### Publishing through Cloudflare (optional)
+
+See [deployment-cloudflare.md](deployment-cloudflare.md).
+
+| Setting | Meaning | Default |
+|---|---|---|
+| `PAMS_PROXY_SHARED_SECRET` | The secret the Cloudflare Worker sends with every call. Calls that come through Cloudflare without it are refused; the agency's own network is not affected | Not set (off) |
+
 ### Integrations with other systems (optional)
 
 Connections to other systems' APIs are set up in Settings → Integrations, not here. Two settings concern them:
