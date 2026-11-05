@@ -1,3 +1,6 @@
 # Local Claude Code state; the launch configs are shared.
 /.claude/*
 !/.claude/launch.json
+
+# Cloudflare Wrangler local state
+.wrangler/
