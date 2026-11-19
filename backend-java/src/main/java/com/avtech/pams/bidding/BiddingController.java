@@ -225,8 +225,10 @@ public class BiddingController {
     public record ItemInput(Long purchaseRequestItemId, Integer quantity, BigDecimal abcUnitCost, String specifications) {
     }
 
+    /** {@code criteria}: the rated criteria of a MEARB or MARB bidding, required when it is created; on an edit, left out keeps them. */
     public record BiddingInput(String title, Long purchaseRequestId, String deliveryTerm, Integer deliveryLeadDays, String evaluationMethod,
-                               BigDecimal priceWeight, BigDecimal technicalWeight, BigDecimal minQualityScore, String remarks, List<ItemInput> items) {
+                               BigDecimal priceWeight, BigDecimal technicalWeight, BigDecimal minQualityScore, String remarks, List<ItemInput> items,
+                               List<CriterionInput> criteria) {
     }
 
     @PostMapping
@@ -236,6 +238,7 @@ public class BiddingController {
         Bidding b = new Bidding(numbers.yearly("PB", "biddings.bidding_number"), current.user().getId());
         apply(b, in, true);
         biddings.saveAndFlush(b);
+        if (b.isRated()) replaceCriteria(b, in.criteria(), true);
         entities.refresh(b);
         audit.record("created", TYPE, b.getId(), "Drafted bidding " + b.getBiddingNumber(), null, snapshot(b));
         return ResponseEntity.status(HttpStatus.CREATED).body(view(b));
@@ -252,8 +255,9 @@ public class BiddingController {
         }
         Map<String, Object> before = snapshot(b);
         apply(b, new BiddingInput(in.title(), b.getPurchaseRequestId(), in.deliveryTerm(), in.deliveryLeadDays(), in.evaluationMethod(),
-                in.priceWeight(), in.technicalWeight(), in.minQualityScore(), in.remarks(), in.items()), true);
+                in.priceWeight(), in.technicalWeight(), in.minQualityScore(), in.remarks(), in.items(), in.criteria()), true);
         biddings.flush();
+        if (b.isRated() && (in.criteria() != null || b.getCriteria().isEmpty())) replaceCriteria(b, in.criteria(), true);
         entities.refresh(b);
         audit.record("updated", TYPE, b.getId(), "Edited bidding " + b.getBiddingNumber(), before, snapshot(b));
         return view(b);
@@ -284,7 +288,20 @@ public class BiddingController {
         Bidding b = lock(id);
         if (!b.isPlanning()) throw ApiException.of(HttpStatus.CONFLICT, "Criteria are fixed once the Invitation to Bid is posted.");
         if (!b.isRated()) throw ApiException.validation("criteria", "Rated criteria apply to MEARB or MARB evaluation only.");
-        List<CriterionInput> list = in == null || in.criteria() == null ? List.of() : in.criteria();
+        List<CriterionInput> list = replaceCriteria(b, in == null ? null : in.criteria(), false);
+        audit.record("updated", TYPE, b.getId(), "Set " + list.size() + " MEARB criteria for " + b.getBiddingNumber(), null, Map.of("criteria", list.size()));
+        return view(b);
+    }
+
+    /**
+     * Replaces the rated criteria; their weights add up to 100. {@code required}: a MEARB or MARB bidding being saved
+     * needs at least one, since the bids are scored on them (IRR 61).
+     */
+    private List<CriterionInput> replaceCriteria(Bidding b, List<CriterionInput> given, boolean required) {
+        List<CriterionInput> list = given == null ? List.of() : given.stream().filter(c -> c != null && text(c.name()) != null).toList();
+        if (required && list.isEmpty()) {
+            throw ApiException.validation("criteria", "Add the rated criteria for " + b.getEvaluationMethod().toUpperCase() + ", with weights totalling 100.");
+        }
         BigDecimal sum = BigDecimal.ZERO;
         Set<String> names = new HashSet<>();
         for (int i = 0; i < list.size(); i++) {
@@ -305,8 +322,7 @@ public class BiddingController {
             b.getCriteria().add(new BiddingCriterion(b, text(c.name()), c.weight(), Boolean.TRUE.equals(c.isEnvironmental()), i));
         }
         biddings.flush();
-        audit.record("updated", TYPE, b.getId(), "Set " + list.size() + " MEARB criteria for " + b.getBiddingNumber(), null, Map.of("criteria", list.size()));
-        return view(b);
+        return list;
     }
 
     public record PreProcInput(LocalDateTime preProcDate, String preProcNotes) {

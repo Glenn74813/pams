@@ -574,6 +574,8 @@ export interface BiddingInput {
   min_quality_score?: number | null
   remarks?: string | null
   items: { purchase_request_item_id: number; quantity: number; abc_unit_cost?: number }[]
+  /** Rated criteria, required for MEARB and MARB; weights total 100. */
+  criteria?: { name: string; weight: number; is_environmental?: boolean }[]
 }
 
 export interface BidderInput {

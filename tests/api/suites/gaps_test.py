@@ -125,9 +125,11 @@ def bidding(method='mearb',mode=CB,cost=1000000):
     body={'title':f'ZZ {RUN}','purchase_request_id':p['id'],'items':[{'purchase_request_item_id':p['items'][0]['id']}],'evaluation_method':method}
     if method=='mearb': body.update(price_weight=40,technical_weight=60,min_quality_score=70)
     if method=='marb': body.update(price_weight=0,technical_weight=100)
+    if method in ('mearb','marb'):
+        s,d=call('POST','/bidding',body,SA); ok(f'{method.upper()} needs its rated criteria when created',s==422 and 'criteria' in d.get('errors',{}),d)
+        body['criteria']=[{'name':'Quality','weight':100}]
     d=api('POST','/bidding',body,201)[1]; return p,d
 def post(b,rated=True):
-    if rated: api('PUT',f"/bidding/{b}/criteria",{'criteria':[{'name':'Quality','weight':100}]},200)
     sql(f"update biddings set pre_proc_date = now() where id = {b}")
     return call('POST',f'/bidding/{b}/invitation',{'itb_reference':'I','submission_deadline':iso(9)+'T10:00:00'},SA)
 def opened(b):

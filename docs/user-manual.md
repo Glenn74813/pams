@@ -640,10 +640,11 @@ For PR lines planned as Competitive Bidding (or with no mode). Evaluation is "Lo
 ### Set up the bidding
 
 1. Click **+ New bidding** and choose the **Approved purchase request**. A warning shows if the PR already has failed biddings.
-2. Choose the **Evaluation** method (for MEARB, set the **Price weight (%)**, default 70), fill in **Title**, **Delivery term**, **Delivery within (days)**, and the lines with quantity and ABC per unit (not more than the PR cost). Save.
-3. MEARB only: click **Set criteria**. The weights must total 100, and this must be done before the Invitation to Bid.
-4. **Pre-procurement conference**: record the date and notes. Required when the ABC is over ₱5,000,000 for goods, ₱10,000,000 for infrastructure or ₱2,000,000 for consulting; otherwise optional (shown as "skipped").
-5. **Post Invitation to Bid**: enter the **ITB reference**, **Posted on** (not in the future), **Posted at**, the **Deadline for bids** (after posting) and **Bid opening** (defaults to the deadline).
+2. Choose the **Evaluation** method (for MEARB, set the **Price weight (%)**, 15–40%, default 40, and an optional **Minimum quality score**), fill in **Title**, **Delivery term**, **Delivery within (days)**, and the lines with quantity and ABC per unit (not more than the PR cost).
+3. MEARB and MARB: add the **Rated criteria** in the same form: a name and weight for each, ticking **Sustainability** for environmental criteria. The weights must total 100%; the bidding cannot be saved without them. They can be changed with **Set criteria** until the Invitation to Bid.
+4. Click **Save draft**.
+5. **Pre-procurement conference**: record the date and notes. Required when the ABC is over ₱5,000,000 for goods, ₱10,000,000 for infrastructure or ₱2,000,000 for consulting; otherwise optional (shown as "skipped").
+6. **Post Invitation to Bid**: enter the **ITB reference**, **Posted on** (not in the future), **Posted at**, the **Deadline for bids** (after posting) and **Bid opening** (defaults to the deadline).
 
 ### Open and record bids
 

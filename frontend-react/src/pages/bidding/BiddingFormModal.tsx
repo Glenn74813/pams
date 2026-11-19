@@ -28,6 +28,15 @@ export function BiddingFormModal({ bidding, onClose, onSaved }: Props) {
   const [minScore, setMinScore] = useState(bidding?.min_quality_score != null ? String(bidding.min_quality_score) : '')
   const [term, setTerm] = useState(bidding?.delivery_term ?? '')
   const [days, setDays] = useState(bidding?.delivery_lead_days != null ? String(bidding.delivery_lead_days) : '')
+  const [criteria, setCriteria] = useState(() =>
+    bidding?.criteria?.length
+      ? bidding.criteria.map((c) => ({ name: c.name, weight: String(c.weight), env: c.is_environmental }))
+      : [{ name: '', weight: '', env: false }],
+  )
+  const rated = method === 'mearb' || method === 'marb'
+  const named = criteria.filter((c) => c.name.trim())
+  const criteriaTotal = named.reduce((s, c) => s + (Number(c.weight) || 0), 0)
+  const setCriterion = (i: number, patch: Partial<(typeof criteria)[number]>) => setCriteria((cs) => cs.map((c, j) => (j === i ? { ...c, ...patch } : c)))
   const [picks, setPicks] = useState<Record<number, Pick>>(() =>
     Object.fromEntries((bidding?.items ?? []).map((l) => [l.purchase_request_item_id, { on: true, quantity: String(l.quantity), abc: String(l.abc_unit_cost) }])),
   )
@@ -64,6 +73,7 @@ export function BiddingFormModal({ bidding, onClose, onSaved }: Props) {
         delivery_term: term || null,
         delivery_lead_days: days === '' ? null : Number(days),
         items: chosen.map((l) => ({ purchase_request_item_id: l.id, quantity: Number(picks[l.id].quantity) || 0, abc_unit_cost: Number(picks[l.id].abc) || 0 })),
+        criteria: rated ? named.map((c) => ({ name: c.name.trim(), weight: Number(c.weight), is_environmental: c.env })) : undefined,
       }
       return editing ? biddingApi.update(bidding.id, input) : biddingApi.create(input)
     },
@@ -74,6 +84,8 @@ export function BiddingFormModal({ bidding, onClose, onSaved }: Props) {
     e.preventDefault()
     setError(null)
     if (chosen.length === 0) return setError('Pick at least one purchase request line.')
+    if (rated && named.length === 0) return setError(`Add the rated criteria for ${method.toUpperCase()}.`)
+    if (rated && criteriaTotal !== 100) return setError(`The criteria weights add up to ${criteriaTotal}%; they must total 100%.`)
     save.mutate()
   }
   return (
@@ -134,6 +146,36 @@ export function BiddingFormModal({ bidding, onClose, onSaved }: Props) {
             <input id="bd-days" type="number" min={0} value={days} onChange={(e) => setDays(e.target.value)} />
           </div>
         </div>
+        {rated && (
+          <div className="reject-box" style={{ marginTop: '1rem' }}>
+            <h4 style={{ marginTop: 0 }}>Rated criteria *</h4>
+            <p className="hint">
+              {method === 'mearb'
+                ? `Each bid's technical proposal is scored on these, worth ${100 - (Number(priceWeight) || 0)}% of the total with price ${Number(priceWeight) || 0}% (IRR 61.3).`
+                : 'Bids are ranked on these alone; the highest rating is opened and its price only has to be within the ABC (IRR 61.8).'}{' '}
+              The weights must total 100%.
+            </p>
+            {criteria.map((c, i) => (
+              <div key={i} className="toolbar" style={{ marginBottom: '0.35rem' }}>
+                <input aria-label={`Criterion ${i + 1}`} placeholder="Criterion, e.g. Technical merit" value={c.name} onChange={(e) => setCriterion(i, { name: e.target.value })} />
+                <input aria-label={`Weight of criterion ${i + 1}`} className="qty-input" type="number" min={1} max={100} placeholder="%" value={c.weight}
+                  onChange={(e) => setCriterion(i, { weight: e.target.value })} />
+                <label className="checkbox-line">
+                  <input type="checkbox" checked={c.env} onChange={(e) => setCriterion(i, { env: e.target.checked })} /> Sustainability
+                </label>
+                <button type="button" className="icon-btn delete" title="Remove criterion" onClick={() => setCriteria((cs) => cs.filter((_, j) => j !== i))}>
+                  ×
+                </button>
+              </div>
+            ))}
+            <div className="toolbar">
+              <button type="button" className="btn btn-outline btn-sm" onClick={() => setCriteria((cs) => [...cs, { name: '', weight: '', env: false }])}>
+                + Criterion
+              </button>
+              <span className={criteriaTotal === 100 ? 'muted small' : 'hint warn'}>Total {criteriaTotal}%</span>
+            </div>
+          </div>
+        )}
         {lines.length > 0 && (
           <div className="table-wrap" style={{ marginTop: '1rem' }}>
             <table className="table table-compact">

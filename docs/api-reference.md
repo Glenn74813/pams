@@ -535,7 +535,7 @@ Competitive (public) bidding under RA 12009: pre-procurement conference, Invitat
 **`POST /api/bidding`**
 
 - Requires: `manage_bidding`
-- Body: `title` string, `purchase_request_id` integer, `delivery_term` string, `delivery_lead_days` integer, `evaluation_method` string, `price_weight` number, `technical_weight` number, `min_quality_score` number, `remarks` string, `items` ItemInput[]
+- Body: `title` string, `purchase_request_id` integer, `delivery_term` string, `delivery_lead_days` integer, `evaluation_method` string, `price_weight` number, `technical_weight` number, `min_quality_score` number, `remarks` string, `items` ItemInput[], `criteria` CriterionInput[]
 - Returns: [`BiddingView`](#biddingview)
 
 **`DELETE /api/bidding/bidders/{bidderId}`**
@@ -596,7 +596,7 @@ Approved purchase requests with lines planned for competitive bidding that are n
 **`PUT /api/bidding/{id}`**
 
 - Requires: `manage_bidding`
-- Body: `title` string, `purchase_request_id` integer, `delivery_term` string, `delivery_lead_days` integer, `evaluation_method` string, `price_weight` number, `technical_weight` number, `min_quality_score` number, `remarks` string, `items` ItemInput[]
+- Body: `title` string, `purchase_request_id` integer, `delivery_term` string, `delivery_lead_days` integer, `evaluation_method` string, `price_weight` number, `technical_weight` number, `min_quality_score` number, `remarks` string, `items` ItemInput[], `criteria` CriterionInput[]
 - Returns: [`BiddingView`](#biddingview)
 
 **`POST /api/bidding/{id}/award`**
