@@ -62,7 +62,18 @@ export function BiddersPanel({ b, onChanged, onError }: Props) {
           </button>
         )}
       </div>
-      {b.sealed && <p className="hint">Prices stay sealed until every bid has passed technical evaluation and been scored (IRR 58). {b.evaluation_method === 'marb' ? 'Only the highest technical rating is then opened.' : 'Only bids that meet the minimum quality score are then opened.'}</p>}
+      {b.sealed &&
+        (mearb ? (
+          <p className="hint">
+            Prices stay sealed until every bid has passed technical evaluation and been scored (IRR 58).{' '}
+            {b.evaluation_method === 'marb' ? 'Only the highest technical rating is then opened.' : 'Only bids that meet the minimum quality score are then opened.'}
+          </p>
+        ) : (
+          <p className="hint">
+            The second envelopes (financial proposals) stay sealed. Rate each bidder's eligibility and technical requirements, then open the financial
+            proposals of those rated passed, on the same day, and record each bid as read (IRR 59.2).
+          </p>
+        ))}
       {adding && <BidForm b={b} onCancel={() => setAdding(false)} onSaved={() => { setAdding(false); onChanged('Bid recorded.') }} onError={onError} />}
       <div className="table-wrap">
         <table className="table table-compact">
@@ -70,7 +81,7 @@ export function BiddersPanel({ b, onChanged, onError }: Props) {
             <tr>
               <th>#</th>
               <th>Bidder</th>
-              <th className="num">Bid</th>
+              <th className="num">Bid as read</th>
               <th>Bid security</th>
               {STAGES.map(([, l]) => (
                 <th key={l}>{l}</th>
@@ -119,7 +130,7 @@ export function BiddersPanel({ b, onChanged, onError }: Props) {
                   )}
                   <td>
                     <div className="workflow-actions">
-                      {b.can_evaluate && mearb && !b.sealed && !failedEarlier && x.results.financial === 'pending' && (
+                      {b.can_evaluate && !b.sealed && !failedEarlier && x.results.financial === 'pending' && (
                         <button className="btn btn-outline btn-sm" onClick={() => { setPrice(x.bid_amount == null ? '' : String(x.bid_amount)); setPricing(x) }}>
                           Record price
                         </button>
@@ -205,7 +216,6 @@ function BidForm({ b, onCancel, onSaved, onError }: { b: Bidding; onCancel: () =
   const suppliers = useQuery({ queryKey: ['supplier-options'], queryFn: supplierApi.options })
   const [supplierId, setSupplierId] = useState('')
   const [name, setName] = useState('')
-  const [amount, setAmount] = useState('')
   const [form, setForm] = useState('bid_securing_declaration')
   const [secAmount, setSecAmount] = useState('')
   const [posted, setPosted] = useState(true)
@@ -214,7 +224,6 @@ function BidForm({ b, onCancel, onSaved, onError }: { b: Bidding; onCancel: () =
       biddingApi.addBidder(b.id, {
         supplier_id: supplierId && supplierId !== 'new' ? Number(supplierId) : null,
         supplier_name: supplierId === 'new' ? name : undefined,
-        bid_amount: amount === '' ? null : Number(amount),
         bid_security_form: form,
         bid_security_amount: secAmount === '' ? null : Number(secAmount),
         bid_security_posted: posted,
@@ -243,12 +252,6 @@ function BidForm({ b, onCancel, onSaved, onError }: { b: Bidding; onCancel: () =
           <div className="field">
             <label htmlFor="bf-name">Supplier name *</label>
             <input id="bf-name" value={name} onChange={(e) => setName(e.target.value)} />
-          </div>
-        )}
-        {!b.sealed && (
-          <div className="field">
-            <label htmlFor="bf-amt">Bid as read (₱)</label>
-            <input id="bf-amt" type="number" min={0} step="0.01" value={amount} onChange={(e) => setAmount(e.target.value)} />
           </div>
         )}
         <div className="field">

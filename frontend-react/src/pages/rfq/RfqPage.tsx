@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { useSearchParams } from 'react-router'
 import { keepPreviousData, useQuery, useQueryClient } from '@tanstack/react-query'
 import { rfqApi } from '../../api/endpoints'
 import type { Rfq } from '../../api/types'
@@ -25,6 +26,13 @@ export function RfqPage() {
   const [search, setSearch] = useState('')
   const [viewing, setViewing] = useState<number | null>(null)
   const [form, setForm] = useState<Rfq | 'new' | null>(null)
+  // /rfq?new=two_failed&pr=ID: Negotiated Procurement after two failed biddings of that purchase request (IRR 35.1).
+  const [params, setParams] = useSearchParams()
+  const failedPr = params.get('new') === 'two_failed' ? Number(params.get('pr')) || null : null
+  const closeForm = () => {
+    setForm(null)
+    if (failedPr) setParams({}, { replace: true })
+  }
   const q = useDebounced(search.trim())
   const key = `${status}|${q}`
   const [shown, setShown] = useState(key)
@@ -118,13 +126,14 @@ export function RfqPage() {
           }}
         />
       )}
-      {form && (
+      {(form || (failedPr && can('create_rfq'))) && (
         <RfqFormModal
-          rfq={form === 'new' ? null : form}
-          onClose={() => setForm(null)}
+          rfq={form && form !== 'new' ? form : null}
+          preset={!form && failedPr ? { purchaseRequestId: failedPr, method: 'Negotiated Procurement', ground: 'two_failed_biddings' } : undefined}
+          onClose={closeForm}
           onSaved={(r, m) => {
             toast(m, 'success')
-            setForm(null)
+            closeForm()
             refresh()
             setViewing(r.id)
           }}

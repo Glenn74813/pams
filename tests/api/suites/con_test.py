@@ -118,9 +118,11 @@ b=must(*call('POST','/bidding',{'title':'Printing framework','purchase_request_i
 must(*call('POST',f"/bidding/{b['id']}/invitation",{'submission_deadline':'2026-12-01T10:00:00'},SA))
 sql(f"update biddings set submission_deadline = now() - interval '1 hour', bid_opening_date = now() - interval '1 hour' where id = {b['id']}")
 must(*call('POST',f"/bidding/{b['id']}/open-bids",tok=SA))
-d=must(*call('POST',f"/bidding/{b['id']}/bidders",{'supplier_name':'ZZ Print','bid_amount':480000,'bid_security_form':'bid_securing_declaration','bid_security_posted':True},SA),201)
+d=must(*call('POST',f"/bidding/{b['id']}/bidders",{'supplier_name':'ZZ Print','bid_security_form':'bid_securing_declaration','bid_security_posted':True},SA),201)
 bid=d['bidders'][0]['id']
-for st in ['eligibility','technical','financial','post_qualification']: must(*call('PUT',f'/bidding/bidders/{bid}',{'stage':st,'result':'passed'},SA))
+for st in ['eligibility','technical']: must(*call('PUT',f'/bidding/bidders/{bid}',{'stage':st,'result':'passed'},SA))
+must(*call('POST',f"/bidding/{b['id']}/open-financial",tok=SA)); must(*call('PUT',f'/bidding/bidders/{bid}',{'bid_amount':480000},SA))
+for st in ['financial','post_qualification']: must(*call('PUT',f'/bidding/bidders/{bid}',{'stage':st,'result':'passed'},SA))
 must(*call('POST',f"/bidding/{b['id']}/award",{'bidder_id':bid,'bac_resolution_id':resolution(pr2['id'])},SA)); must(*call('POST',f"/bidding/{b['id']}/noa",{},SA))
 s,d=call('POST','/contracts',{'source_type':'bidding','source_id':b['id'],'contract_type':'Framework Agreement','start_date':today.isoformat(),'end_date':'2027-10-31','signed_date':today.isoformat()},T['pur'])
 ok('framework agreement drafted', s==201 and float(d['amount'])==480000, d); F=d['id']

@@ -409,7 +409,7 @@ public class BiddingController {
         // A bid read at the opening but entered late can still be added while evaluation is under way, until post-qualification.
         if (!Bidding.BID_OPENING.equals(b.getStatus()) && !Bidding.EVALUATION.equals(b.getStatus())) throw ApiException.of(HttpStatus.CONFLICT, "Bids are recorded at the bid opening.");
         if (postQualStarted(b)) throw ApiException.of(HttpStatus.CONFLICT, "Post-qualification has started; no more bids can be recorded.");
-        if (b.isRated() && !b.isSealed()) throw ApiException.of(HttpStatus.CONFLICT, "The financial proposals have been opened; no more bids can be recorded.");
+        if (!b.isSealed()) throw ApiException.of(HttpStatus.CONFLICT, "The financial proposals have been opened; no more bids can be recorded.");
         Long supplierId = awards.supplier(in.supplierId(), in.supplierName());
         if (b.getBidders().stream().anyMatch(x -> x.getSupplierId().equals(supplierId))) throw ApiException.validation("supplier_id", "This supplier has already bid.");
         BiddingBidder x = new BiddingBidder(b, supplierId);
@@ -440,8 +440,9 @@ public class BiddingController {
             if (!Bidding.BID_OPENING.equals(b.getStatus()) && !Bidding.EVALUATION.equals(b.getStatus())) {
                 throw ApiException.of(HttpStatus.CONFLICT, "Bids and bid securities are recorded at the opening.");
             }
+            if (in.bidAmount() != null && b.isSealed()) applyBid(b, x, new BidderInput(null, null, in.bidAmount(), null, null, null, null));
             // A correction is allowed until this bid has been evaluated; after that its results would rest on the old figures.
-            if (b.isRated() && !b.isSealed()) {
+            if (!b.isSealed()) {
                 // The price comes in after the technical stages, so only the later stages stand in its way.
                 if (in.bidSecurityForm() != null || in.bidSecurityAmount() != null || in.bidSecurityPosted() != null) throw ApiException.of(HttpStatus.CONFLICT, "The bid security was settled at eligibility.");
                 if (x.failedAny()) throw ApiException.of(HttpStatus.CONFLICT, "This bidder's financial proposal stays unopened.");
@@ -505,19 +506,22 @@ public class BiddingController {
     }
 
     /**
-     * Opens the financial proposals of a MEARB or MARB bidding once every bid has been rated (IRR 58 b, 61.3, 61.8):
-     * under MEARB those that met the minimum quality score, under MARB only the highest technical rating.
+     * Opens the second bid envelopes once the first envelopes are rated. Under LCRB, right after eligibility and technical
+     * compliance are rated, on the same day, for each bidder rated "passed" (IRR 58 a, 59.2). Under MEARB or MARB, once
+     * every bid has been scored (IRR 58 b, 61.3, 61.8): under MEARB those that met the minimum quality score, under MARB
+     * only the highest technical rating.
      */
     @PostMapping("/{id}/open-financial")
     @PreAuthorize(EVALUATE)
     @Transactional
     public BiddingView openFinancial(@PathVariable Long id) {
         Bidding b = lock(id);
-        if (!b.isRated()) throw ApiException.of(HttpStatus.CONFLICT, "Lowest-price biddings open both proposals on the same day.");
         if (!b.isSealed()) throw ApiException.of(HttpStatus.CONFLICT, "The financial proposals have already been opened.");
         if (!Bidding.BID_OPENING.equals(b.getStatus()) && !Bidding.EVALUATION.equals(b.getStatus())) throw ApiException.of(HttpStatus.CONFLICT, "Financial proposals are opened during evaluation.");
+        if (b.getBidders().isEmpty()) throw ApiException.of(HttpStatus.CONFLICT, "No bids were recorded; declare a failure of bidding instead.");
         List<BiddingBidder> live = b.getBidders().stream().filter(x -> !x.failedAny()).toList();
         if (live.isEmpty()) throw ApiException.of(HttpStatus.CONFLICT, "No bid is left to open; declare a failure of bidding instead.");
+        if (!b.isRated()) return openSecondEnvelopes(b, live);
         for (BiddingBidder x : live) {
             String name = awards.supplierName(x.getSupplierId());
             if (!"passed".equals(x.result("technical"))) throw ApiException.of(HttpStatus.CONFLICT, "Finish the eligibility and technical evaluation of " + name + " first.");
@@ -543,6 +547,27 @@ public class BiddingController {
         biddings.flush();
         audit.record("financial_opened", TYPE, b.getId(), "Financial proposals opened for " + b.getBiddingNumber() + ": " + (opened.isEmpty() ? "none met the minimum" : String.join(", ", opened)),
                 null, Map.of("opened", opened));
+        return view(b);
+    }
+
+    /** Every bid still in the running has passed eligibility and technical, so its second envelope can be opened (IRR 59.2). */
+    private static boolean firstEnvelopesRated(Bidding b) {
+        List<BiddingBidder> live = b.getBidders().stream().filter(x -> !x.failedAny()).toList();
+        return !live.isEmpty() && live.stream().allMatch(x -> "passed".equals(x.result("technical")));
+    }
+
+    /** LCRB: the second envelope of each bidder whose first envelope passed eligibility and technical (IRR 59.2). */
+    private BiddingView openSecondEnvelopes(Bidding b, List<BiddingBidder> live) {
+        for (BiddingBidder x : live) {
+            if (!"passed".equals(x.result("technical"))) {
+                throw ApiException.of(HttpStatus.CONFLICT, "Rate the eligibility and technical requirements of " + awards.supplierName(x.getSupplierId()) + " first (IRR 59.1).");
+            }
+        }
+        List<String> opened = live.stream().map(x -> awards.supplierName(x.getSupplierId())).toList();
+        b.setFinancialOpenedAt(Times.now());
+        b.setStatus(Bidding.EVALUATION);
+        biddings.flush();
+        audit.record("financial_opened", TYPE, b.getId(), "Second bid envelopes opened for " + b.getBiddingNumber() + ": " + String.join(", ", opened), null, Map.of("opened", opened));
         return view(b);
     }
 
@@ -923,7 +948,7 @@ public class BiddingController {
     private void applyBid(Bidding b, BiddingBidder x, BidderInput in) {
         if (in.bidAmount() != null && (in.bidAmount().signum() <= 0 || in.bidAmount().scale() > 2)) throw ApiException.validation("bid_amount", "Enter the bid as read, in pesos.");
         if (in.bidAmount() != null && b.isSealed()) {
-            throw ApiException.validation("bid_amount", "Financial proposals stay sealed under " + b.getEvaluationMethod().toUpperCase() + " until the technical evaluation is done (IRR 58); record the price when they are opened.");
+            throw ApiException.validation("bid_amount", "The financial proposal stays in its sealed second envelope until the eligibility and technical requirements are rated (IRR 58, 59.2); record the bid as read when it is opened.");
         }
         String form = text(in.bidSecurityForm());
         if (form != null && !SECURITY_RATES.containsKey(form)) throw ApiException.validation("bid_security_form", "Unknown form of bid security.");
@@ -990,8 +1015,8 @@ public class BiddingController {
                 throw ApiException.validation("result", name + " has not posted a sufficient bid security (" + (x.getBidSecurityForm() == null
                         ? "none recorded" : x.getBidSecurityForm().replace('_', ' ') + ", ₱" + ProcurementRules.peso(securityRequired(b, x)) + " required") + ").");
             }
-            if (b.isRated() && !b.isSealed() && !"financial".equals(stage)) throw ApiException.of(HttpStatus.CONFLICT, "The financial proposals have been opened; the earlier results are final.");
-            if (b.isSealed() && "financial".equals(stage)) throw ApiException.of(HttpStatus.CONFLICT, "Open the financial proposals first (IRR 58).");
+            if (!b.isSealed() && !"financial".equals(stage)) throw ApiException.of(HttpStatus.CONFLICT, "The financial proposals have been opened; the earlier results are final.");
+            if (b.isSealed() && "financial".equals(stage)) throw ApiException.of(HttpStatus.CONFLICT, "Open the financial proposals first (IRR 59.2).");
             if ("financial".equals(stage) && "passed".equals(result)) {
                 if (x.getBidAmount() == null) throw ApiException.validation("result", "Record " + name + "'s bid amount first.");
                 if (overAbc(b, x)) throw ApiException.validation("result", "₱" + ProcurementRules.peso(x.getBidAmount()) + " exceeds the ABC of ₱"
@@ -1171,11 +1196,11 @@ public class BiddingController {
                     bidders, protests, observers, ev == null ? null : ev.recommended(), ev == null ? null : ev.postQualTurn(), open,
                     (int) b.getObservers().stream().filter(BidObserver::isInvited).count(), full ? timeline(b) : null,
                     manager && b.isPlanning(), manager && b.isPlanning(), manager && Bidding.INVITATION.equals(b.getStatus()) && deadlinePassed,
-                    b.isSealed(), Times.toOffset(b.getFinancialOpenedAt()), evaluator && b.isSealed() && inEval,
+                    b.isSealed(), Times.toOffset(b.getFinancialOpenedAt()), evaluator && b.isSealed() && inEval && (b.isRated() || firstEnvelopesRated(b)),
                     offer == null ? null : new Ref(((Number) offer.get("id")).longValue(), (String) offer.get("offer_number")),
                     offer == null ? null : new Ref(offeror, awards.supplierName(offeror)),
                     offer == null ? null : (BigDecimal) (offer.get("match_amount") != null ? offer.get("match_amount") : offer.get("negotiated_amount")), toOfferor,
-                    manager && inEval && !postQualStarted(b) && (!b.isRated() || b.isSealed()), evaluator && inEval,
+                    manager && inEval && !postQualStarted(b) && b.isSealed(), evaluator && inEval,
                     awarder && !own && awardReady && open == 0,
                     awarder && Bidding.AWARDED.equals(b.getStatus()) && b.getNoaNumber() == null, awarder && b.getNoaNumber() != null && b.getNtpNumber() == null,
                     manager && !b.isOver() && !b.isPlanning(), manager && !b.isOver(), manager && Bidding.DRAFT.equals(b.getStatus()),

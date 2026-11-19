@@ -1,4 +1,5 @@
-import json, urllib.request, urllib.error, time, subprocess
+import json, urllib.request, urllib.error, time, subprocess, datetime
+TODAY = datetime.date.today().isoformat()
 B=__import__('os').environ['PAMS_API']
 def call(m, p, body=None, tok=None):
     h={'Content-Type':'application/json','Accept':'application/json'}
@@ -54,9 +55,11 @@ b=must(*call('POST','/bidding',{'title':'Laptops','purchase_request_id':pr2['id'
 must(*call('POST',f"/bidding/{b['id']}/invitation",{'submission_deadline':'2026-12-01T10:00:00'},SA))
 sql(f"update biddings set submission_deadline = now() - interval '1 hour', bid_opening_date = now() - interval '1 hour' where id = {b['id']}")
 must(*call('POST',f"/bidding/{b['id']}/open-bids",tok=SA))
-d=must(*call('POST',f"/bidding/{b['id']}/bidders",{'supplier_name':'ZZ Tech','bid_amount':200000,'bid_security_form':'bid_securing_declaration','bid_security_posted':True},SA),201)
+d=must(*call('POST',f"/bidding/{b['id']}/bidders",{'supplier_name':'ZZ Tech','bid_security_form':'bid_securing_declaration','bid_security_posted':True},SA),201)
 bid=d['bidders'][0]['id']
-for st in ['eligibility','technical','financial','post_qualification']: must(*call('PUT',f'/bidding/bidders/{bid}',{'stage':st,'result':'passed'},SA))
+for st in ['eligibility','technical']: must(*call('PUT',f'/bidding/bidders/{bid}',{'stage':st,'result':'passed'},SA))
+must(*call('POST',f"/bidding/{b['id']}/open-financial",tok=SA)); must(*call('PUT',f'/bidding/bidders/{bid}',{'bid_amount':200000},SA))
+for st in ['financial','post_qualification']: must(*call('PUT',f'/bidding/bidders/{bid}',{'stage':st,'result':'passed'},SA))
 must(*call('POST',f"/bidding/{b['id']}/award",{'bidder_id':bid,'bac_resolution_id':resolution(pr2['id'])},SA))
 
 # ── award sources
@@ -90,11 +93,11 @@ ok('reprice to total', s==422 or s==200, d)
 s,d=call('POST',f'/procurement/purchase-orders/{PO}/send',tok=T['proc']); ok('preparer cannot approve the PO', s==403, d)
 s,d=call('POST',f'/procurement/purchase-orders/{PO}/send',tok=T['adm']); ok('another officer approves and sends', s==200 and d['status']=='sent' and d['approver']['id']==ids['adm'], d)
 s,d=call('PUT',f'/procurement/purchase-orders/{PO}',{'remarks':'x'},T['proc']); ok('sent PO is locked', s==409, d)
-s,d=call('POST','/receiving/inspection-reports',{'purchase_order_id':PO,'delivery_date':'2026-11-03','items':[{'purchase_order_item_id':L1,'quantity_accepted':1}]},T['wh']); ok('no receiving before the supplier confirms', s==422, d)
+s,d=call('POST','/receiving/inspection-reports',{'purchase_order_id':PO,'delivery_date':TODAY,'items':[{'purchase_order_item_id':L1,'quantity_accepted':1}]},T['wh']); ok('no receiving before the supplier confirms', s==422, d)
 s,d=call('POST',f'/procurement/purchase-orders/{PO}/confirm',tok=T['proc']); ok('supplier conformé recorded', s==200 and d['status']=='confirmed' and d['can_receive']==False, d)
 
 # ── inspection
-iar=lambda items,**kw: {'purchase_order_id':PO,'delivery_date':'2026-11-03','inspection_date':'2026-11-03','items':items,**kw}
+iar=lambda items,**kw: {'purchase_order_id':PO,'delivery_date':TODAY,'inspection_date':TODAY,'items':items,**kw}
 s,d=call('POST','/receiving/inspection-reports',iar([{'purchase_order_item_id':L1,'quantity_received':11,'quantity_accepted':11}]),T['wh']); ok('cannot accept more than ordered', s==422, d)
 s,d=call('POST','/receiving/inspection-reports',iar([{'purchase_order_item_id':L1,'quantity_received':6,'quantity_accepted':5}]),T['wh']); ok('accepted + rejected = received', s==422, d)
 s,d=call('POST','/receiving/inspection-reports',iar([{'purchase_order_item_id':L1,'quantity_received':6,'quantity_accepted':5,'quantity_rejected':1}]),T['wh']); ok('rejections need a reason', s==422, d)

@@ -50,21 +50,23 @@ past="'" + (datetime.datetime.now()-datetime.timedelta(hours=1)).strftime('%Y-%m
 # ── 17: late and corrected bids during evaluation; the bid security flag is real
 pr=approved_pr([{'general_description':'ZZ Laptop','unit':'unit','quantity':1,'estimated_unit_cost':60000,'procurement_mode':CB}])
 BID=to_opening(pr,'ZZ Laptop bidding')
-bid=lambda name,amt,posted=True: {'supplier_name':name,'bid_amount':amt,'bid_security_form':'cash','bid_security_amount':1200,'bid_security_posted':posted}
-d=must(*call('POST',f'/bidding/{BID}/bidders',bid('ZZ Ace',55000),SA),201)
+bid=lambda name,posted=True: {'supplier_name':name,'bid_security_form':'cash','bid_security_amount':1200,'bid_security_posted':posted}
+d=must(*call('POST',f'/bidding/{BID}/bidders',bid('ZZ Ace'),SA),201)
 bd=lambda d: {x['supplier']['name']:x for x in d['bidders']}
 A=bd(d)['ZZ Ace']['id']
 d=must(*call('PUT',f'/bidding/bidders/{A}',{'stage':'eligibility','result':'passed'},SA)); ok('#17 first result starts the evaluation', d['status']=='evaluation', d['status'])
-s,d=call('POST',f'/bidding/{BID}/bidders',bid('ZZ Late',58000,False),SA); ok('#17 a bid entered late can still be recorded', s==201 and d['can_record_bids'], (s,d.get('error',d.get('message'))))
+s,d=call('POST',f'/bidding/{BID}/bidders',bid('ZZ Late',False),SA); ok('#17 a bid entered late can still be recorded', s==201 and d['can_record_bids'], (s,d.get('error',d.get('message'))))
 L=bd(d)['ZZ Late']['id']
 ok('#17 an unticked bid security is kept as not posted', not bd(d)['ZZ Late']['bid_security_posted'], bd(d)['ZZ Late'])
 s,d=call('PUT',f'/bidding/bidders/{L}',{'stage':'eligibility','result':'passed'},SA); ok('#17 no eligibility without the security', s==422 and 'security' in json.dumps(d), d)
-s,d=call('PUT',f'/bidding/bidders/{A}',{'bid_amount':54000},SA); ok('#17 an evaluated bid cannot be corrected', s==409, d)
-s,d=call('PUT',f'/bidding/bidders/{L}',{'bid_amount':57500,'bid_security_posted':True},SA); ok('#17 a bid not yet evaluated can be corrected', s==200 and float(bd(d)['ZZ Late']['bid_amount'])==57500, d)
-for st in ['technical','financial']: must(*call('PUT',f'/bidding/bidders/{A}',{'stage':st,'result':'passed'},SA))
+s,d=call('PUT',f'/bidding/bidders/{A}',{'bid_security_amount':1500},SA); ok('#17 an evaluated bid cannot be corrected', s==409, d)
+s,d=call('PUT',f'/bidding/bidders/{L}',{'bid_security_posted':True},SA); ok('#17 a bid not yet evaluated can be corrected', s==200 and bd(d)['ZZ Late']['bid_security_posted'], d)
+must(*call('PUT',f'/bidding/bidders/{A}',{'stage':'technical','result':'passed'},SA))
 must(*call('PUT',f'/bidding/bidders/{L}',{'stage':'eligibility','result':'failed','remarks':'Late'},SA))
+must(*call('POST',f'/bidding/{BID}/open-financial',tok=SA)); must(*call('PUT',f'/bidding/bidders/{A}',{'bid_amount':55000},SA))
+must(*call('PUT',f'/bidding/bidders/{A}',{'stage':'financial','result':'passed'},SA))
 d=must(*call('PUT',f'/bidding/bidders/{A}',{'stage':'post_qualification','result':'passed'},SA))
-s,d=call('POST',f'/bidding/{BID}/bidders',bid('ZZ Later',50000),SA); ok('#17 no new bids once post-qualification starts', s==409, d)
+s,d=call('POST',f'/bidding/{BID}/bidders',bid('ZZ Later'),SA); ok('#17 no new bids once post-qualification starts', s==409, d)
 
 # ── 15: Negotiated Procurement after two failed biddings
 pr2=approved_pr([{'general_description':'ZZ Generator','unit':'unit','quantity':1,'estimated_unit_cost':900000,'procurement_mode':CB}])

@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { Link } from 'react-router'
 import { useMutation, useQuery } from '@tanstack/react-query'
 import { ApiError } from '../../api/client'
 import { bacApi, biddingApi, inventoryApi } from '../../api/endpoints'
@@ -128,7 +129,18 @@ function Details({ b, onPrint, onEdit, onChanged }: { b: Bidding; onPrint: () =>
             <dt>Failure</dt>
             <dd>
               Failed bidding #{b.failed_count}: {b.failure_reason}
-              {b.failed_count >= 2 && <div className="small">After two failed biddings, Negotiated Procurement may be used (RFQ / alternative modes).</div>}
+              {b.failed_count >= 2 && (
+                <div className="small">
+                  After two failed biddings, the purchase request may go to Negotiated Procurement (IRR 35.1); the ABC may rise by up to 20% of this bidding's.
+                  {b.purchase_request && can('create_rfq') && (
+                    <div style={{ marginTop: '0.4rem' }}>
+                      <Link className="btn btn-primary btn-sm" to={`/rfq?new=two_failed&pr=${b.purchase_request.id}`}>
+                        Proceed to Negotiated Procurement
+                      </Link>
+                    </div>
+                  )}
+                </div>
+              )}
             </dd>
           </>
         )}

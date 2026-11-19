@@ -63,21 +63,34 @@ s,d=call('POST',f'/bidding/{BID}/open-bids',tok=T['sec']); ok('cannot open bids 
 sql(f"update biddings set submission_deadline = now() - interval '1 hour', bid_opening_date = now() - interval '1 hour' where id = {BID}")
 s,d=call('POST',f'/bidding/{BID}/open-bids',tok=T['sec']); ok('open bids', s==200 and d['status']=='bid_opening', d)
 
-# ── bids
-bid=lambda name,amt,form,sec_amt: {'supplier_name':name,'bid_amount':amt,'bid_security_form':form,'bid_security_amount':sec_amt,'bid_security_posted':True}
-for args in [('ZZ A',550000,'cash',12300),('ZZ B',530000,'bid_securing_declaration',None),('ZZ C',700000,'surety_bond',30750),('ZZ D',500000,'cash',5000)]:
+# ── bids: the first envelopes are rated, then the second (financial) envelopes are opened and read (IRR 59.1, 59.2)
+bid=lambda name,form,sec_amt: {'supplier_name':name,'bid_security_form':form,'bid_security_amount':sec_amt,'bid_security_posted':True}
+s,d=call('POST',f'/bidding/{BID}/bidders',{**bid('ZZ X','cash',12300),'bid_amount':550000},T['sec']); ok('no price when the bid is recorded (second envelope sealed)', s==422 and 'sealed' in json.dumps(d), d)
+for args in [('ZZ A','cash',12300),('ZZ B','bid_securing_declaration',None),('ZZ C','surety_bond',30750),('ZZ D','cash',5000)]:
     s,d=call('POST',f'/bidding/{BID}/bidders',bid(*args),T['sec']); assert s==201,d
-s,d=call('POST',f'/bidding/{BID}/bidders',bid('ZZ A',1,'cash',1),T['sec']); ok('one bid per supplier', s==422, d)
-bd={x['supplier']['name']:x for x in d['bidders']} if s==201 else {x['supplier']['name']:x for x in call('GET',f'/bidding/{BID}',tok=T['sec'])[1]['bidders']}
+ok('bids recorded without prices', all(x['bid_amount'] is None for x in d['bidders']) and d['sealed'], [x['bid_amount'] for x in d['bidders']])
+s,d=call('POST',f'/bidding/{BID}/bidders',bid('ZZ A','cash',1),T['sec']); ok('one bid per supplier', s==422, d)
+bd={x['supplier']['name']:x for x in call('GET',f'/bidding/{BID}',tok=T['sec'])[1]['bidders']}
 ok('security sufficiency computed', bd['ZZ A']['bid_security_ok'] and bd['ZZ B']['bid_security_ok'] and not bd['ZZ D']['bid_security_ok'] and float(bd['ZZ A']['bid_security_required'])==12300, {k:(v['bid_security_ok'],v['bid_security_required']) for k,v in bd.items()})
-ok('bid over ABC flagged', bd['ZZ C']['over_abc'], bd['ZZ C'])
 ev=lambda name,stage,result,remarks=None: call('PUT',f"/bidding/bidders/{bd[name]['id']}",{'stage':stage,'result':result,'remarks':remarks},T['sec'])
+price=lambda name,amt: call('PUT',f"/bidding/bidders/{bd[name]['id']}",{'bid_amount':amt},T['sec'])
 s,d=ev('ZZ D','eligibility','passed'); ok('eligibility needs sufficient bid security', s==422 and 'security' in json.dumps(d), d)
 s,d=ev('ZZ D','eligibility','failed'); ok('failing needs a reason', s==422, d)
 s,d=ev('ZZ D','eligibility','failed','Bid security short'); ok('D fails eligibility', s==200 and d['status']=='evaluation', d)
 s,d=ev('ZZ A','technical','passed'); ok('stages run in order', s==422, d)
-for n in ['ZZ A','ZZ B','ZZ C']:
+ev('ZZ A','eligibility','passed'); ev('ZZ A','technical','passed')
+s,d=price('ZZ A',550000); ok('no price before the second envelopes are opened', s==422 and 'sealed' in json.dumps(d), d)
+s,d=ev('ZZ A','financial','passed'); ok('financial waits for the opening', s==409 and '59.2' in json.dumps(d), d)
+s,d=call('POST',f'/bidding/{BID}/open-financial',tok=T['sec']); ok('second envelopes open only after every first envelope is rated', s==409 and 'ZZ B' in json.dumps(d), d)
+for n in ['ZZ B','ZZ C']:
     ev(n,'eligibility','passed'); ev(n,'technical','passed')
+s,d=call('POST',f'/bidding/{BID}/open-financial',tok=T['sec']); ok('open the second envelopes of those that passed', s==200 and not d['sealed'] and d['financial_opened_at'], d)
+s,d=call('POST',f'/bidding/{BID}/bidders',bid('ZZ E','bid_securing_declaration',None),T['sec']); ok('no more bids once the second envelopes are open', s==409, d)
+s,d=ev('ZZ A','eligibility','failed','x'); ok('first-envelope results final once the second is opened', s==409, d)
+s,d=price('ZZ D',500000); ok('a bidder failed at the first envelope stays unopened', s==409 and 'unopened' in json.dumps(d), d)
+price('ZZ A',550000); price('ZZ B',530000); s,d=price('ZZ C',700000)
+bd={x['supplier']['name']:x for x in d['bidders']}
+ok('bid over ABC flagged once read', bd['ZZ C']['over_abc'], bd['ZZ C'])
 s,d=ev('ZZ C','financial','passed'); ok('bid above ABC cannot pass financial', s==422 and 'ABC' in json.dumps(d), d)
 ev('ZZ C','financial','failed','Bid exceeds ABC')
 s,d=ev('ZZ A','post_qualification','passed'); ok('post-qualification waits for all financial results', s in (409,422), d)

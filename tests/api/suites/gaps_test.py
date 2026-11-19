@@ -167,7 +167,7 @@ for x,score in ((A,90),(C,80)):
 s,d=call('POST',f'/bidding/{M}/open-financial',None,SA); res={x['supplier']['id']:x for x in d['bidders']}
 ok('MARB opens only the highest rating',res[C]['results']['financial']=='failed' and res[A]['results']['financial']=='pending',res)
 p,d=bidding('price'); s,x=post(d['id'],False); assert s==200,x; opened(d['id'])
-s,d=call('POST',f"/bidding/{d['id']}/bidders",{'supplier_id':A,'bid_amount':900000,'bid_security_form':'bid_securing_declaration','bid_security_posted':True},SA); ok('lowest-price bids still read the price at opening',s==201 and d['bidders'][0]['bid_amount'] is not None,d)
+s,d=call('POST',f"/bidding/{d['id']}/bidders",{'supplier_id':A,'bid_amount':900000,'bid_security_form':'bid_securing_declaration','bid_security_posted':True},SA); ok('lowest-price bids too keep the price sealed until the first envelope is rated (IRR 59.2)',s==422 and 'sealed' in json.dumps(d),d)
 
 print('--- partly insufficient PS-DBM stock')
 p=pr([line('Paper',100,PS,qty=20)]); l=p['items'][0]['id']
@@ -206,10 +206,13 @@ s,d=u('link-bidding',{'bidding_id':BB}); ok('linked',d['status']=='comparative_b
 s,d=post(BB,False); assert s==200,d; opened(BB)
 RES=resolution(p['id'])
 L1,L2=[supplier(docs=ready,eligible=True) for _ in range(2)]
-for x,a in ((L1,700000),(L2,750000)): s,d=call('POST',f'/bidding/{BB}/bidders',{'supplier_id':x,'bid_amount':a,'bid_security_form':'bid_securing_declaration','bid_security_posted':True},SA); assert s==201,d
+for x in (L1,L2): s,d=call('POST',f'/bidding/{BB}/bidders',{'supplier_id':x,'bid_security_form':'bid_securing_declaration','bid_security_posted':True},SA); assert s==201,d
 bd={x['supplier']['id']:x for x in d['bidders']}
 for x in (L1,L2):
-    for st in ('eligibility','technical','financial'): s,d=call('PUT',f"/bidding/bidders/{bd[x]['id']}",{'stage':st,'result':'passed'},SA); assert s==200,d
+    for st in ('eligibility','technical'): s,d=call('PUT',f"/bidding/bidders/{bd[x]['id']}",{'stage':st,'result':'passed'},SA); assert s==200,d
+s,d=call('POST',f'/bidding/{BB}/open-financial',None,SA); assert s==200,d
+for x,a in ((L1,700000),(L2,750000)):
+    for body in ({'bid_amount':a},{'stage':'financial','result':'passed'}): s,d=call('PUT',f"/bidding/bidders/{bd[x]['id']}",body,SA); assert s==200,d
 s,d=u('start-matching'); ok('needs a post-qualified lowest bid',s==409,d)
 s,d=call('PUT',f"/bidding/bidders/{bd[L1]['id']}",{'stage':'post_qualification','result':'passed'},SA); assert s==200,d
 s,d=call('POST',f'/bidding/{BB}/award',{'bidder_id':bd[L1]['id'],'bac_resolution_id':RES},SA); ok('no award before bid matching',s==409,d)
@@ -232,8 +235,10 @@ O2=supplier(docs=ready,eligible=True); j,f,p2,B2=to_bidding(O2)
 s,d=f('start-matching'); ok('no comparative bid: original offeror wins',d['match_result']=='no_comparative',d)
 R2=resolution(p2['id']); s,d=call('POST',f'/bidding/{B2}/award',{'bidder_id':None,'bac_resolution_id':R2},SA); ok('awarded at the negotiated price',s==200 and float(d['awarded_amount'])==850000,d)
 O3=supplier(docs=ready,eligible=True); j,f,p3,B3=to_bidding(O3)
-s,d=call('POST',f'/bidding/{B3}/bidders',{'supplier_id':L1,'bid_amount':700000,'bid_security_form':'bid_securing_declaration','bid_security_posted':True},SA); x=d['bidders'][0]['id']
-for st in ('eligibility','technical','financial','post_qualification'): s,d=call('PUT',f'/bidding/bidders/{x}',{'stage':st,'result':'passed'},SA); assert s==200,d
+s,d=call('POST',f'/bidding/{B3}/bidders',{'supplier_id':L1,'bid_security_form':'bid_securing_declaration','bid_security_posted':True},SA); x=d['bidders'][0]['id']
+for st in ('eligibility','technical'): s,d=call('PUT',f'/bidding/bidders/{x}',{'stage':st,'result':'passed'},SA); assert s==200,d
+s,d=call('POST',f'/bidding/{B3}/open-financial',None,SA); assert s==200,d
+for body in ({'bid_amount':700000},{'stage':'financial','result':'passed'},{'stage':'post_qualification','result':'passed'}): s,d=call('PUT',f'/bidding/bidders/{x}',body,SA); assert s==200,d
 f('start-matching'); s,d=f('match',{'matched':False}); ok('not matched recorded',d['match_result']=='not_matched',d)
 R3=resolution(p3['id']); s,d=call('POST',f'/bidding/{B3}/award',{'bidder_id':x,'bac_resolution_id':R3},SA); ok('the lowest bid wins',s==200 and d['awarded_supplier']['id']==L1,d)
 ok('offer closed as lost',call('GET',f'/unsolicited-offers/{j}',None,SA)[1]['status']=='awarded_comparative')

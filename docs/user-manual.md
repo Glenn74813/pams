@@ -648,7 +648,7 @@ For PR lines planned as Competitive Bidding (or with no mode). Evaluation is "Lo
 ### Open and record bids
 
 1. After the deadline, click **Open bids**.
-2. For each bidder, click **+ Record bid** and enter the **Bidder**, **Bid as read (₱)**, the **Bid security** form and **Security amount (₱)**.
+2. For each bidder, click **+ Record bid** and enter the **Bidder**, the **Bid security** form and **Security amount (₱)**. There is no price yet: the financial proposal stays in its sealed second envelope until the first envelope is rated (IRR 59.1, 59.2).
 
 | Bid security form | Minimum |
 |---|---|
@@ -657,11 +657,15 @@ For PR lines planned as Competitive Bidding (or with no mode). Evaluation is "Lo
 | Surety bond | 5% of the ABC |
 | Bid Securing Declaration | None |
 
-> **Caution:** Record every bid read at the opening. A bid entered late can still be added during evaluation until post-qualification starts, and a bid can be corrected until it has been evaluated; striking out a bid is only possible before evaluation.
+> **Caution:** Record every bid submitted by the deadline. A bid entered late can still be added until the financial proposals are opened, and its bid security can be corrected until it has been evaluated; striking out a bid is only possible before evaluation.
 
 ### Evaluate
 
 For each bid, click **Pass <stage>** or **Fail** (with a reason). The stages go in order: Eligibility, Technical, Financial, Post-qualification.
+
+1. First envelope: pass or fail every bidder on **Eligibility** and **Technical** (IRR 59.1).
+2. Lowest price (LCRB): click **Open financial proposals** right after, on the same day (IRR 58 a, 59.2). Only the bidders rated passed have their second envelope opened; a bidder failed at the first envelope stays unopened.
+3. Click **Record price** for each opened bid and enter the bid as read, then pass or fail **Financial**.
 
 - Eligibility cannot pass without enough bid security.
 - Financial cannot pass a bid above the ABC.
@@ -679,7 +683,8 @@ Open protests block the award. The award then appears in **Purchase Orders** and
 
 - **Reconsideration & protests**: file a Request for Reconsideration or a Protest once the bidding is advertised. Then **Take up**, **Deny** or **Uphold** (BAC resolution text required), or mark **Withdrawn**.
 - **Observers**: record COA, CSO, professional organisation or other observers. Invite at least two.
-- **Declare failure** (with the ground) during Invitation, Bid opening or Evaluation. The PR lines are freed. After two failures the system points to Negotiated Procurement.
+- **Declare failure** (with the ground) during Invitation, Bid opening or Evaluation. The PR lines are freed. After the second failure, click **Proceed to Negotiated Procurement**: it opens a new RFQ for the same purchase request on the ground of two failed biddings (IRR 35.1), where the ABC may rise by up to 20%.
+- Competitive Bidding may be used for any amount (IRR 27.1). Above ₱2,000,000 it is required, since Small Value Procurement is capped there (IRR 34.1).
 - The **Timeline** panel shows the legal maximums: ITB to opening 50 days, opening to NOA 40, ITB to NOA 90, NOA to NTP 17.
 
 ### Statuses and what moves them

@@ -8,6 +8,8 @@ import { formatPeso, formatQty, toLocalInput } from '../../lib/format'
 
 interface Props {
   rfq: Rfq | null
+  /** A new RFQ started from elsewhere, e.g. Negotiated Procurement after two failed biddings of a purchase request. */
+  preset?: { purchaseRequestId: number; method: string; ground: string }
   onClose: () => void
   onSaved: (r: Rfq, message: string) => void
 }
@@ -18,18 +20,18 @@ interface Pick {
   abc: string
 }
 
-export function RfqFormModal({ rfq, onClose, onSaved }: Props) {
+export function RfqFormModal({ rfq, preset, onClose, onSaved }: Props) {
   const editing = rfq !== null
   const opts = useQuery({ queryKey: ['rfq-pr-options'], queryFn: rfqApi.prOptions })
-  const [prId, setPrId] = useState(rfq?.purchase_request ? String(rfq.purchase_request.id) : '')
+  const [prId, setPrId] = useState(rfq?.purchase_request ? String(rfq.purchase_request.id) : preset ? String(preset.purchaseRequestId) : '')
   const [title, setTitle] = useState(rfq?.title ?? '')
-  const [method, setMethod] = useState(rfq?.procurement_method ?? '')
+  const [method, setMethod] = useState(rfq?.procurement_method ?? preset?.method ?? '')
   const [deadline, setDeadline] = useState(toLocalInput(rfq?.deadline))
   const [term, setTerm] = useState(rfq?.delivery_term ?? '')
   const [days, setDays] = useState(rfq?.delivery_lead_days != null ? String(rfq.delivery_lead_days) : '')
   const [description, setDescription] = useState(rfq?.description ?? '')
   const [justification, setJustification] = useState(rfq?.justification ?? '')
-  const [ground, setGround] = useState(rfq?.negotiated_ground ?? '')
+  const [ground, setGround] = useState(rfq?.negotiated_ground ?? preset?.ground ?? '')
   const [invited, setInvited] = useState<string[]>(rfq?.invited_suppliers ?? [])
   const [otherInvited, setOtherInvited] = useState('')
   const [revised, setRevised] = useState(rfq?.eligibility_revised ?? false)

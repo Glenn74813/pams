@@ -186,9 +186,13 @@ public class Bidding extends Timestamped {
         return isMearb() || "marb".equals(evaluationMethod);
     }
 
-    /** MEARB or MARB prices not opened yet (IRR 58 b). */
+    /**
+     * The second bid envelopes are not opened yet. They are opened only after the first envelopes (eligibility and
+     * technical) are rated, for the bidders that passed: on the same day under LCRB (IRR 58 a, 59.2), at the time set in
+     * the Bidding Documents under MEARB or MARB (IRR 58 b).
+     */
     public boolean isSealed() {
-        return isRated() && financialOpenedAt == null;
+        return financialOpenedAt == null;
     }
 
     public java.time.LocalDateTime getFinancialOpenedAt() { return financialOpenedAt; }

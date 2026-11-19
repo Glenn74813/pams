@@ -664,7 +664,7 @@ Opens the bids once the submission deadline has passed.
 
 **`POST /api/bidding/{id}/open-financial`**
 
-Opens the financial proposals of a MEARB or MARB bidding once every bid has been rated (IRR 58 b, 61.3, 61.8): under MEARB those that met the minimum quality score, under MARB only the highest technical rating.
+Opens the second bid envelopes once the first envelopes are rated. Under LCRB, right after eligibility and technical compliance are rated, on the same day, for each bidder rated "passed" (IRR 58 a, 59.2). Under MEARB or MARB, once every bid has been scored (IRR 58 b, 61.3, 61.8): under MEARB those that met the minimum quality score, under MARB only the highest technical rating.
 
 - Requires: `manage_bidding`, `conduct_bid_evaluation`
 - Returns: [`BiddingView`](#biddingview)
@@ -1250,7 +1250,7 @@ Other systems' APIs, set up by an administrator and shown read-only in PAMS (TOR
 **`POST /api/integrations`**
 
 - Requires: `edit_settings`, `manage_system_settings`
-- Body: `name` string, `description` string, `base_url` string, `path` string, `auth_type` string, `auth_header` string, `secret` string, `clear_secret` boolean, `data_path` string, `columns` Column[], `context` string, `timeout_seconds` integer, `is_active` boolean
+- Body: `name` string, `description` string, `base_url` string, `path` string, `auth_type` string, `auth_header` string, `token_url` string, `client_id` string, `secret` string, `clear_secret` boolean, `data_path` string, `columns` Column[], `context` string, `timeout_seconds` integer, `is_active` boolean
 - Returns: [`ApiView`](#apiview)
 
 **`GET /api/integrations/payable`**
@@ -1269,7 +1269,7 @@ What every active payment API holds for one purchase order or contract.
 **`PUT /api/integrations/{id}`**
 
 - Requires: `edit_settings`, `manage_system_settings`
-- Body: `name` string, `description` string, `base_url` string, `path` string, `auth_type` string, `auth_header` string, `secret` string, `clear_secret` boolean, `data_path` string, `columns` Column[], `context` string, `timeout_seconds` integer, `is_active` boolean
+- Body: `name` string, `description` string, `base_url` string, `path` string, `auth_type` string, `auth_header` string, `token_url` string, `client_id` string, `secret` string, `clear_secret` boolean, `data_path` string, `columns` Column[], `context` string, `timeout_seconds` integer, `is_active` boolean
 - Returns: [`ApiView`](#apiview)
 
 **`GET /api/integrations/{id}/data`**
@@ -3441,7 +3441,7 @@ Ends a lockout from failed sign-ins before it times out.
 
 ### ApiView
 
-`id` integer, `name` string, `description` string, `category` string, `base_url` string, `path` string, `auth_type` string, `auth_header` string, `has_secret` boolean, `data_path` string, `columns` Column[], `context` string, `timeout_seconds` integer, `is_active` boolean, `last_status` string, `last_called_at` date-time
+`id` integer, `name` string, `description` string, `category` string, `base_url` string, `path` string, `auth_type` string, `auth_header` string, `token_url` string, `client_id` string, `has_secret` boolean, `data_path` string, `columns` Column[], `context` string, `timeout_seconds` integer, `is_active` boolean, `last_status` string, `last_called_at` date-time
 
 ### AppLineView
 
