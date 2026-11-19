@@ -89,7 +89,7 @@ export function PpmpDetailModal({ ppmpId, onClose, onEdit, onChanged }: Props) {
             <table className="table table-compact">
               <thead>
                 <tr>
-                  <th>Code</th>
+                  <th>Accounting code</th>
                   <th>Description</th>
                   <th className="num">Qty</th>
                   <th className="num">Unit cost</th>

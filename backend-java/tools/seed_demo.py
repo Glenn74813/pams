@@ -146,6 +146,35 @@ def lots_of(item_id, tok):
     return lots.get('data', lots) if isinstance(lots, dict) else lots
 
 
+# UACS object codes (Revised Chart of Accounts) for the demo plan lines. A unit cost of ₱50,000 or more is capital
+# outlay (PPE); equipment and furniture below it are semi-expendable; the rest are supplies. Illustrative: the agency's
+# accountant confirms the codes it charges to.
+UACS_PPE = [(('laptop', 'desktop', 'switch', 'printer', 'plotter', 'document management', 'cctv', 'camera'), '1060503000'),  # ICT equipment
+            (('air-conditioning', 'vault'), '1060502000'),                                                                    # office equipment
+            (('generator',), '1060501000'),                                                                                   # machinery
+            (('analyzer', 'dental'), '1060511000'),                                                                           # medical equipment
+            (('vehicle',), '1060601000'),                                                                                     # motor vehicles
+            (('gnss', 'total station'), '1060514000')]                                                                        # technical and scientific
+UACS_SEMI = [(('projector', 'ups', 'printer'), '5020321003'),                                         # semi-expendable ICT equipment
+             (('solar',), '5020321001'),                                                               # semi-expendable machinery
+             (('chair', 'cabinet', 'whiteboard', 'table', 'rack'), '5020322001'),                      # semi-expendable furniture and fixtures
+             (('law books',), '5020322002')]                                                           # semi-expendable books
+UACS_SUPPLIES = [(('bond paper', 'ballpen', 'paper clip', 'folder', 'record book', 'staple', 'envelope', 'toner', 'drafting'), '5020301000'),  # office supplies
+                 (('alcohol', 'first aid', 'thermometer'), '5020308000'),                                # medical, dental and laboratory supplies
+                 (('medicines',), '5020307000')]                                                        # drugs and medicines
+
+
+def uacs(desc, unit_cost):
+    d = desc.lower()
+    for words, code in UACS_SUPPLIES:
+        if any(w in d for w in words):
+            return code
+    if unit_cost >= 50000:
+        return next((code for words, code in UACS_PPE if any(w in d for w in words)), '1060599000')       # other machinery and equipment
+    return next((code for words, code in UACS_SEMI if any(w in d for w in words)), '5020321002' if any(
+        w in d for w in ('extinguisher', 'fan', 'monitor', 'counter', 'truck', 'jack', 'surge', 'label', 'air-conditioning')) else '5020399000')  # semi-expendable office equipment; other supplies
+
+
 def plan_next_year(SA, depts):
     """Next fiscal year's PPMPs, being prepared now: drafts, submitted, under review, returned and approved, and the
     draft APP consolidated from those approved so far. The planning page opens on the coming year."""
@@ -154,7 +183,7 @@ def plan_next_year(SA, depts):
     PS, SVP, CB = 'Procurement from PS-DBM', 'Small Value Procurement', 'Competitive Bidding'
 
     def line(desc, unit, qty, cost, mode, q):
-        return {'general_description': desc, 'unit': unit, 'quantity': qty, 'estimated_unit_cost': cost, 'procurement_mode': mode,
+        return {'general_description': desc, 'code': uacs(desc, cost), 'unit': unit, 'quantity': qty, 'estimated_unit_cost': cost, 'procurement_mode': mode,
                 'procurement_category': 'Goods', 'schedule': q, 'fund_source': GAA}
     plans = [
         ('ADMIN', 'approved', [line('Bond paper, A4, 80gsm', 'ream', 120, 265, PS, 'Q1'), line('Office table, executive', 'unit', 4, 12500, SVP, 'Q2'),
@@ -194,6 +223,23 @@ def plan_next_year(SA, depts):
 
 def main():
     SA = login('superadmin@inventory.com', 'admin123')
+    if '--fill-codes' in sys.argv:
+        # Accounting codes on plan lines, by the rules above, for plans seeded before they had them (a direct UPDATE: approved plans are locked).
+        step('UACS codes on PPMP lines')
+        ids, page = [], 1
+        while True:
+            r = call('GET', f'/procurement-planning/ppmps?page={page}', tok=SA)
+            ids += [p['id'] for p in r['data']]
+            if page >= r['pagination']['last_page']:
+                break
+            page += 1
+        for pid in ids:
+            for l in call('GET', f'/procurement-planning/ppmps/{pid}', tok=SA)['items']:
+                code = uacs(l['general_description'], float(l['estimated_unit_cost']))
+                if l.get('code') != code:
+                    sql(f"update ppmp_items set code = '{code}' where id = {l['id']}")
+        print('Done.')
+        return
     if '--next-year-only' in sys.argv:
         plan_next_year(SA, {d['code']: d['id'] for d in call('GET', '/departments', tok=SA)['data']})
         print('Done.')
@@ -368,7 +414,7 @@ def main():
     ]
 
     def line(desc, unit, qty, cost, mode, q):
-        return {'general_description': desc, 'unit': unit, 'quantity': qty, 'estimated_unit_cost': cost, 'procurement_mode': mode,
+        return {'general_description': desc, 'code': uacs(desc, cost), 'unit': unit, 'quantity': qty, 'estimated_unit_cost': cost, 'procurement_mode': mode,
                 'procurement_category': 'Goods', 'schedule': q, 'fund_source': GAA}
     for code in ['ADMIN', 'FIN', 'HRMO', 'PDO', 'LEGAL', 'ENG', 'PIO', 'MED', 'IT']:
         p = call('POST', '/procurement-planning/ppmps', {'department_id': depts[code], 'fiscal_year': YEAR, 'title': f'PPMP FY {YEAR} — {code}',
