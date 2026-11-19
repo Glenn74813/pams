@@ -108,6 +108,13 @@ export function BiddersPanel({ b, onChanged, onError }: Props) {
                   <td className="num">
                     {x.bid_amount == null ? (b.sealed ? 'Sealed' : '—') : formatPeso(x.bid_amount)}
                     {x.over_abc && <div><span className="badge st-bad">Over ABC</span></div>}
+                    {b.can_evaluate && !b.sealed && !failedEarlier && x.results.financial === 'pending' && (
+                      <div className="cell-actions">
+                        <button className="btn btn-outline btn-sm" onClick={() => { setPrice(x.bid_amount == null ? '' : String(x.bid_amount)); setPricing(x) }}>
+                          Record price
+                        </button>
+                      </div>
+                    )}
                   </td>
                   <td>
                     {x.bid_security_form ? SECURITY_FORMS[x.bid_security_form] ?? x.bid_security_form : '—'}
@@ -120,6 +127,18 @@ export function BiddersPanel({ b, onChanged, onError }: Props) {
                   {STAGES.map(([s]) => (
                     <td key={s}>
                       <span className={`badge ${RESULT_CLASS[x.results[s]]}`}>{x.results[s]}</span>
+                      {/* Pass and fail sit under the stage they rate; the financial stage waits for its envelope and the bid as read. */}
+                      {canAct && next === s && !(s === 'financial' && (b.sealed || x.bid_amount == null)) && (
+                        <div className="cell-actions">
+                          <button className="btn btn-primary btn-sm" disabled={evaluate.isPending} title={`Pass ${STAGES.find(([k]) => k === s)![1]}`}
+                            onClick={() => evaluate.mutate({ bidder: x, stage: s, result: 'passed' })}>
+                            Pass
+                          </button>
+                          <button className="btn btn-outline btn-sm" title={`Fail ${STAGES.find(([k]) => k === s)![1]}`} onClick={() => { setWhy(''); setFailing({ bidder: x, stage: s }) }}>
+                            Fail
+                          </button>
+                        </div>
+                      )}
                     </td>
                   ))}
                   {mearb && (
@@ -130,21 +149,6 @@ export function BiddersPanel({ b, onChanged, onError }: Props) {
                   )}
                   <td>
                     <div className="workflow-actions">
-                      {b.can_evaluate && !b.sealed && !failedEarlier && x.results.financial === 'pending' && (
-                        <button className="btn btn-outline btn-sm" onClick={() => { setPrice(x.bid_amount == null ? '' : String(x.bid_amount)); setPricing(x) }}>
-                          Record price
-                        </button>
-                      )}
-                      {canAct && next && !(next === 'financial' && b.sealed) && !(next === 'financial' && x.bid_amount == null) && (
-                        <>
-                          <button className="btn btn-primary btn-sm" disabled={evaluate.isPending} onClick={() => evaluate.mutate({ bidder: x, stage: next, result: 'passed' })}>
-                            Pass {STAGES.find(([s]) => s === next)![1]}
-                          </button>
-                          <button className="btn btn-outline btn-sm" onClick={() => { setWhy(''); setFailing({ bidder: x, stage: next }) }}>
-                            Fail
-                          </button>
-                        </>
-                      )}
                       {mearb && b.can_evaluate && b.sealed && !anyPostQual && (
                         <button className="btn btn-outline btn-sm" onClick={() => setScoring(x)}>
                           Scores
