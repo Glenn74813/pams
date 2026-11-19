@@ -298,6 +298,11 @@ def main():
         ('cctv', 'LEGAL', 'CCTV system, 16 cameras, with NVR', 'lot', 1, 450000, CB, 'Q3'),
         ('vehicle', 'ENG', 'Service vehicle, pick-up, 4x4', 'unit', 1, 1800000, CB, 'Q4'),
         ('dental', 'MED', 'Dental chair unit, complete', 'unit', 2, 350000, CB, 'Q3'),
+        # Competitive Bidding on rated criteria: MEARB and MARB
+        ('dms', 'IT', 'Integrated document management system', 'lot', 1, 1900000, CB, 'Q3'),
+        ('analyzer', 'MED', 'Automated hematology analyzer', 'unit', 1, 1500000, CB, 'Q3'),
+        ('gnss', 'ENG', 'Survey equipment, GNSS RTK set', 'set', 2, 600000, CB, 'Q3'),
+        ('camera', 'PIO', 'Broadcast camera kit, 4K, with tripod and audio', 'lot', 1, 950000, CB, 'Q3'),
         # Common-use supplies from PS-DBM
         ('ps_bond', 'ADMIN', 'Bond paper, A4, 80gsm', 'ream', 100, 260, PS, 'Q1'),
         ('ps_pen', 'FIN', 'Ballpen, black', 'piece', 500, 10, PS, 'Q1'),
@@ -340,7 +345,9 @@ def main():
                 'fans': 'Electric fans for the server and staff rooms', 'laptops': 'Laptops for field staff', 'desktops': 'Replacement of old desktop units',
                 'switches': 'Network upgrade, second floor', 'aircon': 'Air-conditioning of the records room', 'printers': 'Printing of financial reports',
                 'solar': 'Lighting of the compound perimeter', 'genset': 'Standby power for the main building', 'cctv': 'Security cameras for the office',
-                'vehicle': 'Vehicle for site inspections', 'dental': 'Dental chairs for the clinic'}
+                'vehicle': 'Vehicle for site inspections', 'dental': 'Dental chairs for the clinic',
+                'dms': 'Digital records for all offices', 'analyzer': 'Laboratory equipment for the clinic',
+                'gnss': 'Survey instruments for infrastructure projects', 'camera': 'Video coverage of agency events'}
 
     def pr(key):
         _, code, desc, unit, qty, cost, mode, _ = next(x for x in PLAN if x[0] == key)
@@ -450,6 +457,58 @@ def main():
     bidding('cctv', 'Supply and installation of a CCTV system', 'opening', [('Safeguard', 440000), ('Voltmax', 445000)])
     bidding('vehicle', 'Supply of a 4x4 service vehicle', 'invitation', [])
     bidding('solar', 'Supply and installation of solar street lights', 'draft', [])
+
+    # Rated criteria (IRR 58 b, 61): the first envelopes are rated and scored, then only the financial proposals that
+    # qualify are opened: under MEARB those at or above the minimum quality score, under MARB the highest rating.
+    def rated(key, title, method, stage, criteria, bids, pre_proc=False):
+        p = PR[key]
+        body = {'title': title, 'purchase_request_id': p['id'], 'items': [{'purchase_request_item_id': x['id']} for x in p['items']], 'evaluation_method': method}
+        body.update({'price_weight': 40, 'technical_weight': 60, 'min_quality_score': 70} if method == 'mearb' else {'price_weight': 0, 'technical_weight': 100})
+        body['criteria'] = [{'name': n, 'weight': w, 'is_environmental': env} for n, w, env in criteria]
+        b = call('POST', '/bidding', body, SA)
+        BID[key] = b['id']
+        crit = [c['id'] for c in b['criteria']]
+        if pre_proc:
+            call('POST', f"/bidding/{b['id']}/pre-proc", {'pre_proc_date': f'{day(-30)}T09:00:00', 'pre_proc_notes': 'Specifications, ABC and rated criteria confirmed'}, SA)
+        call('POST', f"/bidding/{b['id']}/invitation", {'itb_reference': f'ITB-{YEAR}-{len(BID):03d}', 'submission_deadline': f'{day(25)}T10:00:00'}, SA)
+        past = (manila_now() - datetime.timedelta(hours=1)).strftime('%Y-%m-%d %H:%M:%S')
+        sql(f"update biddings set submission_deadline = '{past}', bid_opening_date = '{past}' where id = {b['id']}")
+        call('POST', f"/bidding/{b['id']}/open-bids", tok=SA)
+        ids = []
+        for sup, scores, amount in bids:
+            d = call('POST', f"/bidding/{b['id']}/bidders", {'supplier_id': SUP[sup], 'bid_security_form': 'bid_securing_declaration', 'bid_security_posted': True}, SA)
+            ids.append(([x for x in d['bidders'] if x['supplier']['id'] == SUP[sup]][0]['id'], scores, amount))
+        if stage == 'opening':
+            return
+        for bidder, scores, _ in ids:
+            for st in ['eligibility', 'technical']:
+                call('PUT', f'/bidding/bidders/{bidder}', {'stage': st, 'result': 'passed'}, SA)
+            call('PUT', f'/bidding/bidders/{bidder}/scores', {'scores': [{'bidding_criterion_id': c, 'score': sc} for c, sc in zip(crit, scores)]}, SA)
+        if stage == 'scored':
+            return
+        d = call('POST', f"/bidding/{b['id']}/open-financial", tok=SA)
+        opened = {x['id'] for x in d['bidders'] if not any(v == 'failed' for v in x['results'].values())}
+        for bidder, _, amount in ids:
+            if bidder in opened:
+                call('PUT', f'/bidding/bidders/{bidder}', {'bid_amount': amount}, SA)
+                call('PUT', f'/bidding/bidders/{bidder}', {'stage': 'financial', 'result': 'passed'}, SA)
+        if stage == 'opened':
+            return
+        d = call('GET', f"/bidding/{b['id']}", tok=SA)
+        d = call('PUT', f"/bidding/bidders/{d['next_post_qual_bidder_id']}", {'stage': 'post_qualification', 'result': 'passed'}, SA)
+        call('POST', f"/bidding/{b['id']}/award", {'bidder_id': d['recommended_bidder_id'], 'bac_resolution_id': resolution(p['id'], title)}, SA)
+        call('POST', f"/bidding/{b['id']}/noa", {}, SA)
+    MEARB_CRITERIA = [('Technical merit', 50, False), ('Relevant experience', 30, False), ('Sustainability', 20, True)]
+    MARB_CRITERIA = [('Quality of the equipment', 60, False), ('After-sales support', 40, False)]
+    # Northpoint is best overall once price counts; Mega's price is lowest but it misses the minimum quality score.
+    rated('dms', 'Integrated document management system', 'mearb', 'award', MEARB_CRITERIA,
+          [('Northpoint', (90, 85, 80), 1780000), ('Printworks', (82, 78, 75), 1690000), ('Mega', (65, 60, 55), 1500000)], pre_proc=True)
+    rated('analyzer', 'Supply of an automated hematology analyzer', 'mearb', 'scored', MEARB_CRITERIA,
+          [('Healthline', (88, 80, 75), 1420000), ('MedFirst', (84, 86, 70), 1460000), ('Mega', (60, 70, 50), 1300000)])
+    rated('gnss', 'Supply of GNSS RTK survey equipment', 'marb', 'opened', MARB_CRITERIA,
+          [('Primeline', (92, 88), 1150000), ('Voltmax', (80, 75), 1050000)])
+    rated('camera', 'Supply of a 4K broadcast camera kit', 'marb', 'opening', MARB_CRITERIA,
+          [('Printworks', (85, 80), 900000), ('Northpoint', (78, 82), 880000)])
 
     # ── unsolicited offers ──────────────────────────────────────────────
     step('unsolicited offers at different stages')
