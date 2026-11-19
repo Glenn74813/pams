@@ -1,15 +1,19 @@
 #!/usr/bin/env python3
 """
-Fills a PAMS database with demo records: at least five in every module, at different stages, all
-created through the API so every business rule, number series and audit entry is the real thing.
+Fills a PAMS database with demo records: ten in every module, at different stages, all created through the API
+so every business rule, number series and audit entry is the real thing.
 
     PAMS_API=http://127.0.0.1:8095/api python3 tools/seed_demo.py
+    PAMS_DB=mssql PAMS_API=http://127.0.0.1:8096/api python3 tools/seed_demo.py
 
-Run it on an empty test database (fresh migration, or after clearing the test data). It needs:
+Run it on an empty database (fresh migration, or after clearing the data). It needs:
   - the backend running at PAMS_API with the seeded Super Admin (superadmin@inventory.com / admin123);
-  - psql and the DB_PASSWORD in backend-java/.env, used only to move a few deadlines into the past
-    (an RFQ or bidding can only be closed after its deadline).
-Demo staff sign in with the password in DEMO_PASSWORD below. PostgreSQL only.
+  - direct database access, used only to move a few deadlines into the past (an RFQ or bidding can only be
+    closed after its deadline) and to date one stock lot as expired: psql with DB_PASSWORD from backend-java/.env,
+    or with PAMS_DB=mssql the SQL Server container (PAMS_MSSQL_CONTAINER, default pams-mssql; database
+    PAMS_MSSQL_DB, default pams) with MSSQL_SA_PASSWORD from .env.
+Some records exist once by rule (one APP per fiscal year, one petty cash fund here). Demo staff sign in with the
+password in DEMO_PASSWORD below.
 """
 import datetime
 import json
@@ -23,6 +27,7 @@ import urllib.request
 import uuid
 
 API = os.environ.get('PAMS_API', 'http://127.0.0.1:8095/api')
+MSSQL = os.environ.get('PAMS_DB') == 'mssql'
 DEMO_PASSWORD = 'Demo#Pams2026'
 ENV = pathlib.Path(__file__).resolve().parent.parent / '.env'
 TODAY = datetime.date.today()
@@ -31,6 +36,10 @@ YEAR = TODAY.year
 
 def day(n):
     return (TODAY + datetime.timedelta(days=n)).isoformat()
+
+
+def manila_now():
+    return (datetime.datetime.now(datetime.timezone.utc) + datetime.timedelta(hours=8)).replace(tzinfo=None)
 
 
 class Fail(Exception):
@@ -56,6 +65,15 @@ def call(method, path, body=None, tok=None, expect=(200, 201)):
     return data
 
 
+def optional(method, path, body=None, tok=None):
+    """A step that adds colour but may be refused by a rule; the seed goes on and says so."""
+    try:
+        return call(method, path, body, tok)
+    except Fail as e:
+        print(f'  (skipped: {e})', flush=True)
+        return None
+
+
 def upload(path, fields, filename, content, tok):
     boundary = uuid.uuid4().hex
     parts = []
@@ -73,10 +91,19 @@ def upload(path, fields, filename, content, tok):
         raise Fail(f'POST {path} -> {e.code}: {e.read()[:400]!r}')
 
 
+def env(key):
+    return next((l.split('=', 1)[1].strip() for l in ENV.read_text().splitlines() if l.startswith(key + '=')), '')
+
+
 def sql(q):
-    password = next((l.split('=', 1)[1].strip() for l in ENV.read_text().splitlines() if l.startswith('DB_PASSWORD=')), '')
+    """Runs one portable UPDATE on the database behind the API."""
+    if MSSQL:
+        subprocess.run(['docker', 'exec', os.environ.get('PAMS_MSSQL_CONTAINER', 'pams-mssql'), '/opt/mssql-tools18/bin/sqlcmd', '-C', '-S', 'localhost',
+                        '-U', 'sa', '-P', env('MSSQL_SA_PASSWORD'), '-d', os.environ.get('PAMS_MSSQL_DB', 'pams'), '-b', '-Q', 'SET NOCOUNT ON; ' + q],
+                       check=True, capture_output=True)
+        return
     subprocess.run(['psql', '-h', os.environ.get('PGHOST', '127.0.0.1'), '-U', os.environ.get('PGUSER', 'inventory'),
-                    '-d', os.environ.get('PGDATABASE', 'inventory'), '-Atqc', q], check=True, env={**os.environ, 'PGPASSWORD': password})
+                    '-d', os.environ.get('PGDATABASE', 'inventory'), '-Atqc', q], check=True, env={**os.environ, 'PGPASSWORD': env('DB_PASSWORD')})
 
 
 def login(email, password):
@@ -113,6 +140,11 @@ def step(title):
     print(f'· {title}', flush=True)
 
 
+def lots_of(item_id, tok):
+    lots = call('GET', f'/inventory/items/{item_id}/lots', tok=tok)
+    return lots.get('data', lots) if isinstance(lots, dict) else lots
+
+
 def main():
     SA = login('superadmin@inventory.com', 'admin123')
 
@@ -120,14 +152,16 @@ def main():
     step('offices and demo staff')
     depts = {d['code']: d['id'] for d in call('GET', '/departments', tok=SA)['data']}
     for code, name in [('ADMIN', 'Administrative Division'), ('FIN', 'Finance Division'), ('SPU', 'Supply and Property Unit'),
-                       ('HRMO', 'Human Resource Management Office'), ('PDO', 'Planning and Development Office')]:
+                       ('HRMO', 'Human Resource Management Office'), ('PDO', 'Planning and Development Office'), ('LEGAL', 'Legal Services Office'),
+                       ('ENG', 'Engineering Division'), ('PIO', 'Public Information Office'), ('MED', 'Medical and Dental Unit'), ('IT', 'Information Technology')]:
         if code not in depts:
             depts[code] = call('POST', '/departments', {'name': name, 'code': code}, SA)['id']
     staff = [('Maria Santos', 'maria.santos', 3, 'SPU'), ('Jose Reyes', 'jose.reyes', 13, 'SPU'), ('Ana Cruz', 'ana.cruz', 6, 'SPU'),
              ('Ramon Dela Cruz', 'ramon.delacruz', 12, 'ADMIN'), ('Liza Mendoza', 'liza.mendoza', 15, 'FIN'),
              ('Carlo Bautista', 'carlo.bautista', 7, 'IT'), ('Grace Villanueva', 'grace.villanueva', 8, 'FIN'),
              ('Paolo Garcia', 'paolo.garcia', 10, 'ADMIN'), ('Joy Aquino', 'joy.aquino', 11, 'SPU'), ('Ben Torres', 'ben.torres', 15, 'HRMO'),
-             ('Nora Flores', 'nora.flores', 5, 'ADMIN')]
+             ('Nora Flores', 'nora.flores', 5, 'ADMIN'), ('Rosa Navarro', 'rosa.navarro', 15, 'LEGAL'), ('Marco Lim', 'marco.lim', 15, 'ENG'),
+             ('Dina Castro', 'dina.castro', 15, 'PIO'), ('Victor Ramos', 'victor.ramos', 15, 'MED'), ('Elena Pascual', 'elena.pascual', 9, 'FIN')]
     existing = {u['email']: u['id'] for u in call('GET', '/users/all', tok=SA)['data']}
     U = {}
     for name, handle, role, dept in staff:
@@ -144,17 +178,24 @@ def main():
                                                ('Northpoint IT Solutions Inc.', 'Mark Uy', 'Makati City'),
                                                ('Bayanihan Furniture Corporation', 'Edwin Sison', 'Pasig City'),
                                                ('MedFirst Pharma Distribution', 'Cecille Ramos', 'Manila'),
-                                               ('CleanPro Janitorial Supply', 'Arnel Diaz', 'Caloocan City')], 1):
+                                               ('CleanPro Janitorial Supply', 'Arnel Diaz', 'Caloocan City'),
+                                               ('Safeguard Fire Protection Inc.', 'Lorna Tan', 'Mandaluyong City'),
+                                               ('Printworks Publishing Corp.', 'Dennis Co', 'San Juan City'),
+                                               ('Healthline Medical Trading', 'Mylene Ortiz', 'Taguig City'),
+                                               ('Voltmax Electrical Supply', 'Rodel Santos', 'Valenzuela City'),
+                                               ('Primeline Builders and Equipment Corp.', 'Antonio Velasco', 'Parañaque City')], 1):
         s = call('POST', '/suppliers', {'name': name, 'contact_person': contact, 'email': f'sales{i}@{name.split()[0].lower()}.com.ph',
-                                        'phone': f'(02) 8{i}12-34{i}0', 'address': f'{100 + i} Rizal Avenue, {city}', 'tin': f'00{i}-123-456-000',
-                                        'philgeps_reg_number': f'2026-0{i}1234', 'credit_terms': '30 days', 'is_msme': i % 2 == 1}, SA)
+                                        'phone': f'(02) 8{i % 10}12-34{i % 10}0', 'address': f'{100 + i} Rizal Avenue, {city}', 'tin': f'{i:03d}-123-456-000',
+                                        'philgeps_reg_number': f'2026-{i:02d}1234', 'credit_terms': '30 days', 'is_msme': i % 2 == 1}, SA)
         sid = s.get('id') or s.get('supplier', {}).get('id')
         for doc in ['PhilGEPS Certificate of Registration (Platinum)', 'PhilGEPS Organization ID', "Mayor's Permit", 'Income or Business Tax Return', 'Omnibus Sworn Statement']:
             call('POST', f'/suppliers/{sid}/compliance', {'document_type': doc, 'reference_number': f'{doc[:3].upper()}-{YEAR}-{i:03d}',
                                                           'issued_date': day(-60), 'expiry_date': day(300)}, SA)
         call('POST', f'/suppliers/{sid}/eligibility', {'eligible': True}, SA)
         SUP[name.split()[0]] = sid
-    for sid, (q, d, t, c, a) in zip(list(SUP.values()), [(5, 4, 4, 5, 4), (4, 4, 3, 5, 4), (4, 3, 3, 4, 3), (5, 5, 5, 5, 4), (4, 4, 4, 4, 3)]):
+    ratings = [(5, 4, 4, 5, 4), (4, 4, 3, 5, 4), (4, 3, 3, 4, 3), (5, 5, 5, 5, 4), (4, 4, 4, 4, 3),
+               (5, 4, 5, 5, 5), (3, 4, 3, 4, 3), (4, 5, 4, 4, 4), (4, 3, 4, 3, 4), (5, 5, 4, 5, 4)]
+    for sid, (q, d, t, c, a) in zip(list(SUP.values()), ratings):
         call('POST', f'/suppliers/{sid}/evaluations', {'evaluation_date': day(-15), 'quality_rating': q, 'delivery_rating': d, 'timeliness_rating': t,
                                                         'compliance_rating': c, 'after_sales_rating': a, 'reference': f'Mid-year rating {YEAR}',
                                                         'remarks': 'Semestral supplier performance evaluation'}, SA)
@@ -162,7 +203,8 @@ def main():
     # ── categories, items and opening stock ─────────────────────────────
     step('categories, items and opening stock')
     CAT = {}
-    for c in ['Office Supplies', 'Janitorial Supplies', 'ICT Equipment', 'Furniture and Fixtures', 'Medical Supplies']:
+    for c in ['Office Supplies', 'Janitorial Supplies', 'ICT Equipment', 'Furniture and Fixtures', 'Medical Supplies', 'Safety Equipment',
+              'Electrical Supplies', 'Medical Equipment', 'Printing Supplies', 'Communication Equipment']:
         r = call('POST', '/inventory/categories', {'name': c}, SA)
         CAT[c] = r.get('id') or r.get('category', {}).get('id')
     item_defs = [
@@ -172,8 +214,15 @@ def main():
         ('alcohol', 'Isopropyl alcohol 70%, 500 ml', 'Medical Supplies', 'bottle', 'consumable', 30, 150, [(80, 95, day(400), 'Green Cross')]),
         ('disinfectant', 'Disinfectant solution, 1 gallon', 'Janitorial Supplies', 'gallon', 'consumable', 10, 60, [(25, 450, day(500), 'Lysol')]),
         ('firstaid', 'First aid kit, office type', 'Medical Supplies', 'set', 'consumable', 5, 30, [(12, 1500, day(700), 'MedFirst')]),
+        ('envelope', 'Envelope, brown, long', 'Printing Supplies', 'box', 'consumable', 5, 40, [(15, 290, None, 'PS-DBM')]),
         ('chair', 'Office chair, ergonomic, with armrest', 'Furniture and Fixtures', 'unit', 'semi_expendable', 2, 20, [(8, 3500, None, 'Bayanihan')]),
         ('cabinet', 'Steel filing cabinet, 4-drawer', 'Furniture and Fixtures', 'unit', 'semi_expendable', 1, 10, [(4, 18000, None, 'Bayanihan')]),
+        ('whiteboard', 'Whiteboard, 4 x 8 ft, with stand', 'Furniture and Fixtures', 'unit', 'semi_expendable', 1, 10, [(6, 4300, None, 'Printworks')]),
+        ('extinguisher', 'Fire extinguisher, ABC dry chemical, 10 lbs', 'Safety Equipment', 'unit', 'semi_expendable', 4, 30, [(10, 2700, day(365), 'Safeguard')]),
+        ('fan', 'Electric fan, stand type, 16"', 'Electrical Supplies', 'unit', 'semi_expendable', 2, 20, [(15, 2100, None, 'Voltmax')]),
+        ('bpmonitor', 'Digital blood pressure monitor', 'Medical Equipment', 'unit', 'semi_expendable', 1, 10, [(6, 3000, None, 'Omron')]),
+        ('radio', 'Two-way radio, handheld, UHF', 'Communication Equipment', 'unit', 'semi_expendable', 2, 20, [(8, 6500, None, 'Motorola')]),
+        ('projector', 'Multimedia projector, 4000 lumens', 'ICT Equipment', 'unit', 'semi_expendable', 0, 0, [(3, 32000, None, 'Epson')]),
         ('laptop', 'Laptop computer, 14", Core i5, 16GB', 'ICT Equipment', 'unit', 'ppe', 0, 0, [(6, 62000, None, 'Lenovo')]),
         ('desktop', 'Desktop computer set, Core i5, 22" monitor', 'ICT Equipment', 'unit', 'ppe', 0, 0, [(4, 55000, None, 'Acer')]),
     ]
@@ -196,18 +245,21 @@ def main():
     step('BAC members, meetings and resolutions')
     for name, des, uid in [('Paolo Garcia', 'chairperson', U['paolo.garcia']), ('Grace Villanueva', 'vice_chairperson', None),
                            ('Carlo Bautista', 'member', None), ('Ramon Dela Cruz', 'member', None), ('Liza Mendoza', 'member', None),
-                           ('Joy Aquino', 'secretariat', U['joy.aquino'])]:
+                           ('Rosa Navarro', 'provisional_member', None), ('Marco Lim', 'twg', None), ('Victor Ramos', 'twg', None),
+                           ('Joy Aquino', 'secretariat', U['joy.aquino']), ('Dina Castro', 'secretariat', None)]:
         call('POST', '/bac/members', {'full_name': name, 'designation': des, 'user_id': uid, 'position': des.replace('_', ' ').title(),
                                       'appointment_order_no': f'SO-{YEAR}-014'}, SA)
     roster = [('Paolo Garcia', 'chairperson'), ('Grace Villanueva', 'vice_chairperson'), ('Carlo Bautista', 'member'),
               ('Ramon Dela Cruz', 'member'), ('Joy Aquino', 'secretariat')]
     MEET = []
     for i, title in enumerate(['Pre-procurement conference: ICT equipment', 'Opening of quotations: office furniture',
-                               'Post-qualification report: laptops', 'Award of SVP contracts', 'Mid-year procurement review'], 1):
-        m = call('POST', '/bac/meetings', {'title': title, 'meeting_date': f'{day(-40 + i * 6)}T09:00:00', 'venue': 'Conference Room A',
+                               'Post-qualification report: laptops', 'Award of SVP contracts', 'Pre-bid conference: generator set',
+                               'Opening of bids: air-conditioning units', 'Post-qualification report: desktop computers',
+                               'Mid-year procurement review', 'Pre-procurement conference: service vehicle', 'Opening of bids: CCTV system'], 1):
+        m = call('POST', '/bac/meetings', {'title': title, 'meeting_date': f'{day(-50 + i * 5)}T09:00:00', 'venue': 'Conference Room A',
                                            'agenda': title}, SA)
         MEET.append(m['id'])
-        if i <= 4:
+        if i <= 8:
             call('POST', f"/bac/meetings/{m['id']}/attendance", {'attendees': [{'name': n, 'committee_role': r, 'present': True} for n, r in roster]}, SA)
             call('PUT', f"/bac/meetings/{m['id']}", {'status': 'completed', 'minutes': f'Minutes of the {title.lower()}.'}, SA)
 
@@ -222,28 +274,56 @@ def main():
     step('PPMPs and the APP')
     GAA = 'General Appropriations Act (GAA)'
     PS, SVP, CB = 'Procurement from PS-DBM', 'Small Value Procurement', 'Competitive Bidding'
+    # key, office, description, unit, quantity, unit cost, mode, quarter: one purchase request per key.
+    PLAN = [
+        # Small Value Procurement, each bought through an RFQ
+        ('chairs', 'ADMIN', 'Office chair, ergonomic', 'unit', 10, 3800, SVP, 'Q2'),
+        ('toner', 'ADMIN', 'Toner cartridge, HP 85A', 'piece', 12, 4000, SVP, 'Q2'),
+        ('cabinets', 'FIN', 'Steel filing cabinet, 4-drawer', 'unit', 5, 19000, SVP, 'Q2'),
+        ('disinfectant', 'HRMO', 'Disinfectant solution, 1 gallon', 'gallon', 50, 480, SVP, 'Q2'),
+        ('firstaid', 'PDO', 'First aid kit, office type', 'set', 20, 1600, SVP, 'Q2'),
+        ('extinguishers', 'LEGAL', 'Fire extinguisher, ABC dry chemical, 10 lbs', 'unit', 8, 2800, SVP, 'Q2'),
+        ('projectors', 'ENG', 'Multimedia projector, 4000 lumens', 'unit', 3, 33000, SVP, 'Q3'),
+        ('whiteboards', 'PIO', 'Whiteboard, 4 x 8 ft, with stand', 'unit', 6, 4500, SVP, 'Q2'),
+        ('bpmonitors', 'MED', 'Digital blood pressure monitor', 'unit', 6, 3200, SVP, 'Q2'),
+        ('fans', 'IT', 'Electric fan, stand type, 16"', 'unit', 10, 2200, SVP, 'Q2'),
+        # Competitive Bidding
+        ('laptops', 'IT', 'Laptop computer, 14", Core i5', 'unit', 10, 65000, CB, 'Q2'),
+        ('desktops', 'IT', 'Desktop computer set', 'unit', 8, 58000, CB, 'Q2'),
+        ('switches', 'IT', 'Network switch, 24-port managed', 'unit', 4, 85000, CB, 'Q3'),
+        ('aircon', 'ADMIN', 'Air-conditioning unit, 2HP inverter', 'unit', 6, 45000, CB, 'Q3'),
+        ('printers', 'FIN', 'Multifunction printer, A3', 'unit', 5, 40000, CB, 'Q3'),
+        ('solar', 'HRMO', 'Solar street light, 100W, with pole', 'unit', 10, 38000, CB, 'Q4'),
+        ('genset', 'PDO', 'Generator set, 20 kVA, diesel', 'unit', 1, 900000, CB, 'Q3'),
+        ('cctv', 'LEGAL', 'CCTV system, 16 cameras, with NVR', 'lot', 1, 450000, CB, 'Q3'),
+        ('vehicle', 'ENG', 'Service vehicle, pick-up, 4x4', 'unit', 1, 1800000, CB, 'Q4'),
+        ('dental', 'MED', 'Dental chair unit, complete', 'unit', 2, 350000, CB, 'Q3'),
+        # Common-use supplies from PS-DBM
+        ('ps_bond', 'ADMIN', 'Bond paper, A4, 80gsm', 'ream', 100, 260, PS, 'Q1'),
+        ('ps_pen', 'FIN', 'Ballpen, black', 'piece', 500, 10, PS, 'Q1'),
+        ('ps_record', 'FIN', 'Record book, 300 pages', 'piece', 20, 75, PS, 'Q1'),
+        ('ps_alcohol', 'HRMO', 'Isopropyl alcohol 70%, 500 ml', 'bottle', 100, 100, PS, 'Q1'),
+        ('ps_bond2', 'PDO', 'Bond paper, A4, 80gsm (planning office)', 'ream', 50, 260, PS, 'Q1'),
+        ('ps_folder', 'LEGAL', 'Folder, tagboard, legal size', 'pack', 30, 170, PS, 'Q1'),
+        ('ps_staple', 'ENG', 'Staple wire, No. 35', 'box', 30, 35, PS, 'Q1'),
+        ('ps_envelope', 'PIO', 'Envelope, brown, long', 'box', 20, 300, PS, 'Q1'),
+        ('ps_tissue', 'MED', 'Tissue, toilet, 2-ply', 'pack', 40, 220, PS, 'Q1'),
+        ('ps_clips', 'IT', 'Paper clips, jumbo', 'box', 50, 25, PS, 'Q1'),
+    ]
 
     def line(desc, unit, qty, cost, mode, q):
         return {'general_description': desc, 'unit': unit, 'quantity': qty, 'estimated_unit_cost': cost, 'procurement_mode': mode,
                 'procurement_category': 'Goods', 'schedule': q, 'fund_source': GAA}
-    plans = {
-        'ADMIN': [line('Bond paper, A4, 80gsm', 'ream', 100, 260, PS, 'Q1'), line('Office chair, ergonomic', 'unit', 10, 3800, SVP, 'Q2'),
-                  line('Air-conditioning unit, 2HP inverter', 'unit', 6, 45000, CB, 'Q3'), line('Toner cartridge, HP 85A', 'piece', 12, 4000, SVP, 'Q2')],
-        'FIN': [line('Ballpen, black', 'piece', 500, 10, PS, 'Q1'), line('Steel filing cabinet, 4-drawer', 'unit', 5, 19000, SVP, 'Q2'),
-                line('Multifunction printer, A3', 'unit', 5, 40000, CB, 'Q3')],
-        'HRMO': [line('Isopropyl alcohol 70%, 500 ml', 'bottle', 100, 100, PS, 'Q1'), line('Disinfectant solution, 1 gallon', 'gallon', 50, 480, SVP, 'Q2')],
-        'IT': [line('Laptop computer, 14", Core i5', 'unit', 10, 65000, CB, 'Q2'), line('Desktop computer set', 'unit', 8, 58000, CB, 'Q2'),
-               line('Network switch, 24-port managed', 'unit', 4, 85000, CB, 'Q3'), line('Paper clips, jumbo', 'box', 50, 25, PS, 'Q1')],
-        'PDO': [line('First aid kit, office type', 'set', 20, 1600, SVP, 'Q2'), line('Bond paper, A4, 80gsm', 'ream', 50, 260, PS, 'Q1')],
-        # Submitted but not yet approved, so it is not in the APP.
-        'SPU': [line('Hand truck, heavy duty', 'unit', 2, 6500, SVP, 'Q3'), line('Storage rack, steel, 5-layer', 'unit', 6, 7800, SVP, 'Q3')],
-    }
-    for code, lines in plans.items():
+    for code in ['ADMIN', 'FIN', 'HRMO', 'PDO', 'LEGAL', 'ENG', 'PIO', 'MED', 'IT']:
         p = call('POST', '/procurement-planning/ppmps', {'department_id': depts[code], 'fiscal_year': YEAR, 'title': f'PPMP FY {YEAR} — {code}',
-                                                         'items': lines}, SA)
+                                                         'items': [line(*x[2:]) for x in PLAN if x[1] == code]}, SA)
         call('POST', f"/procurement-planning/ppmps/{p['id']}/submit", tok=SA)
-        if code != 'SPU':
-            call('POST', f"/procurement-planning/ppmps/{p['id']}/approve", tok=SA)
+        call('POST', f"/procurement-planning/ppmps/{p['id']}/approve", tok=SA)
+    # The supply unit's plan is submitted but not yet approved, so it is not in the APP.
+    p = call('POST', '/procurement-planning/ppmps', {'department_id': depts['SPU'], 'fiscal_year': YEAR, 'title': f'PPMP FY {YEAR} — SPU',
+                                                     'items': [line('Hand truck, heavy duty', 'unit', 2, 6500, SVP, 'Q3'),
+                                                               line('Storage rack, steel, 5-layer', 'unit', 6, 7800, SVP, 'Q3')]}, SA)
+    call('POST', f"/procurement-planning/ppmps/{p['id']}/submit", tok=SA)
     app = call('POST', '/procurement-planning/apps/generate', {'fiscal_year': YEAR}, SA)
     app = app.get('app', app)
     call('POST', f"/procurement-planning/apps/{app['id']}/approve", {}, SA)
@@ -253,65 +333,68 @@ def main():
 
     # ── purchase requests ───────────────────────────────────────────────
     step('purchase requests')
+    purposes = {'chairs': 'Replacement chairs for the Administrative Division', 'toner': 'Printer consumables, second quarter',
+                'cabinets': 'Records storage for disbursement vouchers', 'disinfectant': 'Sanitation of work areas', 'firstaid': 'First aid kits for all floors',
+                'extinguishers': 'Fire safety equipment for the legal office', 'projectors': 'Projectors for engineering briefings',
+                'whiteboards': 'Whiteboards for the press and briefing rooms', 'bpmonitors': 'Equipment for the clinic',
+                'fans': 'Electric fans for the server and staff rooms', 'laptops': 'Laptops for field staff', 'desktops': 'Replacement of old desktop units',
+                'switches': 'Network upgrade, second floor', 'aircon': 'Air-conditioning of the records room', 'printers': 'Printing of financial reports',
+                'solar': 'Lighting of the compound perimeter', 'genset': 'Standby power for the main building', 'cctv': 'Security cameras for the office',
+                'vehicle': 'Vehicle for site inspections', 'dental': 'Dental chairs for the clinic'}
 
-    def pr(code, desc, qty, purpose, approve=True, requester='liza.mendoza'):
+    def pr(key):
+        _, code, desc, unit, qty, cost, mode, _ = next(x for x in PLAN if x[0] == key)
         a = APPL[(depts[code], desc)]
-        body = {'purpose': purpose, 'priority': 'medium', 'app_id': app['id'], 'department_id': depts[code],
+        body = {'purpose': purposes.get(key, f'Common-use supplies: {desc.lower()}'), 'priority': 'medium', 'app_id': app['id'], 'department_id': depts[code],
                 'items': [{'app_item_id': a['id'], 'general_description': desc, 'unit': a['unit'], 'quantity': qty,
                            'estimated_unit_cost': float(a['unit_cost']), 'procurement_mode': a['procurement_mode']}]}
         d = call('POST', '/purchase-requests', body, SA)
-        if approve:
-            call('POST', f"/purchase-requests/{d['id']}/submit", tok=SA)
-            call('POST', f"/purchase-requests/{d['id']}/approve-step", {}, SA)
-            call('POST', f"/purchase-requests/{d['id']}/certify-funds", {}, SA)
-            for _ in range(3):
-                d = call('POST', f"/purchase-requests/{d['id']}/approve-step", {}, SA)
+        call('POST', f"/purchase-requests/{d['id']}/submit", tok=SA)
+        call('POST', f"/purchase-requests/{d['id']}/approve-step", {}, SA)
+        call('POST', f"/purchase-requests/{d['id']}/certify-funds", {}, SA)
+        for _ in range(3):
+            d = call('POST', f"/purchase-requests/{d['id']}/approve-step", {}, SA)
         return d
-    PR = {
-        'chairs': pr('ADMIN', 'Office chair, ergonomic', 10, 'Replacement chairs for the Administrative Division'),
-        'cabinets': pr('FIN', 'Steel filing cabinet, 4-drawer', 5, 'Records storage for disbursement vouchers'),
-        'firstaid': pr('PDO', 'First aid kit, office type', 20, 'First aid kits for all floors'),
-        'disinfectant': pr('HRMO', 'Disinfectant solution, 1 gallon', 50, 'Sanitation of work areas'),
-        'toner': pr('ADMIN', 'Toner cartridge, HP 85A', 12, 'Printer consumables, second quarter'),
-        'laptops': pr('IT', 'Laptop computer, 14", Core i5', 10, 'Laptops for field staff'),
-        'desktops': pr('IT', 'Desktop computer set', 8, 'Replacement of old desktop units'),
-        'aircon': pr('ADMIN', 'Air-conditioning unit, 2HP inverter', 6, 'Air-conditioning of the records room'),
-        'switches': pr('IT', 'Network switch, 24-port managed', 4, 'Network upgrade, second floor'),
-        'printers': pr('FIN', 'Multifunction printer, A3', 5, 'Printing of financial reports'),
-        'ps_bond': pr('ADMIN', 'Bond paper, A4, 80gsm', 100, 'Common-use supplies, first quarter'),
-        'ps_pen': pr('FIN', 'Ballpen, black', 500, 'Common-use supplies for Finance'),
-        'ps_alcohol': pr('HRMO', 'Isopropyl alcohol 70%, 500 ml', 100, 'Health and safety supplies'),
-        'ps_clips': pr('IT', 'Paper clips, jumbo', 50, 'Office supplies for IT'),
-    }
-    # Two still on their way: a draft and one at the department head.
-    draft = call('POST', '/purchase-requests', {'purpose': 'Storage racks for the supply room', 'priority': 'low', 'department_id': depts['SPU'],
-                                                'items': [{'general_description': 'Storage rack, steel, 5-layer', 'unit': 'unit', 'quantity': 4,
-                                                           'estimated_unit_cost': 7800, 'procurement_mode': SVP}]}, T['maria.santos'])
-    review = call('POST', '/purchase-requests', {'purpose': 'Extension cords and surge protectors', 'priority': 'high', 'department_id': depts['SPU'],
-                                                 'items': [{'general_description': 'Surge protector, 6-outlet', 'unit': 'piece', 'quantity': 15,
-                                                            'estimated_unit_cost': 850, 'procurement_mode': SVP}]}, T['maria.santos'])
-    call('POST', f"/purchase-requests/{review['id']}/submit", tok=T['maria.santos'])
+    PR = {x[0]: pr(x[0]) for x in PLAN}
+    # Still on their way: drafts and some at the department head.
+    for purpose, desc, unit, qty, cost, submit in [('Storage racks for the supply room', 'Storage rack, steel, 5-layer', 'unit', 4, 7800, False),
+                                                   ('Extension cords and surge protectors', 'Surge protector, 6-outlet', 'piece', 15, 850, True),
+                                                   ('Hand truck for deliveries', 'Hand truck, heavy duty', 'unit', 2, 6500, False),
+                                                   ('Label printer for property tags', 'Label printer, thermal', 'unit', 1, 9500, True)]:
+        d = call('POST', '/purchase-requests', {'purpose': purpose, 'priority': 'low' if not submit else 'high', 'department_id': depts['SPU'],
+                                                'items': [{'general_description': desc, 'unit': unit, 'quantity': qty, 'estimated_unit_cost': cost,
+                                                           'procurement_mode': SVP}]}, T['maria.santos'])
+        if submit:
+            call('POST', f"/purchase-requests/{d['id']}/submit", tok=T['maria.santos'])
 
     # ── RFQs (alternative modes) ────────────────────────────────────────
     step('RFQs with quotations, awards, NOA and NTP')
     quotes = {'chairs': [('Bayanihan', 3500), ('Mega', 3650), ('CleanPro', 3700)], 'cabinets': [('Bayanihan', 17800), ('Mega', 18500), ('Northpoint', 18900)],
               'firstaid': [('MedFirst', 1450), ('CleanPro', 1550), ('Mega', 1580)], 'disinfectant': [('CleanPro', 440), ('MedFirst', 460), ('Mega', 470)],
-              'toner': [('Northpoint', 3900), ('Mega', 3950), ('Bayanihan', 3990)]}
+              'extinguishers': [('Safeguard', 2650), ('CleanPro', 2700), ('Mega', 2750)], 'whiteboards': [('Bayanihan', 4200), ('Mega', 4350), ('Printworks', 4400)],
+              'bpmonitors': [('MedFirst', 2950), ('Healthline', 3050), ('Mega', 3100)], 'fans': [('Voltmax', 1990), ('Mega', 2100), ('CleanPro', 2150)]}
+    # awarded with NOA and NTP; quotations in, waiting for the deadline; issued; draft
+    rfq_stage = {'chairs': 'award', 'cabinets': 'award', 'firstaid': 'award', 'extinguishers': 'award', 'whiteboards': 'award', 'bpmonitors': 'award',
+                 'disinfectant': 'quoted', 'fans': 'quoted', 'projectors': 'issued', 'toner': 'draft'}
     RFQ = {}
-    for i, key in enumerate(['chairs', 'cabinets', 'firstaid', 'disinfectant', 'toner']):
+    for i, (key, stage) in enumerate(rfq_stage.items(), 1):
         p = PR[key]
         r = call('POST', '/rfq', {'title': p['purpose'], 'procurement_method': SVP, 'purchase_request_id': p['id'], 'deadline': f'{day(20)}T10:00:00',
-                                  'delivery_lead_days': 15, 'items': [{'purchase_request_item_id': x['id']} for x in p['items']]}, SA)
+                                  'delivery_lead_days': 15, 'documents_stage': 'offer',
+                                  'items': [{'purchase_request_item_id': x['id']} for x in p['items']]}, SA)
         RFQ[key] = r['id']
-        if key == 'toner':
-            continue  # stays a draft
+        if stage == 'draft':
+            continue
         call('POST', f"/rfq/{r['id']}/issue", tok=SA)
+        if stage == 'issued':
+            continue
         for n, (sup, price) in enumerate(quotes[key], 1):
-            call('POST', f"/rfq/{r['id']}/quotations", {'supplier_id': SUP[sup], 'quotation_number': f'Q-{YEAR}-{i}{n}', 'submitted_at': day(-1),
+            call('POST', f"/rfq/{r['id']}/quotations", {'supplier_id': SUP[sup], 'quotation_number': f'Q-{YEAR}-{i:02d}{n}', 'submitted_at': day(-1),
                                                        'items': [{'rfq_item_id': r['items'][0]['id'], 'unit_price': price}]}, SA)
-        if key == 'disinfectant':
-            continue  # quotations in, awaiting the deadline
-        sql(f"update rfqs set deadline = now() - interval '1 hour' where id = {r['id']}")
+        if stage == 'quoted':
+            continue
+        past = (manila_now() - datetime.timedelta(hours=1)).strftime('%Y-%m-%d %H:%M:%S')
+        sql(f"update rfqs set deadline = '{past}' where id = {r['id']}")
         d = call('POST', f"/rfq/{r['id']}/close", tok=SA)
         win = min(d['quotations'], key=lambda q: float(q['total_amount']))['id']
         call('POST', f"/rfq/{r['id']}/award", {'quotation_id': win, 'bac_resolution_id': resolution(p['id'], p['purpose'])}, SA)
@@ -320,7 +403,6 @@ def main():
 
     # ── competitive bidding ─────────────────────────────────────────────
     step('competitive biddings at different stages')
-    past = (datetime.datetime.now() - datetime.timedelta(hours=1)).strftime('%Y-%m-%d %H:%M:%S')
     BID = {}
 
     def bidding(key, title, stage, bids):
@@ -332,18 +414,24 @@ def main():
         call('POST', f"/bidding/{b['id']}/invitation", {'itb_reference': f'ITB-{YEAR}-{len(BID):03d}', 'submission_deadline': f'{day(25)}T10:00:00'}, SA)
         if stage == 'invitation':
             return
+        past = (manila_now() - datetime.timedelta(hours=1)).strftime('%Y-%m-%d %H:%M:%S')
         sql(f"update biddings set submission_deadline = '{past}', bid_opening_date = '{past}' where id = {b['id']}")
         call('POST', f"/bidding/{b['id']}/open-bids", tok=SA)
+        # The first envelopes are rated before the second (financial) envelopes are opened and read (IRR 59.1, 59.2).
         ids = []
         for sup, amount in bids:
-            d = call('POST', f"/bidding/{b['id']}/bidders", {'supplier_id': SUP[sup], 'bid_amount': amount, 'bid_security_form': 'bid_securing_declaration',
+            d = call('POST', f"/bidding/{b['id']}/bidders", {'supplier_id': SUP[sup], 'bid_security_form': 'bid_securing_declaration',
                                                               'bid_security_posted': True}, SA)
-            ids.append([x for x in d['bidders'] if x['supplier']['id'] == SUP[sup]][0]['id'])
+            ids.append(([x for x in d['bidders'] if x['supplier']['id'] == SUP[sup]][0]['id'], amount))
         if stage == 'opening':
             return
-        for bidder in ids:
-            for st in ['eligibility', 'technical', 'financial']:
+        for bidder, _ in ids:
+            for st in ['eligibility', 'technical']:
                 call('PUT', f'/bidding/bidders/{bidder}', {'stage': st, 'result': 'passed'}, SA)
+        call('POST', f"/bidding/{b['id']}/open-financial", tok=SA)
+        for bidder, amount in ids:
+            call('PUT', f'/bidding/bidders/{bidder}', {'bid_amount': amount}, SA)
+            call('PUT', f'/bidding/bidders/{bidder}', {'stage': 'financial', 'result': 'passed'}, SA)
         if stage == 'evaluation':
             return
         d = call('GET', f"/bidding/{b['id']}", tok=SA)
@@ -354,55 +442,102 @@ def main():
         call('POST', f"/bidding/{b['id']}/ntp", {}, SA, expect=None)
     bidding('laptops', 'Supply and delivery of laptop computers', 'award', [('Northpoint', 612000), ('Mega', 640000)])
     bidding('desktops', 'Supply and delivery of desktop computer sets', 'award', [('Northpoint', 448000), ('Bayanihan', 455000)])
-    bidding('aircon', 'Supply and installation of air-conditioning units', 'evaluation', [('CleanPro', 262000), ('Bayanihan', 258000)])
+    bidding('aircon', 'Supply and installation of air-conditioning units', 'award', [('Primeline', 258000), ('CleanPro', 262000)])
+    bidding('genset', 'Supply and installation of a 20 kVA generator set', 'award', [('Primeline', 870000), ('Voltmax', 885000)])
+    bidding('printers', 'Supply of A3 multifunction printers', 'evaluation', [('Printworks', 195000), ('Northpoint', 198000)])
+    bidding('dental', 'Supply of dental chair units', 'evaluation', [('Healthline', 680000), ('MedFirst', 690000)])
     bidding('switches', 'Supply of managed network switches', 'opening', [('Northpoint', 330000)])
-    bidding('printers', 'Supply of A3 multifunction printers', 'invitation', [])
+    bidding('cctv', 'Supply and installation of a CCTV system', 'opening', [('Safeguard', 440000), ('Voltmax', 445000)])
+    bidding('vehicle', 'Supply of a 4x4 service vehicle', 'invitation', [])
+    bidding('solar', 'Supply and installation of solar street lights', 'draft', [])
+
+    # ── unsolicited offers ──────────────────────────────────────────────
+    step('unsolicited offers at different stages')
+    offers = [('Safeguard', 'AI-assisted fire detection for the records room', 1250000, 'received'),
+              ('Northpoint', 'Paperless records management platform', 2400000, 'received'),
+              ('Voltmax', 'Smart metering of office power use', 680000, 'received'),
+              ('Primeline', 'Modular rainwater harvesting for the compound', 950000, 'not_needed'),
+              ('Healthline', 'Telemedicine kiosk for the clinic', 1800000, 'awaiting_documents'),
+              ('Printworks', 'On-demand printing of forms with tracking', 520000, 'awaiting_documents'),
+              ('Northpoint', 'Self-service property tagging with RFID', 1600000, 'evaluation'),
+              ('Mega', 'Vendor-managed inventory of common supplies', 750000, 'evaluation'),
+              ('Voltmax', 'Solar-powered charging stations', 1100000, 'negotiation'),
+              ('Safeguard', 'Integrated building safety monitoring', 2900000, 'original_offeror')]
+    for sup, title, amount, stage in offers:
+        o = call('POST', '/unsolicited-offers', {'supplier_id': SUP[sup], 'title': title, 'concept': f'{title}: a new solution not yet offered to the agency.',
+                                                 'category': 'Goods', 'proposed_amount': amount, 'received_date': day(-20)}, SA)
+        oid = o['id']
+        if stage == 'received':
+            continue
+        if stage == 'not_needed':
+            call('POST', f'/unsolicited-offers/{oid}/assess', {'needed': False, 'notice_date': day(-15), 'reason': 'Not in the agency\'s plans for the year.'}, SA)
+            continue
+        call('POST', f'/unsolicited-offers/{oid}/assess', {'needed': True, 'notice_date': day(-18)}, SA)
+        if stage == 'awaiting_documents':
+            continue
+        call('POST', f'/unsolicited-offers/{oid}/documents', {'concept_details': True, 'proof_of_concept': True, 'eligibility_documents': True,
+                                                              'terms_and_consent': True, 'date': day(-15)}, SA)
+        if stage == 'evaluation':
+            continue
+        call('POST', f'/unsolicited-offers/{oid}/evaluate', {'favorable': True, 'new_concept_basis': 'significant_benefit', 'funds_available': True,
+                                                             'eligibility_verified': True, 'date': day(-10), 'negotiation_start': day(-9)}, SA)
+        if stage == 'negotiation':
+            continue
+        call('POST', f'/unsolicited-offers/{oid}/negotiation', {'successful': True, 'date': day(-5), 'negotiated_amount': amount * 0.95,
+                                                                'terms': 'Price and delivery as negotiated', 'certification_number': f'OOS-{YEAR}-001'}, SA)
 
     # ── purchase orders, receiving, contracts ───────────────────────────
     step('purchase orders, inspection and acceptance, contracts')
     POS = {}
-    for key, kind, src in [('chairs', 'rfq', RFQ['chairs']), ('cabinets', 'rfq', RFQ['cabinets']), ('firstaid', 'rfq', RFQ['firstaid']),
-                           ('laptops', 'bidding', BID['laptops'])]:
-        po = call('POST', '/procurement/purchase-orders', {'source_type': kind, 'source_id': src, 'delivery_date': day(10),
+    po_stage = [('chairs', 'rfq', 'confirmed'), ('cabinets', 'rfq', 'confirmed'), ('firstaid', 'rfq', 'confirmed'), ('extinguishers', 'rfq', 'confirmed'),
+                ('whiteboards', 'rfq', 'sent'), ('bpmonitors', 'rfq', 'draft'), ('laptops', 'bidding', 'confirmed'), ('desktops', 'bidding', 'confirmed'),
+                ('aircon', 'bidding', 'confirmed'), ('genset', 'bidding', 'confirmed')]
+    for key, kind, stage in po_stage:
+        po = call('POST', '/procurement/purchase-orders', {'source_type': kind, 'source_id': RFQ[key] if kind == 'rfq' else BID[key], 'delivery_date': day(10),
                                                            'delivery_address': 'Supply and Property Unit, Main Building'}, T['maria.santos'])
         POS[key] = po['id']
+        if stage == 'draft':
+            continue
         call('POST', f"/procurement/purchase-orders/{po['id']}/send", tok=SA)
-        if key != 'firstaid':
+        if stage == 'confirmed':
             call('POST', f"/procurement/purchase-orders/{po['id']}/confirm", tok=SA)
-    target = {'chairs': 'chair', 'cabinets': 'cabinet', 'laptops': 'laptop'}
-    for key in ['chairs', 'cabinets', 'laptops']:
+    # Deliveries: accepted into stock, a partial delivery, and some awaiting acceptance.
+    for key, target, brand, months, accept, short in [('chairs', 'chair', 'Bayanihan', 12, True, 0), ('cabinets', 'cabinet', 'Bayanihan', 12, False, 1),
+                                                      ('firstaid', None, None, 0, False, 0), ('extinguishers', 'extinguisher', 'Safeguard', 12, True, 0),
+                                                      ('laptops', 'laptop', 'Lenovo', 36, True, 0), ('desktops', 'desktop', 'Acer', 36, True, 0),
+                                                      ('genset', None, None, 0, False, 0)]:
         po = call('GET', f'/procurement/purchase-orders/{POS[key]}', tok=SA)
-        line = po['items'][0]
-        qty = line['quantity'] if key != 'cabinets' else line['quantity'] - 1
+        ln = po['items'][0]
+        qty = ln['quantity'] - short
         iar = call('POST', '/receiving/inspection-reports', {'purchase_order_id': POS[key], 'delivery_date': day(0), 'inspection_date': day(0),
-                                                             'items': [{'purchase_order_item_id': line['id'], 'quantity_received': qty, 'quantity_accepted': qty}]},
+                                                             'items': [{'purchase_order_item_id': ln['id'], 'quantity_received': qty, 'quantity_accepted': qty}]},
                    T['ana.cruz'])
-        if key != 'cabinets':
+        if accept:
             call('POST', f"/receiving/inspection-reports/{iar['id']}/accept",
-                 {'lines': [{'iar_item_id': iar['items'][0]['id'], 'item_id': IT[target[key]], 'location': 'Main stockroom',
-                             'brand_name': 'Lenovo' if key == 'laptops' else 'Bayanihan', 'warranty_months': 36 if key == 'laptops' else 12}]}, T['jose.reyes'])
-    # The first-aid kits: supplier confirmed, delivery awaiting inspection.
-    call('POST', f"/procurement/purchase-orders/{POS['firstaid']}/confirm", tok=SA)
-    po = call('GET', f"/procurement/purchase-orders/{POS['firstaid']}", tok=SA)
-    call('POST', '/receiving/inspection-reports', {'purchase_order_id': POS['firstaid'], 'delivery_date': day(0), 'inspection_date': day(0),
-                                                   'items': [{'purchase_order_item_id': po['items'][0]['id'], 'quantity_received': po['items'][0]['quantity'],
-                                                              'quantity_accepted': po['items'][0]['quantity']}]}, T['ana.cruz'])
+                 {'lines': [{'iar_item_id': iar['items'][0]['id'], 'item_id': IT[target], 'location': 'Main stockroom',
+                             'brand_name': brand, 'warranty_months': months}]}, T['jose.reyes'])
     CON = {}
-    for key, kind, src, ctype in [('chairs', 'rfq', RFQ['chairs'], 'Goods'), ('cabinets', 'rfq', RFQ['cabinets'], 'Goods'),
-                                  ('firstaid', 'rfq', RFQ['firstaid'], 'Goods'), ('laptops', 'bidding', BID['laptops'], 'Goods'),
-                                  ('desktops', 'bidding', BID['desktops'], 'Goods')]:
-        c = call('POST', '/contracts', {'source_type': kind, 'source_id': src, 'contract_type': ctype, 'start_date': day(0), 'end_date': day(120),
-                                        'signed_date': day(0) if key in ('laptops', 'chairs') else None}, SA)
+    for key, kind in [('chairs', 'rfq'), ('cabinets', 'rfq'), ('firstaid', 'rfq'), ('extinguishers', 'rfq'), ('whiteboards', 'rfq'), ('bpmonitors', 'rfq'),
+                      ('laptops', 'bidding'), ('desktops', 'bidding'), ('aircon', 'bidding'), ('genset', 'bidding')]:
+        signed = key in ('laptops', 'desktops', 'chairs', 'extinguishers', 'genset')
+        c = call('POST', '/contracts', {'source_type': kind, 'source_id': RFQ[key] if kind == 'rfq' else BID[key], 'contract_type': 'Goods',
+                                        'start_date': day(0), 'end_date': day(120), 'signed_date': day(0) if signed else None}, SA)
         CON[key] = c['id']
-    c = call('GET', f"/contracts/{CON['laptops']}", tok=SA)
-    call('POST', f"/contracts/{CON['laptops']}/securities", {'security_type': 'Performance Security', 'form': 'Surety Bond', 'reference_number': 'SB-2026-0451',
-                                                            'amount': round(float(c['amount']) * 0.30, 2), 'posted_date': day(0), 'validity_date': day(180)}, SA)
-    call('POST', f"/contracts/{CON['laptops']}/activate", tok=SA, expect=None)
+    for key, ref in [('laptops', 'SB-2026-0451'), ('desktops', 'SB-2026-0452'), ('genset', 'SB-2026-0453')]:
+        c = call('GET', f"/contracts/{CON[key]}", tok=SA)
+        call('POST', f"/contracts/{CON[key]}/securities", {'security_type': 'Performance Security', 'form': 'Surety Bond', 'reference_number': ref,
+                                                          'amount': round(float(c['amount']) * 0.30, 2), 'posted_date': day(0), 'validity_date': day(180)}, SA)
+        call('POST', f"/contracts/{CON[key]}/activate", tok=SA, expect=None)
+    optional('POST', f"/contracts/{CON['genset']}/amendments", {'title': 'Additional automatic transfer switch', 'description': 'Adds an ATS to the scope',
+                                                                 'amount_change': 45000, 'remarks': 'Requested by the end user'}, SA)
+    optional('POST', f"/contracts/{CON['desktops']}/extensions", {'requested_days': 15, 'reason': 'Delayed shipment of monitors', 'requested_date': day(0)}, SA)
 
     # ── payments ────────────────────────────────────────────────────────
     step('payment schedules')
     for key, desc, pct in [('laptops', 'Progress billing: delivery and acceptance', 100), ('chairs', 'Full payment upon acceptance', 100),
-                           ('cabinets', 'Partial delivery', 80), ('firstaid', 'Full payment upon acceptance', 100), ('desktops', 'Advance payment', 15)]:
+                           ('cabinets', 'Partial delivery', 80), ('firstaid', 'Full payment upon acceptance', 100), ('desktops', 'Advance payment', 15),
+                           ('extinguishers', 'Full payment upon acceptance', 100), ('whiteboards', 'Full payment upon delivery', 100),
+                           ('bpmonitors', 'Full payment upon acceptance', 100), ('aircon', 'Advance payment', 15), ('genset', 'Progress billing: installation', 50)]:
         call('POST', '/payments/tranches', {'type': 'contract', 'id': CON[key], 'description': desc, 'percentage': pct, 'due_date': day(30)}, SA, expect=None)
 
     # ── PS-DBM ──────────────────────────────────────────────────────────
@@ -410,16 +545,26 @@ def main():
     CATL = {}
     for code, desc, unit, price in [('PS-OS-0001', 'Paper, multicopy, A4, 80gsm', 'ream', 245.50), ('PS-OS-0002', 'Ballpen, black, retractable', 'piece', 8.25),
                                     ('PS-MS-0003', 'Alcohol, ethyl, 70% solution, 500 ml', 'bottle', 92.00), ('PS-OS-0004', 'Paper clip, vinyl-coated, jumbo', 'box', 22.80),
-                                    ('PS-OS-0005', 'Folder, tagboard, legal size', 'pack', 165.00)]:
+                                    ('PS-OS-0005', 'Folder, tagboard, legal size', 'pack', 165.00), ('PS-OS-0006', 'Record book, 300 pages', 'piece', 72.00),
+                                    ('PS-OS-0007', 'Staple wire, No. 35', 'box', 32.50), ('PS-OS-0008', 'Envelope, documentary, brown, long', 'box', 285.00),
+                                    ('PS-JS-0009', 'Tissue paper, toilet, 2-ply', 'pack', 210.00), ('PS-OS-0010', 'Paper, multicopy, A4, 70gsm', 'ream', 230.00)]:
         CATL[code] = call('POST', '/ps-dbm/catalogue', {'code': code, 'description': desc, 'unit': unit, 'unit_price': price, 'price_as_of': day(-30)}, SA)['id']
-    for key, code, stage in [('ps_bond', 'PS-OS-0001', 'delivered'), ('ps_pen', 'PS-OS-0002', 'paid'), ('ps_alcohol', 'PS-MS-0003', 'submitted'),
-                             ('ps_clips', 'PS-OS-0004', 'draft')]:
+    for key, code, stage, stock_item in [('ps_bond', 'PS-OS-0001', 'delivered', 'bond'), ('ps_pen', 'PS-OS-0002', 'delivered', 'pen'),
+                                         ('ps_alcohol', 'PS-MS-0003', 'delivered', 'alcohol'), ('ps_clips', 'PS-OS-0004', 'paid', None),
+                                         ('ps_envelope', 'PS-OS-0008', 'paid', None), ('ps_tissue', 'PS-JS-0009', 'submitted', None),
+                                         ('ps_record', 'PS-OS-0006', 'submitted', None), ('ps_folder', 'PS-OS-0005', 'not_available', None),
+                                         ('ps_bond2', 'PS-OS-0010', 'draft', None), ('ps_staple', 'PS-OS-0007', 'draft', None)]:
         p = PR[key]
         o = call('POST', '/ps-dbm/orders', {'purchase_request_id': p['id'], 'items': [{'purchase_request_item_id': x['id'], 'quantity': x['quantity'],
                                                                                          'ps_catalogue_item_id': CATL[code]} for x in p['items']]}, T['maria.santos'])
         if stage == 'draft':
             continue
         o = call('POST', f"/ps-dbm/orders/{o['id']}/submit", {'vs_reference': f'VS-{YEAR}-00{o["id"]}4512', 'submitted_date': day(-7)}, T['maria.santos'])
+        if stage == 'not_available':
+            # PS had no stock, so the line was certified not available.
+            call('POST', f"/ps-dbm/orders/{o['id']}/items/{o['items'][0]['id']}/not-available", {'cnas_number': f'CNAS-{YEAR}-0217', 'cnas_date': day(-1)},
+                 T['maria.santos'])
+            continue
         if stage == 'submitted':
             continue
         o = call('POST', f"/ps-dbm/orders/{o['id']}/pay", {'payment_mode': 'lddap_ada', 'payment_reference': f'LDDAP-ADA {YEAR}-10-{o["id"]:03d}',
@@ -427,27 +572,14 @@ def main():
         if stage == 'paid':
             continue
         o = call('POST', f"/ps-dbm/orders/{o['id']}/deliver", {'dr_number': f'PS-DR-{YEAR}-77{o["id"]}31', 'dr_date': day(-2), 'delivery_mode': 'pickup'}, T['maria.santos'])
-        # The bond paper from PS, inspected and taken into stock.
+        # Inspected and taken into stock.
         po = call('GET', f"/procurement/purchase-orders/{o['purchase_order']['id']}", tok=SA)
-        line_ = po['items'][0]
+        ln = po['items'][0]
         iar = call('POST', '/receiving/inspection-reports', {'purchase_order_id': po['id'], 'delivery_date': day(-1), 'inspection_date': day(-1),
-                                                             'items': [{'purchase_order_item_id': line_['id'], 'quantity_received': line_['quantity'],
-                                                                        'quantity_accepted': line_['quantity']}]}, T['ana.cruz'])
-        call('POST', f"/receiving/inspection-reports/{iar['id']}/accept", {'lines': [{'iar_item_id': iar['items'][0]['id'], 'item_id': IT['bond'],
+                                                             'items': [{'purchase_order_item_id': ln['id'], 'quantity_received': ln['quantity'],
+                                                                        'quantity_accepted': ln['quantity']}]}, T['ana.cruz'])
+        call('POST', f"/receiving/inspection-reports/{iar['id']}/accept", {'lines': [{'iar_item_id': iar['items'][0]['id'], 'item_id': IT[stock_item],
                                                                                       'location': 'Main stockroom', 'brand_name': 'PS-DBM'}]}, T['jose.reyes'])
-    # A fifth request: PS had no stock, so the line was certified not available.
-    extra = call('POST', '/purchase-requests', {'purpose': 'Folders for records', 'priority': 'low', 'department_id': depts['HRMO'],
-                                                'items': [{'general_description': 'Folder, tagboard, legal size', 'unit': 'pack', 'quantity': 20,
-                                                           'estimated_unit_cost': 170, 'procurement_mode': PS}]}, SA)
-    call('POST', f"/purchase-requests/{extra['id']}/submit", tok=SA)
-    call('POST', f"/purchase-requests/{extra['id']}/approve-step", {}, SA)
-    call('POST', f"/purchase-requests/{extra['id']}/certify-funds", {}, SA)
-    for _ in range(3):
-        extra = call('POST', f"/purchase-requests/{extra['id']}/approve-step", {}, SA)
-    o = call('POST', '/ps-dbm/orders', {'purchase_request_id': extra['id'], 'items': [{'purchase_request_item_id': extra['items'][0]['id'], 'quantity': 20,
-                                                                                         'ps_catalogue_item_id': CATL['PS-OS-0005']}]}, T['maria.santos'])
-    o = call('POST', f"/ps-dbm/orders/{o['id']}/submit", {'vs_reference': f'VS-{YEAR}-0098812'}, T['maria.santos'])
-    call('POST', f"/ps-dbm/orders/{o['id']}/items/{o['items'][0]['id']}/not-available", {'cnas_number': f'CNAS-{YEAR}-0217', 'cnas_date': day(-1)}, T['maria.santos'])
 
     # ── supply requests and issuance ────────────────────────────────────
     step('supply requests and issuance')
@@ -461,6 +593,9 @@ def main():
         ('liza.mendoza', 'FIN', 'Chairs for the cashier window', [('chair', 2)], 'issue'),
         ('ben.torres', 'HRMO', 'Filing cabinet for personnel records', [('cabinet', 1)], 'issue'),
         ('liza.mendoza', 'FIN', 'Filing cabinet for vouchers', [('cabinet', 1)], 'issue'),
+        ('ben.torres', 'HRMO', 'Electric fans for the training room', [('fan', 3)], 'issue'),
+        ('liza.mendoza', 'FIN', 'Envelopes for remittances', [('envelope', 2)], 'pending'),
+        ('ben.torres', 'HRMO', 'Fire extinguisher for the HR office', [('extinguisher', 1)], 'issue'),
     ]
     for who, code, purpose, items, outcome in reqs:
         r = call('POST', '/requests', {'department_id': depts[code], 'purpose': purpose, 'priority': 'medium',
@@ -471,67 +606,97 @@ def main():
         elif outcome == 'reject':
             call('PUT', f'/requests/{rid}/reject', {'reason': 'Toner already issued this quarter'}, SA)
 
-    # ── stock adjustments ───────────────────────────────────────────────
-    step('stock adjustments')
+    # ── stock adjustments and transfers ─────────────────────────────────
+    step('stock adjustments and transfers')
     for k, kind, qty, reason, approve in [('alcohol', 'decrease', 12, 'Expired lot, for condemnation', True),
                                           ('pen', 'decrease', 5, 'Damaged in storage', True),
                                           ('bond', 'increase', 3, 'Count variance found in physical count', True),
                                           ('disinfectant', 'decrease', 1, 'Container leaked', False),
-                                          ('firstaid', 'increase', 2, 'Donation from the provincial health office', False)]:
+                                          ('firstaid', 'increase', 2, 'Donation from the provincial health office', False),
+                                          ('envelope', 'decrease', 1, 'Water damage in the stockroom', True),
+                                          ('toner', 'decrease', 1, 'Defective cartridge, not covered by warranty', True),
+                                          ('fan', 'increase', 1, 'Unit found unrecorded in the annex', False),
+                                          ('whiteboard', 'decrease', 1, 'Cracked during handling', False),
+                                          ('radio', 'increase', 1, 'Returned unit found in storage', True)]:
         a = call('POST', '/stock-adjustments', {'item_id': IT[k], 'adjustment_type': kind, 'quantity': qty, 'reason': reason,
-                                                'unit_cost': 1500 if k == 'firstaid' else None}, T['ana.cruz'])
+                                                'unit_cost': {'firstaid': 1500, 'fan': 2100, 'radio': 6500, 'bond': 245}.get(k) if kind == 'increase' else None},
+                 T['ana.cruz'])
         if approve:
             call('POST', f"/stock-adjustments/{a['id']}/approve", {}, SA, expect=None)
+    for k, qty, to in [('bond', 20, 'Annex stockroom'), ('pen', 50, 'Annex stockroom'), ('alcohol', 10, 'Clinic stockroom'), ('disinfectant', 5, 'Annex stockroom'),
+                       ('firstaid', 3, 'Clinic stockroom'), ('envelope', 3, 'Annex stockroom'), ('fan', 2, 'Annex stockroom'), ('radio', 2, 'Security office'),
+                       ('extinguisher', 2, 'Annex stockroom'), ('whiteboard', 1, 'Annex stockroom')]:
+        lot = max(lots_of(IT[k], SA), key=lambda l: l['quantity'])
+        call('POST', '/inventory/transfer-stock', {'stock_id': lot['id'], 'to_location': to, 'quantity': qty, 'transfer_date': day(-3),
+                                                   'remarks': 'Moved closer to the users'}, SA)
 
-    # ── assets, gate passes ─────────────────────────────────────────────
-    step('assets and gate passes')
-    lots = call('GET', f"/inventory/items/{IT['laptop']}/lots", tok=SA)
-    lots = lots.get('data', lots) if isinstance(lots, dict) else lots
-    lot_id = max(lots, key=lambda l: l['quantity'])['id']
-    holders = [U['maria.santos'], U['jose.reyes'], U['liza.mendoza'], U['carlo.bautista'], U['ramon.delacruz']]
+    # ── assets, transfers, gate passes ──────────────────────────────────
+    step('assets, transfers and gate passes')
+    lot_id = max(lots_of(IT['laptop'], SA), key=lambda l: l['quantity'])['id']
+    holders = ['maria.santos', 'jose.reyes', 'liza.mendoza', 'carlo.bautista', 'ramon.delacruz', 'grace.villanueva', 'paolo.garcia', 'joy.aquino',
+               'elena.pascual', 'nora.flores']
     A = []
-    for n, holder in enumerate(holders, 1):
-        reg = call('POST', '/properties', {'item_id': IT['laptop'], 'stock_id': lot_id, 'assigned_to': holder, 'assigned_date': day(-20),
+    for n, h in enumerate(holders, 1):
+        reg = call('POST', '/properties', {'item_id': IT['laptop'], 'stock_id': lot_id, 'assigned_to': U[h], 'assigned_date': day(-20),
                                            'units': [{'tag_number': f'PROP-{YEAR}-LT{n:03d}', 'serial_number': f'PF3K{n:04d}X'}]}, SA)
         A.append(reg['properties'][0]['id'])
-    dl = call('GET', f"/inventory/items/{IT['desktop']}/lots", tok=SA)
-    dl = dl.get('data', dl) if isinstance(dl, dict) else dl
-    reg = call('POST', '/properties', {'item_id': IT['desktop'], 'stock_id': dl[0]['id'], 'assigned_to': U['ramon.delacruz'], 'assigned_date': day(-300),
-                                       'units': [{'tag_number': f'PROP-{YEAR}-DT{n:03d}', 'serial_number': f'DT9{n:03d}'} for n in range(1, 4)]}, SA)
+    dl = min(lots_of(IT['desktop'], SA), key=lambda l: l['id'])
+    reg = call('POST', '/properties', {'item_id': IT['desktop'], 'stock_id': dl['id'], 'assigned_to': U['ramon.delacruz'], 'assigned_date': day(-300),
+                                       'units': [{'tag_number': f'PROP-{YEAR}-DT{n:03d}', 'serial_number': f'DT9{n:03d}'} for n in range(1, 5)]}, SA)
     D = [p['id'] for p in reg['properties']]
-    for n, (aid, by, purpose, back) in enumerate([(A[0], 'Maria Santos', 'Supplier site inspection', 2), (A[1], 'Jose Reyes', 'Training at the regional office', 5),
-                                                  (A[2], 'Liza Mendoza', 'Field audit', 1), (A[3], 'Carlo Bautista', 'Repair at the service center', 10),
-                                                  (A[4], 'Ramon Dela Cruz', 'Inventory of field office property', 3)]):
+    for aid, to, why in [(A[8], 'grace.villanueva', 'Reassigned within the Finance Division'), (A[9], 'ramon.delacruz', 'Custodian moved to the property office'),
+                         (A[6], 'carlo.bautista', 'Reassigned to the IT help desk')]:
+        optional('POST', f'/properties/{aid}/transfer', {'to_user': U[to], 'reason': why, 'date': day(-7), 'condition': 'good'}, SA)
+    gate = [('Maria Santos', 'Supplier site inspection', 2), ('Jose Reyes', 'Training at the regional office', 5), ('Liza Mendoza', 'Field audit', 1),
+            ('Carlo Bautista', 'Repair at the service center', 10), ('Ramon Dela Cruz', 'Inventory of field office property', 3),
+            ('Grace Villanueva', 'Budget hearing at the regional office', 2), ('Paolo Garcia', 'Pre-bid conference off-site', 1),
+            ('Joy Aquino', 'BAC documentation at the provincial office', 4), ('Elena Pascual', 'Audit exit conference', 2),
+            ('Nora Flores', 'Cash examination at the field office', 3)]
+    for n, (aid, (by, purpose, back)) in enumerate(zip(A, gate)):
         g = call('POST', '/gate-pass', {'property_id': aid, 'received_by': by, 'purpose': purpose, 'date_released': day(-3), 'expected_return_date': day(back)}, SA)
-        if n < 2:
+        if n % 2 == 0:
             call('POST', f"/gate-pass/{g['id']}/return", {'condition_on_return': 'good', 'actual_return_date': day(-1), 'returned_by': by}, SA)
 
     # ── locations and maintenance ───────────────────────────────────────
     step('asset locations and maintenance')
+    known = {l['name']: l['id'] for l in (lambda r: r.get('data', r) if isinstance(r, dict) else r)(call('GET', '/locations', tok=SA))}
     LOC = []
     for name, bldg, floor, room in [('Supply and Property Office', 'Main Building', '1F', '104'), ('ICT Server Room', 'Main Building', '2F', '210'),
                                     ('Finance Division', 'Main Building', '2F', '201'), ('Records Storage', 'Annex', 'Ground', 'R-1'),
-                                    ('Conference Room A', 'Main Building', '3F', '301')]:
-        LOC.append(call('POST', '/locations', {'name': name, 'building': bldg, 'floor': floor, 'room': room}, SA)['id'])
-    for aid, loc in zip(A + D, [LOC[0], LOC[2], LOC[2], LOC[1], LOC[0], LOC[1], LOC[3], LOC[4]]):
+                                    ('Conference Room A', 'Main Building', '3F', '301'), ('Legal Services Office', 'Main Building', '3F', '305'),
+                                    ('Engineering Office', 'Annex', '2F', 'A-201'), ('Public Information Office', 'Main Building', '1F', '110'),
+                                    ('Medical and Dental Clinic', 'Annex', 'Ground', 'A-102'), ('BAC Secretariat Office', 'Main Building', '3F', '310')]:
+        LOC.append(known.get(name) or call('POST', '/locations', {'name': name, 'building': bldg, 'floor': floor, 'room': room}, SA)['id'])
+    for aid, loc in zip(A + D, [LOC[0], LOC[0], LOC[2], LOC[1], LOC[0], LOC[2], LOC[4], LOC[9], LOC[2], LOC[0], LOC[3], LOC[3], LOC[3], LOC[1]]):
         call('POST', f'/properties/{aid}/location', {'location_id': loc, 'remarks': 'Initial location'}, SA)
-    for aid, kind, work, due, every in [(D[0], 'preventive', 'Clean and dust the desktop, check fans', -10, 6), (D[1], 'preventive', 'Clean and dust the desktop, check fans', 12, 6),
-                                        (A[3], 'corrective', 'Replace the laptop battery', -2, None), (D[2], 'inspection', 'Annual inspection of the UPS and power supply', 25, 12),
-                                        (A[0], 'preventive', 'OS and antivirus update', -40, 3)]:
+    for aid, kind, work, due, every, done in [
+            (A[0], 'preventive', 'OS and antivirus update', -40, 3, ('ICT Unit', 0, None)),
+            (A[1], 'preventive', 'Clean the keyboard and vents', 12, 6, None),
+            (A[2], 'preventive', 'Battery health check', -10, 6, None),
+            (A[3], 'corrective', 'Replace the laptop battery', -2, None, ('Laptop service center', 3850, 'Battery replaced')),
+            (A[4], 'inspection', 'Annual inspection of property', 25, 12, None),
+            (A[5], 'corrective', 'Replace the cracked screen hinge', -6, None, ('Laptop service center', 2200, 'Hinge replaced')),
+            (A[6], 'preventive', 'OS and antivirus update', 30, 3, None),
+            (A[7], 'preventive', 'Disk clean-up and backup', -3, 3, None),
+            (D[3], 'preventive', 'Clean and dust the desktop, check fans', 7, 6, None),
+            (A[9], 'inspection', 'Check before reassignment', -1, None, ('ICT Unit', 0, 'In good condition'))]:
         m = call('POST', '/maintenance', {'property_id': aid, 'maintenance_type': kind, 'description': work, 'scheduled_date': day(due), 'interval_months': every}, SA)
-        if due == -40:
-            call('POST', f"/maintenance/{m['id']}/complete", {'completed_date': day(-38), 'performed_by': 'ICT Unit', 'cost': 0}, SA)
-        if kind == 'corrective':
-            call('POST', f"/maintenance/{m['id']}/complete", {'completed_date': day(-1), 'performed_by': 'Laptop service center', 'cost': 3850, 'remarks': 'Battery replaced'}, SA)
+        if done:
+            by, cost, remarks = done
+            call('POST', f"/maintenance/{m['id']}/complete", {'completed_date': day(min(due + 2, 0)), 'performed_by': by, 'cost': cost, 'remarks': remarks}, SA)
 
     # ── physical counts ─────────────────────────────────────────────────
     step('physical counts')
     P = '/physical-inventory/counts'
     for ctype, purpose, stage in [('supplies', 'Year-end count of supplies', 'record'), ('semi_expendable', 'Semi-expendable property count', 'draft'),
                                   ('ppe', 'Annual PPE count (RPCPPE)', 'start'), ('supplies', 'Surprise count, medical supplies', 'draft'),
-                                  ('supplies', 'Mid-year count of supplies', 'draft')]:
-        c = call('POST', P, {'count_type': ctype, 'count_date': day(0), 'purpose': purpose,
-                             'category_id': CAT['Medical Supplies'] if 'medical' in purpose else None}, SA)
+                                  ('supplies', 'Mid-year count of supplies', 'draft'), ('supplies', 'Count of janitorial supplies', 'draft'),
+                                  ('semi_expendable', 'Count of furniture and fixtures', 'draft'), ('ppe', 'Count of ICT equipment', 'draft'),
+                                  ('supplies', 'Turnover count, new supply officer', 'draft'), ('semi_expendable', 'Count of safety equipment', 'draft')]:
+        category = {'medical': 'Medical Supplies', 'janitorial': 'Janitorial Supplies', 'furniture': 'Furniture and Fixtures', 'ICT': 'ICT Equipment',
+                    'safety': 'Safety Equipment'}
+        cat = next((CAT[v] for k, v in category.items() if k in purpose), None) if ctype == 'supplies' else None
+        c = call('POST', P, {'count_type': ctype, 'count_date': day(0), 'purpose': purpose, 'category_id': cat}, SA)
         cid = c.get('count', c)['id']
         if stage == 'draft':
             continue
@@ -543,61 +708,86 @@ def main():
 
     # ── disposal ────────────────────────────────────────────────────────
     step('disposals')
-    for i, aid in enumerate(D):
+    for aid in D[:3]:
         call('POST', f'/properties/{aid}/return', {'reason': 'Unserviceable, beyond economical repair', 'condition': 'poor'}, SA)
     disposals = [
-        {'disposal_category': 'property', 'property_id': D[0], 'disposal_type': 'condemnation', 'reason': 'Unserviceable desktop, motherboard failure'},
-        {'disposal_category': 'property', 'property_id': D[1], 'disposal_type': 'public_auction', 'reason': 'Obsolete desktop set'},
-        {'disposal_category': 'property', 'property_id': D[2], 'disposal_type': 'donation', 'reason': 'Donation to a public school'},
-        {'disposal_category': 'inventory', 'item_id': IT['disinfectant'], 'quantity': 2, 'disposal_type': 'destruction', 'reason': 'Containers damaged'},
-        {'disposal_category': 'inventory', 'item_id': IT['pen'], 'quantity': 10, 'disposal_type': 'destruction', 'reason': 'Dried out ink'},
+        ({'disposal_category': 'property', 'property_id': D[0], 'disposal_type': 'condemnation', 'reason': 'Unserviceable desktop, motherboard failure'}, 'complete'),
+        ({'disposal_category': 'property', 'property_id': D[1], 'disposal_type': 'public_auction', 'reason': 'Obsolete desktop set'}, 'approve'),
+        ({'disposal_category': 'property', 'property_id': D[2], 'disposal_type': 'donation', 'reason': 'Donation to a public school'}, 'approve'),
+        ({'disposal_category': 'inventory', 'item_id': IT['disinfectant'], 'quantity': 2, 'disposal_type': 'destruction', 'reason': 'Containers damaged'}, 'submit'),
+        ({'disposal_category': 'inventory', 'item_id': IT['pen'], 'quantity': 10, 'disposal_type': 'destruction', 'reason': 'Dried out ink'}, 'draft'),
+        ({'disposal_category': 'inventory', 'item_id': IT['toner'], 'quantity': 1, 'disposal_type': 'destruction', 'reason': 'Leaking toner cartridge'}, 'complete'),
+        ({'disposal_category': 'inventory', 'item_id': IT['bond'], 'quantity': 2, 'disposal_type': 'destruction', 'reason': 'Water-damaged reams'}, 'approve'),
+        ({'disposal_category': 'inventory', 'item_id': IT['firstaid'], 'quantity': 1, 'disposal_type': 'destruction', 'reason': 'Contents expired'}, 'submit'),
+        ({'disposal_category': 'inventory', 'item_id': IT['envelope'], 'quantity': 1, 'disposal_type': 'sale', 'reason': 'Surplus of an old design'}, 'submit'),
+        ({'disposal_category': 'inventory', 'item_id': IT['whiteboard'], 'quantity': 1, 'disposal_type': 'donation', 'reason': 'Donation to a day care center'}, 'draft'),
     ]
-    for n, body in enumerate(disposals):
+    for body, stage in disposals:
         d = call('POST', '/disposal/requests', {**body, 'remarks': 'Inspected by the Inspection Committee'}, T['ramon.delacruz'])
-        if n == 4:
-            continue  # draft
+        if stage == 'draft':
+            continue
         call('POST', f"/disposal/requests/{d['id']}/submit", tok=T['ramon.delacruz'])
-        if n == 3:
-            continue  # awaiting approval
+        if stage == 'submit':
+            continue
         call('POST', f"/disposal/requests/{d['id']}/approve", {'remarks': 'Approved per IIRUP'}, SA)
-        if n == 0:
+        if stage == 'complete':
             call('POST', f"/disposal/requests/{d['id']}/complete", {'disposal_date': day(0)}, SA)
 
     # ── petty cash ──────────────────────────────────────────────────────
-    step('petty cash fund and vouchers')
+    step('petty cash fund, vouchers and a replenishment')
     f = call('POST', '/petty-cash/funds', {'fund_name': f'Petty Cash Fund {YEAR} — Administrative Division', 'custodian_id': U['nora.flores'],
-                                           'amount': 20000, 'fund_cluster': '01'}, SA)
+                                           'amount': 50000, 'fund_cluster': '01'}, SA)
     fid = f.get('id') or f.get('fund', {}).get('id')
     for n, (payee, particulars, amount) in enumerate([('Pandayan Bookshop', 'Folders and fasteners', 850), ('Grab Philippines', 'Transport, delivery of documents', 320),
                                                       ('Ace Hardware', 'Electrical repair parts', 2450), ('LBC Express', 'Courier of reports to the regional office', 480),
-                                                      ('Mercury Drug', 'Medicines for the first aid kit', 1275)]):
+                                                      ('Mercury Drug', 'Medicines for the first aid kit', 1275), ('National Book Store', 'Logbooks and index cards', 640),
+                                                      ('Wilcon Depot', 'Plumbing fittings for the comfort room', 1980), ('Meralco', 'Reconnection fee, annex meter', 1500),
+                                                      ('Shell Station', 'Fuel for the service vehicle, emergency trip', 2000), ('Jollibee', 'Meals for the BAC meeting', 2350)]):
         v = call('POST', f'/petty-cash/funds/{fid}/vouchers', {'payee': payee, 'particulars': particulars, 'amount': amount, 'voucher_date': day(-n)},
                  T['nora.flores'])
-        if n < 3:
+        if n < 7:
             vid = [x for x in v['vouchers'] if x['payee'] == payee][0]['id'] if 'vouchers' in v else v['id']
             call('POST', f'/petty-cash/vouchers/{vid}/approve', tok=SA)
+    optional('POST', f'/petty-cash/funds/{fid}/replenishments', {'report_date': day(0), 'reference': f'RPCF-{YEAR}-001', 'remarks': 'First replenishment'},
+             T['nora.flores'])
 
     # ── documents ───────────────────────────────────────────────────────
     step('documents')
     for title, dtype, owner, oid in [('Purchase request — office chairs', 'PR', 'PurchaseRequest', PR['chairs']['id']),
+                                     ('Purchase request — laptops', 'PR', 'PurchaseRequest', PR['laptops']['id']),
                                      ('Notice of Award — laptops', 'NOA', None, None),
+                                     ('Notice to Proceed — generator set', 'NTP', None, None),
                                      ('Purchase order — steel cabinets', 'PO', 'PurchaseOrder', POS['cabinets']),
+                                     ('Purchase order — fire extinguishers', 'PO', 'PurchaseOrder', POS['extinguishers']),
                                      ('Contract — laptop computers', 'CONTRACT', 'Contract', CON['laptops']),
-                                     ('BAC resolution — SVP awards', 'BAC_RESOLUTION', None, None)]:
+                                     ('Contract — generator set', 'CONTRACT', 'Contract', CON['genset']),
+                                     ('BAC resolution — SVP awards', 'BAC_RESOLUTION', None, None),
+                                     ('Minutes — mid-year procurement review', 'OTHER', None, None)]:
         fields = {'title': title, 'type': dtype, 'description': title}
         if owner:
             fields.update({'documentable_type': owner, 'documentable_id': oid})
-        upload('/documents', fields, title.split(' —')[0].replace(' ', '_') + '.pdf', pdf(title), SA)
+        upload('/documents', fields, title.replace(' — ', '_').replace(' ', '_') + '.pdf', pdf(title), SA)
 
     # ── clearance and digital signing ───────────────────────────────────
     step('clearances and signing requests')
-    call('POST', '/clearances', {'user_id': U['liza.mendoza'], 'purpose': 'transfer', 'purpose_details': 'Transfer to the regional office', 'effective_date': day(30)}, SA)
-    call('POST', '/clearances', {'user_id': U['carlo.bautista'], 'purpose': 'end_of_contract', 'effective_date': day(14)}, SA)
-    c = call('POST', '/clearances', {'user_id': U['ben.torres'], 'purpose': 'resignation', 'effective_date': day(7)}, SA)
-    call('POST', f"/clearances/{c['id']}/issue", tok=SA)
+    for who, purpose, details, eff, issue in [('liza.mendoza', 'transfer', 'Transfer to the regional office', 30, False),
+                                              ('carlo.bautista', 'end_of_contract', None, 14, False),
+                                              ('ben.torres', 'resignation', None, 7, False),
+                                              ('rosa.navarro', 'retirement', 'Compulsory retirement', 45, True),
+                                              ('marco.lim', 'transfer', 'Detail to the central office', 20, True),
+                                              ('dina.castro', 'resignation', None, 10, True),
+                                              ('victor.ramos', 'leave', 'Study leave of one year', 60, False),
+                                              ('grace.villanueva', 'retirement', 'Optional retirement', 90, False),
+                                              ('joy.aquino', 'transfer', 'Transfer to the provincial office', 30, False),
+                                              ('paolo.garcia', 'end_of_contract', None, 21, False)]:
+        c = optional('POST', '/clearances', {'user_id': U[who], 'purpose': purpose, 'purpose_details': details, 'effective_date': day(eff)}, SA)
+        if c and issue:
+            optional('POST', f"/clearances/{c['id']}/issue", tok=SA)
     for title, signer in [('Property Card — laptop', 'ramon.delacruz'), ('RSMI — last month', 'liza.mendoza'), ('Inspection and Acceptance Report', 'ana.cruz'),
-                          ('Clearance certificate — Ben Torres', 'ramon.delacruz'), ('Waste Materials Report', 'jose.reyes')]:
-        upload('/signing/requests', {'title': title, 'signer_id': U[signer]}, title.split(' —')[0].replace(' ', '_') + '.pdf', pdf(title), T['maria.santos'])
+                          ('Clearance certificate — Ben Torres', 'ramon.delacruz'), ('Waste Materials Report', 'jose.reyes'),
+                          ('Report of Physical Count — supplies', 'jose.reyes'), ('Purchase order — chairs', 'ramon.delacruz'),
+                          ('Gate pass — laptop', 'ramon.delacruz'), ('Petty cash replenishment report', 'liza.mendoza'), ('IIRUP — desktops', 'ana.cruz')]:
+        upload('/signing/requests', {'title': title, 'signer_id': U[signer]}, title.replace(' — ', '_').replace(' ', '_') + '.pdf', pdf(title), T['maria.santos'])
 
     print('Done. Demo staff sign in with', DEMO_PASSWORD, '(e.g. maria.santos@agency.gov.ph).')
 
