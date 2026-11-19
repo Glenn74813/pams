@@ -275,7 +275,15 @@ function ViewRow({ l }: { l: AppLine }) {
     <tr>
       <td>
         {l.general_description}
-        <div className="muted small">{l.ppmp_number}</div>
+        <div className="muted small">
+          {l.ppmp_number}
+          {l.item && (
+            <>
+              {" · stock item "}
+              <span className="mono">{l.item.code}</span>
+            </>
+          )}
+        </div>
       </td>
       <td>{l.department?.name ?? "—"}</td>
       <td>{l.procurement_mode}</td>

@@ -139,3 +139,7 @@
     grid-column: 1 / -1;
   }
 }
+
+/* Reorder → purchase request */
+.reorder-group { margin-top: 1rem; }
+.reorder-group h4 { margin: 0; }

@@ -106,6 +106,11 @@ export function PpmpDetailModal({ ppmpId, onClose, onEdit, onChanged }: Props) {
                     <td>
                       {l.general_description}
                       {l.specifications && <div className="muted small">{l.specifications}</div>}
+                      {l.item && (
+                        <div className="muted small">
+                          Stock item <span className="mono">{l.item.code}</span>
+                        </div>
+                      )}
                       {l.is_sustainable && <span className="badge st-ok">Green</span>}
                     </td>
                     <td className="num">

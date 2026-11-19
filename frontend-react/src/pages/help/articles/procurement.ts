@@ -27,7 +27,7 @@ export const procurementArticles: Article[] = [
         steps(
           'On the **PPMP** tab, click **+ New PPMP**.',
           'Choose the **Department** (only agency-wide users get a choice; everyone else uses their own department), the **Fiscal year**, and type a **Title**. **Remarks** are optional.',
-          'Click **+ Add line** for each item or project. Fill in **Description**, **Quantity** (at least 1), **Est. unit cost (₱)** and **Mode of procurement**. Optional: **Category** (Goods by default), **Source of funds**, **Schedule** (Q1 to Q4), **Accounting code** (UACS object code), **Technical specifications** and **Green / sustainable procurement**.',
+          'Click **+ Add line** for each item or project. Fill in **Description**, **Quantity** (at least 1), **Est. unit cost (₱)** and **Mode of procurement**. Optional: **Category** (Goods by default), **Source of funds**, **Schedule** (Q1 to Q4), **Accounting code** (UACS object code), **Technical specifications** and **Green / sustainable procurement**. For a stocked item, choose it under **Catalogue item**: the warehouse\'s reorder list can then draw a purchase request on this line once it is in the approved APP.',
           'Click **Save draft**. The PPMP gets a number like PPMP-2027-0001 (the fiscal year, not the calendar year).',
           'When it is complete, open it and click **Submit for review**.',
         ),

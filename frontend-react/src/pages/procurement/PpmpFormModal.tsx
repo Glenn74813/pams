@@ -39,6 +39,7 @@ export function PpmpFormModal({ ppmp, options, onClose, onSaved }: Props) {
       schedule: l.schedule ?? '',
       fund_source: l.fund_source ?? '',
       is_sustainable: l.is_sustainable,
+      item: l.item,
     })) ?? [blankLine()],
   )
   const [error, setError] = useState<string | null>(null)

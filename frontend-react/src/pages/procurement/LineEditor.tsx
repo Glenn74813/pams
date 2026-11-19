@@ -1,4 +1,5 @@
 import type { ProcurementOptions } from '../../api/types'
+import { ItemPicker } from '../../components/ItemPicker'
 import { formatPeso } from '../../lib/format'
 import { QUARTER_LABEL } from './labels'
 import { lineTotal, type EditLine } from './lines'
@@ -31,6 +32,34 @@ export function LineEditor({ lines, onChange, options, planning }: Props) {
               </button>
             </div>
             <div className="form-grid four">
+              {planning && (
+                <div className="field span-4">
+                  <label htmlFor={id('item')}>Catalogue item</label>
+                  {l.item ? (
+                    <div className="chosen">
+                      <span>
+                        <span className="mono">{l.item.code}</span> {l.item.name}
+                      </span>
+                      <button type="button" className="link-btn" onClick={() => set(l.key, { item: null })}>
+                        Change
+                      </button>
+                    </div>
+                  ) : (
+                    <ItemPicker
+                      id={id('item')}
+                      placeholder="For a stocked item, so its reorder can draw on this line"
+                      onPick={(it) =>
+                        set(l.key, {
+                          item: { id: it.id, code: it.code, name: it.name },
+                          general_description: l.general_description || it.name,
+                          unit: l.unit || it.unit_of_measure,
+                          estimated_unit_cost: l.estimated_unit_cost || (it.weighted_average_cost ? String(it.weighted_average_cost) : ''),
+                        })
+                      }
+                    />
+                  )}
+                </div>
+              )}
               <div className="field span-4">
                 <label htmlFor={id('desc')}>Description *</label>
                 <input id={id('desc')} value={l.general_description} maxLength={255} required onChange={(e) => set(l.key, { general_description: e.target.value })} />

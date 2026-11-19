@@ -6,6 +6,7 @@ so every business rule, number series and audit entry is the real thing.
     PAMS_API=http://127.0.0.1:8095/api python3 tools/seed_demo.py
     PAMS_DB=mssql PAMS_API=http://127.0.0.1:8096/api python3 tools/seed_demo.py
     python3 tools/seed_demo.py --next-year-only    # only next fiscal year's PPMPs and draft APP, on an already seeded database
+    python3 tools/seed_demo.py --link-items        # link the plan lines of an already seeded database to the stock items they buy
 
 Run it on an empty database (fresh migration, or after clearing the data). It needs:
   - the backend running at PAMS_API with the seeded Super Admin (superadmin@inventory.com / admin123);
@@ -100,7 +101,7 @@ def sql(q):
     """Runs one portable UPDATE on the database behind the API."""
     if MSSQL:
         subprocess.run(['docker', 'exec', os.environ.get('PAMS_MSSQL_CONTAINER', 'pams-mssql'), '/opt/mssql-tools18/bin/sqlcmd', '-C', '-S', 'localhost',
-                        '-U', 'sa', '-P', env('MSSQL_SA_PASSWORD'), '-d', os.environ.get('PAMS_MSSQL_DB', 'pams'), '-b', '-Q', 'SET NOCOUNT ON; ' + q],
+                        '-U', 'sa', '-P', env('MSSQL_SA_PASSWORD'), '-d', os.environ.get('PAMS_MSSQL_DB', 'pams'), '-b', '-I', '-Q', 'SET NOCOUNT ON; ' + q],
                        check=True, capture_output=True)
         return
     subprocess.run(['psql', '-h', os.environ.get('PGHOST', '127.0.0.1'), '-U', os.environ.get('PGUSER', 'inventory'),
@@ -175,16 +176,31 @@ def uacs(desc, unit_cost):
         w in d for w in ('extinguisher', 'fan', 'monitor', 'counter', 'truck', 'jack', 'surge', 'label', 'air-conditioning')) else '5020399000')  # semi-expendable office equipment; other supplies
 
 
+def catalogue(SA):
+    """Stock item ids by lower-case name."""
+    out = {}
+    for i in call('GET', '/inventory/items/options', tok=SA):
+        out[i['name'].lower()] = i['id']
+    return out
+
+
+def item_for(desc, items):
+    """The stock item a plan line buys: the same name, or one a prefix of the other (\"Ballpen, black\" and \"Ballpen, black, 0.5mm\")."""
+    d = desc.lower()
+    return next((i for name, i in items.items() if d == name or name.startswith(d) or d.startswith(name)), None)
+
+
 def plan_next_year(SA, depts):
     """Next fiscal year's PPMPs, being prepared now: drafts, submitted, under review, returned and approved, and the
     draft APP consolidated from those approved so far. The planning page opens on the coming year."""
     step(f'PPMPs and the draft APP for FY {YEAR + 1}')
     GAA = 'General Appropriations Act (GAA)'
     PS, SVP, CB = 'Procurement from PS-DBM', 'Small Value Procurement', 'Competitive Bidding'
+    items = catalogue(SA)
 
     def line(desc, unit, qty, cost, mode, q):
         return {'general_description': desc, 'code': uacs(desc, cost), 'unit': unit, 'quantity': qty, 'estimated_unit_cost': cost, 'procurement_mode': mode,
-                'procurement_category': 'Goods', 'schedule': q, 'fund_source': GAA}
+                'procurement_category': 'Goods', 'schedule': q, 'fund_source': GAA, 'item_id': item_for(desc, items)}
     plans = [
         ('ADMIN', 'approved', [line('Bond paper, A4, 80gsm', 'ream', 120, 265, PS, 'Q1'), line('Office table, executive', 'unit', 4, 12500, SVP, 'Q2'),
                                line('Air-conditioning unit, 1.5HP inverter', 'unit', 8, 38000, CB, 'Q2')]),
@@ -238,6 +254,25 @@ def main():
                 code = uacs(l['general_description'], float(l['estimated_unit_cost']))
                 if l.get('code') != code:
                     sql(f"update ppmp_items set code = '{code}' where id = {l['id']}")
+        print('Done.')
+        return
+    if '--link-items' in sys.argv:
+        # Stock items on plan lines seeded before lines could name them (a direct UPDATE: approved plans are locked); APP lines copy them.
+        step('stock items on PPMP and APP lines')
+        items = catalogue(SA)
+        ids, page = [], 1
+        while True:
+            r = call('GET', f'/procurement-planning/ppmps?page={page}', tok=SA)
+            ids += [p['id'] for p in r['data']]
+            if page >= r['pagination']['last_page']:
+                break
+            page += 1
+        for pid in ids:
+            for l in call('GET', f'/procurement-planning/ppmps/{pid}', tok=SA)['items']:
+                item = item_for(l['general_description'], items)
+                if item and not l.get('item'):
+                    sql(f"update ppmp_items set item_id = {item} where id = {l['id']}")
+        sql('update app_items set item_id = (select pi.item_id from ppmp_items pi where pi.id = app_items.ppmp_item_id) where item_id is null and ppmp_item_id is not null')
         print('Done.')
         return
     if '--next-year-only' in sys.argv:
@@ -413,9 +448,11 @@ def main():
         ('ps_clips', 'IT', 'Paper clips, jumbo', 'box', 50, 25, PS, 'Q1'),
     ]
 
+    items = catalogue(SA)
+
     def line(desc, unit, qty, cost, mode, q):
         return {'general_description': desc, 'code': uacs(desc, cost), 'unit': unit, 'quantity': qty, 'estimated_unit_cost': cost, 'procurement_mode': mode,
-                'procurement_category': 'Goods', 'schedule': q, 'fund_source': GAA}
+                'procurement_category': 'Goods', 'schedule': q, 'fund_source': GAA, 'item_id': item_for(desc, items)}
     for code in ['ADMIN', 'FIN', 'HRMO', 'PDO', 'LEGAL', 'ENG', 'PIO', 'MED', 'IT']:
         p = call('POST', '/procurement-planning/ppmps', {'department_id': depts[code], 'fiscal_year': YEAR, 'title': f'PPMP FY {YEAR} — {code}',
                                                          'items': [line(*x[2:]) for x in PLAN if x[1] == code]}, SA)

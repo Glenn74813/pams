@@ -48,13 +48,13 @@ public class ProcurementRules {
     /** A line as the client sends it, for a PPMP or a purchase request. */
     public record LineInput(String generalDescription, String specifications, String code, String unit, Integer quantity,
                             BigDecimal estimatedUnitCost, String procurementMode, String procurementCategory, Boolean isSustainable,
-                            String schedule, String fundSource, String remarks, Long appItemId) {
+                            String schedule, String fundSource, String remarks, Long appItemId, Long itemId) {
     }
 
     /** A checked, trimmed line. */
     public record Line(String description, String specifications, String code, String unit, int quantity, BigDecimal unitCost,
                        BigDecimal total, String mode, String category, boolean sustainable, String schedule, String fundSource,
-                       String remarks, Long appItemId) {
+                       String remarks, Long appItemId, Long itemId) {
     }
 
     /**
@@ -95,7 +95,7 @@ public class ProcurementRules {
             if (code != null && code.length() > 100) throw ApiException.validation(f + "code", "Line " + (i + 1) + ": accounting code is too long.");
             BigDecimal total = cost.multiply(BigDecimal.valueOf(l.quantity())).setScale(2, RoundingMode.HALF_UP);
             out.add(new Line(desc, text(l.specifications()), code, unit, l.quantity(), cost.setScale(2, RoundingMode.HALF_UP), total,
-                    mode, category, Boolean.TRUE.equals(l.isSustainable()), schedule, fund, text(l.remarks()), l.appItemId()));
+                    mode, category, Boolean.TRUE.equals(l.isSustainable()), schedule, fund, text(l.remarks()), l.appItemId(), l.itemId()));
         }
         return out;
     }

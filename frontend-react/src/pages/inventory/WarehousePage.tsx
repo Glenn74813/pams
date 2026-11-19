@@ -11,6 +11,7 @@ import { useDebounced } from '../../lib/hooks'
 import { AddStockModal } from './AddStockModal'
 import { StockLevelBadge } from './badges'
 import { ItemDetailModal } from './ItemDetailModal'
+import { ReorderPrModal } from '../procurement/ReorderPrModal'
 import './inventory.css'
 
 type Tab = 'overview' | 'received' | 'transfers' | 'expiring'
@@ -46,6 +47,10 @@ function Overview() {
   const [page, setPage] = useState(1)
   const [onlyReorder, setOnlyReorder] = useState(true)
   const [viewing, setViewing] = useState<number | null>(null)
+  const { can } = useAuth()
+  const canRequest = can('create_procurement', 'edit_procurement')
+  const [picked, setPicked] = useState<number[]>([])
+  const [reordering, setReordering] = useState(false)
   const items = useQuery({
     queryKey: ['items', 'warehouse', page, onlyReorder],
     queryFn: () => inventoryApi.items({ page, stock_level: onlyReorder ? 'attention' : undefined }),
@@ -84,6 +89,16 @@ function Overview() {
           <button className="btn btn-outline btn-sm" onClick={() => window.print()}>
             🖨 Print
           </button>
+          {canRequest && (
+            <button
+              className="btn btn-primary btn-sm"
+              onClick={() => setReordering(true)}
+              disabled={!picked.length && !attention.data?.pagination.total}
+              title={picked.length ? undefined : 'Every item at or below its reorder point'}
+            >
+              Create purchase request{picked.length ? ` (${picked.length})` : ''}
+            </button>
+          )}
         </div>
       </div>
 
@@ -91,6 +106,7 @@ function Overview() {
         <table className="table">
           <thead>
             <tr>
+              {canRequest && <th className="no-print" aria-label="Reorder" />}
               <th>Code</th>
               <th>Item</th>
               <th className="num">On hand</th>
@@ -104,6 +120,18 @@ function Overview() {
           <tbody>
             {items.data?.data.map((i) => (
               <tr key={i.id}>
+                {canRequest && (
+                  <td className="no-print">
+                    {reorderQty(i) != null && (
+                      <input
+                        type="checkbox"
+                        aria-label={`Reorder ${i.name}`}
+                        checked={picked.includes(i.id)}
+                        onChange={(e) => setPicked((p) => (e.target.checked ? [...p, i.id] : p.filter((x) => x !== i.id)))}
+                      />
+                    )}
+                  </td>
+                )}
                 <td className="mono">{i.code}</td>
                 <td>
                   <button className="link-btn" onClick={() => setViewing(i.id)}>
@@ -124,7 +152,7 @@ function Overview() {
             ))}
             {items.data && items.data.data.length === 0 && (
               <tr>
-                <td colSpan={8} className="empty">
+                <td colSpan={canRequest ? 9 : 8} className="empty">
                   {onlyReorder ? 'Nothing needs reordering.' : 'No items yet.'}
                 </td>
               </tr>
@@ -134,6 +162,15 @@ function Overview() {
       </div>
       <Pager pagination={items.data?.pagination} onPage={setPage} />
       {viewing !== null && <ItemDetailModal itemId={viewing} onClose={() => setViewing(null)} />}
+      {reordering && (
+        <ReorderPrModal
+          itemIds={picked}
+          onClose={() => {
+            setReordering(false)
+            setPicked([])
+          }}
+        />
+      )}
     </>
   )
 }

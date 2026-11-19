@@ -71,6 +71,7 @@ import type {
   Role,
   RoleOption,
   User,
+  ReorderPlan,
 } from './types'
 
 export const authApi = {
@@ -392,6 +393,7 @@ export interface PlanLineInput {
   fund_source?: string | null
   remarks?: string | null
   app_item_id?: number | null
+  item_id?: number | null
 }
 
 export interface PpmpInput {
@@ -457,6 +459,9 @@ export const prApi = {
   approveStep: (id: number, remarks?: string) => api<PurchaseRequest>('POST', `/purchase-requests/${id}/approve-step`, { remarks }),
   returnStep: (id: number, reason: string) => api<PurchaseRequest>('POST', `/purchase-requests/${id}/return`, { return_reason: reason }),
   certifyFunds: (id: number, input: { caf_amount?: number; caf_remarks?: string }) => api<PurchaseRequest>('POST', `/purchase-requests/${id}/certify-funds`, input),
+  /** Items to reorder (all at or below the reorder point when none are given), matched to the APP lines that plan them. */
+  reorder: (itemIds?: number[]) =>
+    api<ReorderPlan>('GET', '/purchase-requests/reorder', undefined, { params: { item_ids: itemIds?.length ? itemIds.join(',') : undefined } }),
 }
 
 export interface RfqInput {

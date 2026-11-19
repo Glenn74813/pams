@@ -100,9 +100,14 @@ public class PlanningController {
                           Map<String, BigDecimal> ceilings) {
     }
 
+    /** The catalogue item a plan line buys. */
+    public record ItemRef(Long id, String code, String name) {
+    }
+
     public record PpmpLineView(Long id, String generalDescription, String specifications, String code, String unit, int quantity,
                                BigDecimal estimatedUnitCost, BigDecimal estimatedTotal, String procurementMode,
-                               String procurementCategory, boolean isSustainable, String schedule, String fundSource, String remarks) {
+                               String procurementCategory, boolean isSustainable, String schedule, String fundSource, String remarks,
+                               ItemRef item) {
     }
 
     public record PpmpView(Long id, String ppmpNumber, Ref department, Integer fiscalYear, String title, String status,
@@ -117,7 +122,7 @@ public class PlanningController {
                               String unit, String procurementMode, String procurementCategory, int quantity, BigDecimal estimatedBudget,
                               BigDecimal unitCost, String schedule, String fundSource, int requestedQuantity, int remainingQuantity,
                               BigDecimal requestedAmount, BigDecimal utilizedAmount, BigDecimal remainingBudget,
-                              BigDecimal utilizationRate, String status) {
+                              BigDecimal utilizationRate, String status, ItemRef item) {
     }
 
     public record AppView(Long id, String appNumber, Integer fiscalYear, String title, String status, BigDecimal totalBudget,
@@ -549,9 +554,13 @@ public class PlanningController {
         if (title == null) throw ApiException.validation("title", "Give the PPMP a title.");
         if (title.length() > 255) throw ApiException.validation("title", "Keep the title under 255 characters.");
         List<ProcurementRules.Line> lines = rules.lines(in.items(), true);
+        Map<Long, ItemRef> catalogue = itemRefs(lines.stream().map(ProcurementRules.Line::itemId));
         for (int i = 0; i < lines.size(); i++) {
             ProcurementRules.Line l = lines.get(i);
             rules.checkCeiling("items." + i + ".procurement_mode", l.description(), l.mode(), l.total());
+            if (l.itemId() != null && !catalogue.containsKey(l.itemId())) {
+                throw ApiException.validation("items." + i + ".item_id", "Line " + (i + 1) + ": that catalogue item does not exist.");
+            }
         }
         p.setTitle(title);
         p.setRemarks(ProcurementRules.text(in.remarks()));
@@ -562,7 +571,7 @@ public class PlanningController {
 
     private static ProcurementRules.Line withCategory(ProcurementRules.Line l) {
         return new ProcurementRules.Line(l.description(), l.specifications(), l.code(), l.unit(), l.quantity(), l.unitCost(), l.total(),
-                l.mode(), "Goods", l.sustainable(), l.schedule(), l.fundSource(), l.remarks(), null);
+                l.mode(), "Goods", l.sustainable(), l.schedule(), l.fundSource(), l.remarks(), null, l.itemId());
     }
 
     private Ppmp lockPpmp(Long id) {
@@ -605,6 +614,7 @@ public class PlanningController {
                         inApp.put(rs.getLong(1), rs.getString(2));
                     }, list.stream().map(Ppmp::getId).toArray());
         }
+        Map<Long, ItemRef> catalogue = withItems ? itemRefs(list.stream().flatMap(p -> p.getItems().stream()).map(PpmpItem::getItemId)) : Map.of();
         boolean approver = current.any("approve_ppmp");
         User me = current.user();
         Map<Ppmp, PpmpView> out = new LinkedHashMap<>();
@@ -613,7 +623,8 @@ public class PlanningController {
             boolean editable = p.isEditable();
             List<PpmpLineView> items = !withItems ? null : p.getItems().stream().map(i -> new PpmpLineView(i.getId(), i.getGeneralDescription(),
                     i.getSpecifications(), i.getCode(), i.getUnit(), i.getQuantity(), i.getEstimatedUnitCost(), i.getEstimatedTotal(),
-                    i.getProcurementMode(), i.getProcurementCategory(), i.isSustainable(), i.getSchedule(), i.getFundSource(), i.getRemarks())).toList();
+                    i.getProcurementMode(), i.getProcurementCategory(), i.isSustainable(), i.getSchedule(), i.getFundSource(), i.getRemarks(),
+                    catalogue.get(i.getItemId()))).toList();
             out.put(p, new PpmpView(p.getId(), p.getPpmpNumber(), new Ref(p.getDepartmentId(), depts.get(p.getDepartmentId())), p.getFiscalYear(),
                     p.getTitle(), p.getStatus(), p.getTotalEstimatedBudget(), p.getRevision(), ref(p.getPreparedBy(), names),
                     ref(p.getReviewedBy(), names), ref(p.getApprovedBy(), names), Times.toOffset(p.getSubmittedAt()), Times.toOffset(p.getApprovedAt()),
@@ -638,6 +649,7 @@ public class PlanningController {
             ppmps.findAllById(list.stream().flatMap(a -> a.getItems().stream()).map(AppItem::getPpmpId).filter(Objects::nonNull)
                     .collect(Collectors.toSet())).forEach(p -> ppmpNumbers.put(p.getId(), p.getPpmpNumber()));
         }
+        Map<Long, ItemRef> catalogue = withItems ? itemRefs(list.stream().flatMap(a -> a.getItems().stream()).map(AppItem::getItemId)) : Map.of();
         boolean manager = current.any("manage_app");
         User me = current.user();
         // Delete is refused while any purchase request line, even a cancelled one, still points at the APP.
@@ -668,7 +680,8 @@ public class PlanningController {
                             i.getQuantity(), i.getEstimatedBudget(),
                             i.getEstimatedBudget().divide(BigDecimal.valueOf(i.getQuantity()), 2, RoundingMode.HALF_UP),
                             i.getSchedule(), i.getFundSource(), u.quantity(), left, u.requested(), u.committed(),
-                            i.getEstimatedBudget().subtract(u.committed()), rate(u.committed(), i.getEstimatedBudget()), status));
+                            i.getEstimatedBudget().subtract(u.committed()), rate(u.committed(), i.getEstimatedBudget()), status,
+                            catalogue.get(i.getItemId())));
                 }
             }
             int pending = a.isApproved() ? 0 : pendingPpmps(a.getFiscalYear());
@@ -680,6 +693,17 @@ public class PlanningController {
                     manager && !a.isApproved(), manager && !a.isApproved() && !own, manager && !a.isApproved() && !referenced.contains(a.getId()),
                     Times.toOffset(a.getCreatedAt())));
         }
+        return out;
+    }
+
+    private Map<Long, ItemRef> itemRefs(Stream<Long> ids) {
+        List<Long> wanted = ids.filter(Objects::nonNull).distinct().toList();
+        Map<Long, ItemRef> out = new HashMap<>();
+        if (wanted.isEmpty()) return out;
+        jdbc.query("select id, code, name from items where id in (" + String.join(",", wanted.stream().map(x -> "?").toList()) + ")",
+                rs -> {
+                    out.put(rs.getLong(1), new ItemRef(rs.getLong(1), rs.getString(2), rs.getString(3)));
+                }, wanted.toArray());
         return out;
     }
 

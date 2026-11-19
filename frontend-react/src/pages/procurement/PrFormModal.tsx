@@ -9,21 +9,30 @@ import { formatPeso, formatQty } from '../../lib/format'
 import { LineEditor } from './LineEditor'
 import { blankLine, lineTotal, newKey, toInput, type EditLine } from './lines'
 
+/** A new request filled in ahead, e.g. from the warehouse's reorder list. */
+export interface PrPreset {
+  departmentId: number | null
+  appId: number
+  purpose: string
+  lines: EditLine[]
+}
+
 interface Props {
   pr: PurchaseRequest | null
+  preset?: PrPreset
   options?: ProcurementOptions
   onClose: () => void
   onSaved: (p: PurchaseRequest, message: string) => void
 }
 
-export function PrFormModal({ pr, options, onClose, onSaved }: Props) {
+export function PrFormModal({ pr, preset, options, onClose, onSaved }: Props) {
   const { user, can } = useAuth()
   const editing = pr !== null
   const staff = can('edit_procurement', 'view_procurement')
-  const [departmentId, setDepartmentId] = useState(String(pr?.department.id ?? user?.department_id ?? ''))
-  const [appId, setAppId] = useState(pr?.app ? String(pr.app.id) : '')
+  const [departmentId, setDepartmentId] = useState(String(pr?.department.id ?? preset?.departmentId ?? user?.department_id ?? ''))
+  const [appId, setAppId] = useState(pr?.app ? String(pr.app.id) : preset ? String(preset.appId) : '')
   const [priority, setPriority] = useState<PrInput['priority']>(pr?.priority ?? 'medium')
-  const [purpose, setPurpose] = useState(pr?.purpose ?? '')
+  const [purpose, setPurpose] = useState(pr?.purpose ?? preset?.purpose ?? '')
   const [remarks, setRemarks] = useState(pr?.remarks ?? '')
   const [lines, setLines] = useState<EditLine[]>(() =>
     pr?.items?.map((l) => ({
@@ -40,7 +49,9 @@ export function PrFormModal({ pr, options, onClose, onSaved }: Props) {
       schedule: '',
       fund_source: l.fund_source ?? '',
       is_sustainable: l.is_sustainable,
-    })) ?? [],
+    })) ??
+      preset?.lines ??
+      [],
   )
   const [error, setError] = useState<string | null>(null)
   const departments = useQuery({ queryKey: ['departments'], queryFn: usersApi.departments, enabled: staff })

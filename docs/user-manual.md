@@ -370,7 +370,7 @@ Use the **FY** selector at the top to switch fiscal year. It offers last year up
 
 1. On the **PPMP** tab, click **+ New PPMP**.
 2. Choose the **Department** (only agency-wide users get a choice; everyone else uses their own department), the **Fiscal year**, and type a **Title**. **Remarks** are optional.
-3. Click **+ Add line** for each item or project. Fill in **Description**, **Quantity** (at least 1), **Est. unit cost (₱)** and **Mode of procurement**. Optional: **Category** (Goods by default), **Source of funds**, **Schedule** (Q1 to Q4), **Accounting code** (UACS object code), **Technical specifications** and **Green / sustainable procurement**.
+3. Click **+ Add line** for each item or project. Fill in **Description**, **Quantity** (at least 1), **Est. unit cost (₱)** and **Mode of procurement**. Optional: **Category** (Goods by default), **Source of funds**, **Schedule** (Q1 to Q4), **Accounting code** (UACS object code), **Technical specifications** and **Green / sustainable procurement**. For a stocked item, choose it under **Catalogue item**: the warehouse's reorder list can then draw a purchase request on this line once it is in the approved APP.
 4. Click **Save draft**. The PPMP gets a number like PPMP-2027-0001 (the fiscal year, not the calendar year).
 5. When it is complete, open it and click **Submit for review**.
 
@@ -1131,6 +1131,14 @@ Four tabs: **Reorder & stock levels**, **Stock received**, **Transfers** and **E
 ### Reorder and stock levels
 
 Shows catalogue items, how many need reorder or are out of stock, and lots expiring or expired. Tick **Only items at or below the reorder point** to turn the list into a re-order report, then **🖨 Print**. "Suggested order" is the maximum minus what is on hand ("set a max" means no maximum is set).
+
+### Reorder through a purchase request
+
+1. Tick the items to reorder, or tick none to take every item at or below its reorder point. Click **Create purchase request** (needs create_procurement or edit_procurement).
+2. PAMS matches each item with the line of this year's approved APP that plans it: a PPMP line that names the item under **Catalogue item**. The quantity is the suggested order, capped at what is left of the APP line.
+3. The items are grouped by the office whose PPMP planned them, since a purchase request is for one office. Click **Create purchase request** on a group to open a draft with those lines, check it and save.
+
+Items listed under **Not covered by the APP** cannot be requested against the plan yet: they are not on any PPMP line, or their APP line is fully requested, or there is no approved APP for the year. Add them to a PPMP and amend the APP first. PPE is bought per asset and is left out.
 
 ### Stock received
 

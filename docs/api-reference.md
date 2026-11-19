@@ -68,7 +68,7 @@ It fetches `file_url` and posts the detached signature over the file's exact byt
 
 ## Endpoints
 
-492 endpoints in 51 groups.
+493 endpoints in 52 groups.
 
 - [Adjustment](#adjustment)
 - [Analytics](#analytics)
@@ -109,6 +109,7 @@ It fetches `file_url` and posts the detached signature over the file's exact byt
 - [Purchase Request](#purchase-request)
 - [Qr](#qr)
 - [Receiving](#receiving)
+- [Reorder](#reorder)
 - [Report](#report)
 - [Rfq](#rfq)
 - [Role](#role)
@@ -2545,6 +2546,18 @@ Accepts the delivery into stock: each accepted line goes into the inventory item
 - Body: `remarks` string
 - Returns: [`IarView`](#iarview)
 
+### Reorder
+
+Turns the items at or below their reorder point into purchase request lines. Each item is matched to the line of this year's approved APP that plans it (a PPMP line naming the item), up to what is left of that line. Items with no such line are listed apart: they need a PPMP and APP amendment before they can be requested against the plan.
+
+**`GET /api/purchase-requests/reorder`**
+
+item_ids: the items to reorder; left out, every item at or below its reorder point.
+
+- Requires: `create_procurement`, `edit_procurement`
+- Query: `item_ids` (optional) integer[]
+- Returns: [`Plan`](#plan)
+
 ### Report
 
 The Reports page: the inventory and request-log reports, the RSMI summary, and the on-screen previews of the COA forms (RPCI, RPCSP, RPCPPE, Property Card, WMR, IIRUP, RLSDDP) plus the reconciliation and aging reports — the same data the Laravel ReportController returned. The Excel forms themselves are produced by the report.coa forms.
@@ -3445,7 +3458,7 @@ Ends a lockout from failed sign-ins before it times out.
 
 ### AppLineView
 
-`id` integer, `ppmp_id` integer, `ppmp_number` string, `department` Ref, `general_description` string, `specifications` string, `unit` string, `procurement_mode` string, `procurement_category` string, `quantity` integer, `estimated_budget` number, `unit_cost` number, `schedule` string, `fund_source` string, `requested_quantity` integer, `remaining_quantity` integer, `requested_amount` number, `utilized_amount` number, `remaining_budget` number, `utilization_rate` number, `status` string
+`id` integer, `ppmp_id` integer, `ppmp_number` string, `department` Ref, `general_description` string, `specifications` string, `unit` string, `procurement_mode` string, `procurement_category` string, `quantity` integer, `estimated_budget` number, `unit_cost` number, `schedule` string, `fund_source` string, `requested_quantity` integer, `remaining_quantity` integer, `requested_amount` number, `utilized_amount` number, `remaining_budget` number, `utilization_rate` number, `status` string, `item` ItemRef
 
 ### AppRef
 
@@ -3579,6 +3592,10 @@ Ends a lockout from failed sign-ins before it times out.
 
 `id` integer, `gate_pass_number` string, `property_id` integer, `tag_number` string, `serial_number` string, `item_name` string, `holder` string, `received_by` string, `purpose` string, `date_released` date, `expected_return_date` date, `actual_return_date` date, `condition_on_release` string, `condition_on_return` string, `status` string, `overdue` boolean, `remarks` string, `released_by` string, `returned_by` string, `received_back_by` string, `can_edit` boolean, `can_return` boolean
 
+### Group
+
+`department` Ref, `lines` Line[]
+
 ### IarRef
 
 `id` integer, `iar_number` string, `status` string, `acceptance_status` string, `delivery_date` date
@@ -3615,6 +3632,10 @@ Ends a lockout from failed sign-ins before it times out.
 
 `id` integer, `code` string, `name` string, `unit_of_measure` string, `category` string, `on_hand` integer
 
+### ItemRef (Planning)
+
+`id` integer, `code` string, `name` string
+
 ### ItemRef (Property)
 
 `id` integer, `code` string, `name` string, `unit_of_measure` string, `classification` Classification
@@ -3642,6 +3663,10 @@ Ends a lockout from failed sign-ins before it times out.
 ### Line (PsDbm)
 
 `id` integer, `purchase_request_item_id` integer, `ps_catalogue_item_id` integer, `catalogue_code` string, `description` string, `unit` string, `quantity` integer, `unit_price` number, `amount` number, `availability` string, `release_ground` string, `cnas_number` string, `cnas_date` date
+
+### Line (Reorder)
+
+`item_id` integer, `item_code` string, `item_name` string, `on_hand` integer, `reorder_point` integer, `suggested` integer, `app_item_id` integer, `general_description` string, `unit` string, `quantity` integer, `unit_cost` number, `procurement_mode` string, `procurement_category` string, `remaining_quantity` integer
 
 ### LineView (Bidding)
 
@@ -3747,13 +3772,17 @@ Ends a lockout from failed sign-ins before it times out.
 
 `title` string, `average` number, `maturity` string
 
+### Plan
+
+`fiscal_year` integer, `app` AppRef, `groups` Group[], `unplanned` Unplanned[]
+
 ### PoView
 
 `id` integer, `po_number` string, `status` string, `supplier` Ref, `purchase_request` Ref, `department` Ref, `source` Source, `order_date` date, `delivery_date` date, `late` boolean, `delivery_address` string, `total_amount` number, `remarks` string, `preparer` Ref, `approver` Ref, `fund_source` string, `caf_number` string, `items_count` integer, `items` LineView[], `inspections` IarRef[], `can_edit` boolean, `can_send` boolean, `can_confirm` boolean, `can_cancel` boolean, `can_delete` boolean, `can_receive` boolean, `created_at` date-time
 
 ### PpmpLineView
 
-`id` integer, `general_description` string, `specifications` string, `code` string, `unit` string, `quantity` integer, `estimated_unit_cost` number, `estimated_total` number, `procurement_mode` string, `procurement_category` string, `is_sustainable` boolean, `schedule` string, `fund_source` string, `remarks` string
+`id` integer, `general_description` string, `specifications` string, `code` string, `unit` string, `quantity` integer, `estimated_unit_cost` number, `estimated_total` number, `procurement_mode` string, `procurement_category` string, `is_sustainable` boolean, `schedule` string, `fund_source` string, `remarks` string, `item` ItemRef
 
 ### PpmpView
 
@@ -3890,6 +3919,10 @@ Ends a lockout from failed sign-ins before it times out.
 ### TrustedView
 
 `id` integer, `name` string, `subject` string, `fingerprint` string, `not_after` date-time, `created_at` date-time
+
+### Unplanned
+
+`item_id` integer, `item_code` string, `item_name` string, `unit` string, `on_hand` integer, `reorder_point` integer, `suggested` integer, `reason` string
 
 ### UserView
 

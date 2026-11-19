@@ -61,6 +61,10 @@ public class PpmpItem extends Timestamped {
 
     private String remarks;
 
+    /** The catalogue item this line buys, if it is a stocked item. */
+    @Column(name = "item_id")
+    private Long itemId;
+
     protected PpmpItem() {
     }
 
@@ -79,6 +83,7 @@ public class PpmpItem extends Timestamped {
         this.schedule = l.schedule();
         this.fundSource = l.fundSource();
         this.remarks = l.remarks();
+        this.itemId = l.itemId();
     }
 
     public Long getId() { return id; }
@@ -96,4 +101,5 @@ public class PpmpItem extends Timestamped {
     public String getSchedule() { return schedule; }
     public String getFundSource() { return fundSource; }
     public String getRemarks() { return remarks; }
+    public Long getItemId() { return itemId; }
 }

@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { useSearchParams } from 'react-router'
 import { keepPreviousData, useQuery, useQueryClient } from '@tanstack/react-query'
 import { planningApi, prApi } from '../../api/endpoints'
 import type { PurchaseRequest } from '../../api/types'
@@ -23,12 +24,15 @@ export function PurchaseRequestsPage() {
   const toast = useToast()
   const queryClient = useQueryClient()
   const signatory = can(...SIGNATORY)
-  const [view, setView] = useState<'awaiting' | 'all'>(signatory ? 'awaiting' : 'all')
+  // ?pr=ID opens that request, e.g. one just drafted from the warehouse's reorder list.
+  const [params] = useSearchParams()
+  const opened = Number(params.get('pr')) || null
+  const [view, setView] = useState<'awaiting' | 'all'>(signatory && !opened ? 'awaiting' : 'all')
   const [page, setPage] = useState(1)
   const [status, setStatus] = useState('')
   const [priority, setPriority] = useState('')
   const [search, setSearch] = useState('')
-  const [viewing, setViewing] = useState<number | null>(null)
+  const [viewing, setViewing] = useState<number | null>(opened)
   const [form, setForm] = useState<PurchaseRequest | 'new' | null>(null)
   const q = useDebounced(search.trim())
   const key = `${view}|${status}|${priority}|${q}`

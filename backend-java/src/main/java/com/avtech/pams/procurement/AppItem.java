@@ -66,6 +66,9 @@ public class AppItem extends Timestamped {
 
     private String remarks;
 
+    @Column(name = "item_id")
+    private Long itemId;
+
     protected AppItem() {
     }
 
@@ -84,6 +87,7 @@ public class AppItem extends Timestamped {
         this.schedule = p.getSchedule();
         this.fundSource = p.getFundSource();
         this.remarks = p.getRemarks();
+        this.itemId = p.getItemId();
     }
 
     public Long getId() { return id; }
@@ -110,4 +114,5 @@ public class AppItem extends Timestamped {
     public String getFundSource() { return fundSource; }
     public void setFundSource(String fundSource) { this.fundSource = fundSource; }
     public String getRemarks() { return remarks; }
+    public Long getItemId() { return itemId; }
 }

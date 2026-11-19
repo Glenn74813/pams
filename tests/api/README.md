@@ -54,6 +54,7 @@ ports (5432, 8095, 8096) and the SQL Server database `pams`.
 | `sup_test` | The supplier register, documents, eligibility, sanctions |
 | `ps_test` | PS-DBM requests, CNAS, delivery |
 | `proc_test` | PPMP, APP and purchase requests |
+| `reorder_test` | Low-stock items to purchase request lines through the APP lines that plan them |
 | `iss_test` | Requests and issuance, stock cards |
 | `asset_test`, `asm_test` | Assets, transfers, assembly |
 | `fix_test`, `fix2_test` | Checks added for specific issues |

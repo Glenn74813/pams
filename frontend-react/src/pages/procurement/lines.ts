@@ -4,6 +4,8 @@ export interface EditLine {
   app_item_id?: number | null
   /** Shown for a line drawn on an APP line: how much is left there. */
   app_hint?: string
+  /** The catalogue item a PPMP line buys. */
+  item?: { id: number; code: string; name: string } | null
   general_description: string
   specifications: string
   code: string
@@ -55,5 +57,6 @@ export function toInput(l: EditLine) {
     fund_source: t(l.fund_source),
     is_sustainable: l.is_sustainable,
     app_item_id: l.app_item_id ?? null,
+    item_id: l.item?.id ?? null,
   }
 }

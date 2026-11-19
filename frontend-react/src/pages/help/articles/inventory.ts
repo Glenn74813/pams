@@ -88,6 +88,16 @@ export const inventoryArticles: Article[] = [
         'Reorder and stock levels',
         p('Shows catalogue items, how many need reorder or are out of stock, and lots expiring or expired. Tick **Only items at or below the reorder point** to turn the list into a re-order report, then **🖨 Print**. "Suggested order" is the maximum minus what is on hand ("set a max" means no maximum is set).'),
       ),
+      sec(
+        'reorder-pr',
+        'Reorder through a purchase request',
+        steps(
+          'Tick the items to reorder, or tick none to take every item at or below its reorder point. Click **Create purchase request** (needs create_procurement or edit_procurement).',
+          'PAMS matches each item with the line of this year\'s approved APP that plans it: a PPMP line that names the item under **Catalogue item**. The quantity is the suggested order, capped at what is left of the APP line.',
+          'The items are grouped by the office whose PPMP planned them, since a purchase request is for one office. Click **Create purchase request** on a group to open a draft with those lines, check it and save.',
+        ),
+        p('Items listed under **Not covered by the APP** cannot be requested against the plan yet: they are not on any PPMP line, or their APP line is fully requested, or there is no approved APP for the year. Add them to a PPMP and amend the APP first. PPE is bought per asset and is left out.'),
+      ),
       sec('stock-received', 'Stock received', p('Use **Record stock received for** to search an item and record a lot (same form as Add stock in Items). The tab lists lots with received date, brand, location, quantity now, unit cost, lot no., expiry and supplier.')),
       sec(
         'transfer',

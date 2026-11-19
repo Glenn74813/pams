@@ -430,6 +430,14 @@ export interface PpmpLine {
   schedule: string | null
   fund_source: string | null
   remarks: string | null
+  /** The catalogue item the line buys, when it is a stocked item. */
+  item: PlanItemRef | null
+}
+
+export interface PlanItemRef {
+  id: number
+  code: string
+  name: string
 }
 
 export interface Ppmp {
@@ -481,6 +489,33 @@ export interface AppLine {
   remaining_budget: number
   utilization_rate: number
   status: 'planned' | 'ongoing' | 'completed'
+  item: PlanItemRef | null
+}
+
+/** Low-stock items matched to this year's approved APP lines, grouped by the office that planned them. */
+export interface ReorderPlan {
+  fiscal_year: number
+  app: { id: number; app_number: string; fiscal_year: number } | null
+  groups: {
+    department: NamedRef
+    lines: {
+      item_id: number
+      item_code: string
+      item_name: string
+      on_hand: number
+      reorder_point: number
+      suggested: number
+      app_item_id: number
+      general_description: string
+      unit: string | null
+      quantity: number
+      unit_cost: number
+      procurement_mode: string
+      procurement_category: string
+      remaining_quantity: number
+    }[]
+  }[]
+  unplanned: { item_id: number; item_code: string; item_name: string; unit: string | null; on_hand: number; reorder_point: number; suggested: number; reason: string }[]
 }
 
 export interface AppPlan {
