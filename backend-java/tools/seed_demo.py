@@ -203,17 +203,17 @@ def plan_next_year(SA, depts):
                 'procurement_category': 'Goods', 'schedule': q, 'fund_source': GAA, 'item_id': item_for(desc, items)}
     plans = [
         ('ADMIN', 'approved', [line('Bond paper, A4, 80gsm', 'ream', 120, 265, PS, 'Q1'), line('Office table, executive', 'unit', 4, 12500, SVP, 'Q2'),
-                               line('Air-conditioning unit, 1.5HP inverter', 'unit', 8, 38000, CB, 'Q2')]),
+                               line('Air-conditioning unit, 1.5HP inverter', 'unit', 60, 38000, CB, 'Q2')]),
         ('FIN', 'approved', [line('Ballpen, black', 'piece', 600, 10, PS, 'Q1'), line('Money counter and detector', 'unit', 2, 15500, SVP, 'Q1'),
-                             line('Fireproof vault, 1.5 tons', 'unit', 1, 450000, CB, 'Q3')]),
-        ('IT', 'approved', [line('Laptop computer, 14", Core i7', 'unit', 12, 72000, CB, 'Q1'), line('UPS, 1500VA', 'unit', 15, 6800, SVP, 'Q2'),
+                             line('Fireproof vault, 1.5 tons', 'unit', 1, 450000, SVP, 'Q3')]),
+        ('IT', 'approved', [line('Laptop computer, 14", Core i7', 'unit', 40, 72000, CB, 'Q1'), line('UPS, 1500VA', 'unit', 15, 6800, SVP, 'Q2'),
                             line('Paper clips, jumbo', 'box', 60, 25, PS, 'Q1')]),
         ('HRMO', 'under_review', [line('Isopropyl alcohol 70%, 500 ml', 'bottle', 120, 100, PS, 'Q1'), line('Training kits for orientation', 'set', 40, 650, SVP, 'Q2')]),
-        ('PDO', 'returned', [line('Plotter, A0 size', 'unit', 1, 280000, CB, 'Q2'), line('Drafting supplies', 'lot', 1, 45000, SVP, 'Q1')]),
+        ('PDO', 'returned', [line('Plotter, A0 size', 'unit', 1, 280000, SVP, 'Q2'), line('Drafting supplies', 'lot', 1, 45000, SVP, 'Q1')]),
         ('LEGAL', 'submitted', [line('Law books, latest editions', 'set', 3, 28000, SVP, 'Q1'), line('Folder, tagboard, legal size', 'pack', 40, 170, PS, 'Q1')]),
-        ('ENG', 'submitted', [line('Total station, survey grade', 'unit', 1, 650000, CB, 'Q2'), line('Safety helmets and vests', 'set', 30, 950, SVP, 'Q1')]),
-        ('PIO', 'draft', [line('Mirrorless camera with lens kit', 'unit', 2, 95000, CB, 'Q2'), line('Envelope, brown, long', 'box', 25, 300, PS, 'Q1')]),
-        ('MED', 'draft', [line('Medicines and medical supplies', 'lot', 1, 380000, CB, 'Q1'), line('Digital thermometer', 'piece', 30, 450, SVP, 'Q1')]),
+        ('ENG', 'submitted', [line('Total station, survey grade', 'unit', 4, 650000, CB, 'Q2'), line('Safety helmets and vests', 'set', 30, 950, SVP, 'Q1')]),
+        ('PIO', 'draft', [line('Mirrorless camera with lens kit', 'unit', 2, 95000, SVP, 'Q2'), line('Envelope, brown, long', 'box', 25, 300, PS, 'Q1')]),
+        ('MED', 'draft', [line('Medicines and medical supplies', 'lot', 1, 2500000, CB, 'Q1'), line('Digital thermometer', 'piece', 30, 450, SVP, 'Q1')]),
         ('SPU', 'draft', [line('Pallet jack, 2.5 tons', 'unit', 1, 28000, SVP, 'Q2'), line('Storage rack, steel, 5-layer', 'unit', 8, 7800, SVP, 'Q2')]),
     ]
     approved = 0
@@ -420,21 +420,21 @@ def main():
         ('bpmonitors', 'MED', 'Digital blood pressure monitor', 'unit', 6, 3200, SVP, 'Q2'),
         ('fans', 'IT', 'Electric fan, stand type, 16"', 'unit', 10, 2200, SVP, 'Q2'),
         # Competitive Bidding
-        ('laptops', 'IT', 'Laptop computer, 14", Core i5', 'unit', 10, 65000, CB, 'Q2'),
-        ('desktops', 'IT', 'Desktop computer set', 'unit', 8, 58000, CB, 'Q2'),
-        ('switches', 'IT', 'Network switch, 24-port managed', 'unit', 4, 85000, CB, 'Q3'),
-        ('aircon', 'ADMIN', 'Air-conditioning unit, 2HP inverter', 'unit', 6, 45000, CB, 'Q3'),
-        ('printers', 'FIN', 'Multifunction printer, A3', 'unit', 5, 40000, CB, 'Q3'),
-        ('solar', 'HRMO', 'Solar street light, 100W, with pole', 'unit', 10, 38000, CB, 'Q4'),
-        ('genset', 'PDO', 'Generator set, 20 kVA, diesel', 'unit', 1, 900000, CB, 'Q3'),
-        ('cctv', 'LEGAL', 'CCTV system, 16 cameras, with NVR', 'lot', 1, 450000, CB, 'Q3'),
-        ('vehicle', 'ENG', 'Service vehicle, pick-up, 4x4', 'unit', 1, 1800000, CB, 'Q4'),
-        ('dental', 'MED', 'Dental chair unit, complete', 'unit', 2, 350000, CB, 'Q3'),
+        ('laptops', 'IT', 'Laptop computer, 14", Core i7, 32GB', 'unit', 25, 95000, CB, 'Q2'),
+        ('desktops', 'IT', 'Desktop workstation, Core i7, 27" monitor', 'unit', 30, 75000, CB, 'Q2'),
+        ('switches', 'IT', 'Network switch, 48-port managed, PoE', 'unit', 20, 125000, CB, 'Q3'),
+        ('aircon', 'ADMIN', 'Air-conditioning unit, 2HP inverter', 'unit', 50, 45000, CB, 'Q3'),
+        ('printers', 'FIN', 'Multifunction printer, A3', 'unit', 55, 40000, CB, 'Q3'),
+        ('solar', 'HRMO', 'Solar street light, 100W, with pole', 'unit', 60, 38000, CB, 'Q4'),
+        ('genset', 'PDO', 'Generator set, 100 kVA, diesel', 'unit', 1, 2600000, CB, 'Q3'),
+        ('cctv', 'LEGAL', 'CCTV system, 64 cameras, with NVR', 'lot', 1, 2400000, CB, 'Q3'),
+        ('vehicle', 'ENG', 'Service vehicle, pick-up, 4x4', 'unit', 2, 1800000, CB, 'Q4'),
+        ('dental', 'MED', 'Dental chair unit, complete', 'unit', 7, 350000, CB, 'Q3'),
         # Competitive Bidding on rated criteria: MEARB and MARB
-        ('dms', 'IT', 'Integrated document management system', 'lot', 1, 1900000, CB, 'Q3'),
-        ('analyzer', 'MED', 'Automated hematology analyzer', 'unit', 1, 1500000, CB, 'Q3'),
-        ('gnss', 'ENG', 'Survey equipment, GNSS RTK set', 'set', 2, 600000, CB, 'Q3'),
-        ('camera', 'PIO', 'Broadcast camera kit, 4K, with tripod and audio', 'lot', 1, 950000, CB, 'Q3'),
+        ('dms', 'IT', 'Integrated document management system', 'lot', 1, 4800000, CB, 'Q3'),
+        ('analyzer', 'MED', 'Automated hematology analyzer', 'unit', 2, 1500000, CB, 'Q3'),
+        ('gnss', 'ENG', 'Survey equipment, GNSS RTK set', 'set', 4, 600000, CB, 'Q3'),
+        ('camera', 'PIO', 'Broadcast camera kit, 4K, with tripod and audio', 'lot', 3, 850000, CB, 'Q3'),
         # Common-use supplies from PS-DBM
         ('ps_bond', 'ADMIN', 'Bond paper, A4, 80gsm', 'ream', 100, 260, PS, 'Q1'),
         ('ps_pen', 'FIN', 'Ballpen, black', 'piece', 500, 10, PS, 'Q1'),
@@ -582,15 +582,15 @@ def main():
         call('POST', f"/bidding/{b['id']}/award", {'bidder_id': d['recommended_bidder_id'], 'bac_resolution_id': resolution(p['id'], title)}, SA)
         call('POST', f"/bidding/{b['id']}/noa", {}, SA)
         call('POST', f"/bidding/{b['id']}/ntp", {}, SA, expect=None)
-    bidding('laptops', 'Supply and delivery of laptop computers', 'award', [('Northpoint', 612000), ('Mega', 640000)])
-    bidding('desktops', 'Supply and delivery of desktop computer sets', 'award', [('Northpoint', 448000), ('Bayanihan', 455000)])
-    bidding('aircon', 'Supply and installation of air-conditioning units', 'award', [('Primeline', 258000), ('CleanPro', 262000)])
-    bidding('genset', 'Supply and installation of a 20 kVA generator set', 'award', [('Primeline', 870000), ('Voltmax', 885000)])
-    bidding('printers', 'Supply of A3 multifunction printers', 'evaluation', [('Printworks', 195000), ('Northpoint', 198000)])
-    bidding('dental', 'Supply of dental chair units', 'evaluation', [('Healthline', 680000), ('MedFirst', 690000)])
-    bidding('switches', 'Supply of managed network switches', 'opening', [('Northpoint', 330000)])
-    bidding('cctv', 'Supply and installation of a CCTV system', 'opening', [('Safeguard', 440000), ('Voltmax', 445000)])
-    bidding('vehicle', 'Supply of a 4x4 service vehicle', 'invitation', [])
+    bidding('laptops', 'Supply and delivery of laptop computers', 'award', [('Northpoint', 2290000), ('Mega', 2335000)])
+    bidding('desktops', 'Supply and delivery of desktop workstations', 'award', [('Northpoint', 2175000), ('Bayanihan', 2210000)])
+    bidding('aircon', 'Supply and installation of air-conditioning units', 'award', [('Primeline', 2150000), ('CleanPro', 2182000)])
+    bidding('genset', 'Supply and installation of a 100 kVA generator set', 'award', [('Primeline', 2520000), ('Voltmax', 2565000)])
+    bidding('printers', 'Supply of A3 multifunction printers', 'evaluation', [('Printworks', 2145000), ('Northpoint', 2178000)])
+    bidding('dental', 'Supply of dental chair units', 'evaluation', [('Healthline', 2380000), ('MedFirst', 2415000)])
+    bidding('switches', 'Supply of managed network switches', 'opening', [('Northpoint', 2475000)])
+    bidding('cctv', 'Supply and installation of a CCTV system', 'opening', [('Safeguard', 2350000), ('Voltmax', 2370000)])
+    bidding('vehicle', 'Supply of 4x4 service vehicles', 'invitation', [])
     bidding('solar', 'Supply and installation of solar street lights', 'draft', [])
 
     # Rated criteria (IRR 58 b, 61): the first envelopes are rated and scored, then only the financial proposals that
@@ -637,13 +637,13 @@ def main():
     MARB_CRITERIA = [('Quality of the equipment', 60, False), ('After-sales support', 40, False)]
     # Northpoint is best overall once price counts; Mega's price is lowest but it misses the minimum quality score.
     rated('dms', 'Integrated document management system', 'mearb', 'award', MEARB_CRITERIA,
-          [('Northpoint', (90, 85, 80), 1780000), ('Printworks', (82, 78, 75), 1690000), ('Mega', (65, 60, 55), 1500000)], pre_proc=True)
-    rated('analyzer', 'Supply of an automated hematology analyzer', 'mearb', 'scored', MEARB_CRITERIA,
-          [('Healthline', (88, 80, 75), 1420000), ('MedFirst', (84, 86, 70), 1460000), ('Mega', (60, 70, 50), 1300000)])
+          [('Northpoint', (90, 85, 80), 4650000), ('Printworks', (82, 78, 75), 4420000), ('Mega', (65, 60, 55), 4100000)], pre_proc=True)
+    rated('analyzer', 'Supply of automated hematology analyzers', 'mearb', 'scored', MEARB_CRITERIA,
+          [('Healthline', (88, 80, 75), 2840000), ('MedFirst', (84, 86, 70), 2920000), ('Mega', (60, 70, 50), 2600000)])
     rated('gnss', 'Supply of GNSS RTK survey equipment', 'marb', 'opened', MARB_CRITERIA,
-          [('Primeline', (92, 88), 1150000), ('Voltmax', (80, 75), 1050000)])
-    rated('camera', 'Supply of a 4K broadcast camera kit', 'marb', 'opening', MARB_CRITERIA,
-          [('Printworks', (85, 80), 900000), ('Northpoint', (78, 82), 880000)])
+          [('Primeline', (92, 88), 2300000), ('Voltmax', (80, 75), 2100000)])
+    rated('camera', 'Supply of 4K broadcast camera kits', 'marb', 'opening', MARB_CRITERIA,
+          [('Printworks', (85, 80), 2480000), ('Northpoint', (78, 82), 2420000)])
 
     # ── unsolicited offers ──────────────────────────────────────────────
     step('unsolicited offers at different stages')
