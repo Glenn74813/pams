@@ -5,6 +5,7 @@ so every business rule, number series and audit entry is the real thing.
 
     PAMS_API=http://127.0.0.1:8095/api python3 tools/seed_demo.py
     PAMS_DB=mssql PAMS_API=http://127.0.0.1:8096/api python3 tools/seed_demo.py
+    python3 tools/seed_demo.py --next-year-only    # only next fiscal year's PPMPs and draft APP, on an already seeded database
 
 Run it on an empty database (fresh migration, or after clearing the data). It needs:
   - the backend running at PAMS_API with the seeded Super Admin (superadmin@inventory.com / admin123);
@@ -145,8 +146,58 @@ def lots_of(item_id, tok):
     return lots.get('data', lots) if isinstance(lots, dict) else lots
 
 
+def plan_next_year(SA, depts):
+    """Next fiscal year's PPMPs, being prepared now: drafts, submitted, under review, returned and approved, and the
+    draft APP consolidated from those approved so far. The planning page opens on the coming year."""
+    step(f'PPMPs and the draft APP for FY {YEAR + 1}')
+    GAA = 'General Appropriations Act (GAA)'
+    PS, SVP, CB = 'Procurement from PS-DBM', 'Small Value Procurement', 'Competitive Bidding'
+
+    def line(desc, unit, qty, cost, mode, q):
+        return {'general_description': desc, 'unit': unit, 'quantity': qty, 'estimated_unit_cost': cost, 'procurement_mode': mode,
+                'procurement_category': 'Goods', 'schedule': q, 'fund_source': GAA}
+    plans = [
+        ('ADMIN', 'approved', [line('Bond paper, A4, 80gsm', 'ream', 120, 265, PS, 'Q1'), line('Office table, executive', 'unit', 4, 12500, SVP, 'Q2'),
+                               line('Air-conditioning unit, 1.5HP inverter', 'unit', 8, 38000, CB, 'Q2')]),
+        ('FIN', 'approved', [line('Ballpen, black', 'piece', 600, 10, PS, 'Q1'), line('Money counter and detector', 'unit', 2, 15500, SVP, 'Q1'),
+                             line('Fireproof vault, 1.5 tons', 'unit', 1, 450000, CB, 'Q3')]),
+        ('IT', 'approved', [line('Laptop computer, 14", Core i7', 'unit', 12, 72000, CB, 'Q1'), line('UPS, 1500VA', 'unit', 15, 6800, SVP, 'Q2'),
+                            line('Paper clips, jumbo', 'box', 60, 25, PS, 'Q1')]),
+        ('HRMO', 'under_review', [line('Isopropyl alcohol 70%, 500 ml', 'bottle', 120, 100, PS, 'Q1'), line('Training kits for orientation', 'set', 40, 650, SVP, 'Q2')]),
+        ('PDO', 'returned', [line('Plotter, A0 size', 'unit', 1, 280000, CB, 'Q2'), line('Drafting supplies', 'lot', 1, 45000, SVP, 'Q1')]),
+        ('LEGAL', 'submitted', [line('Law books, latest editions', 'set', 3, 28000, SVP, 'Q1'), line('Folder, tagboard, legal size', 'pack', 40, 170, PS, 'Q1')]),
+        ('ENG', 'submitted', [line('Total station, survey grade', 'unit', 1, 650000, CB, 'Q2'), line('Safety helmets and vests', 'set', 30, 950, SVP, 'Q1')]),
+        ('PIO', 'draft', [line('Mirrorless camera with lens kit', 'unit', 2, 95000, CB, 'Q2'), line('Envelope, brown, long', 'box', 25, 300, PS, 'Q1')]),
+        ('MED', 'draft', [line('Medicines and medical supplies', 'lot', 1, 380000, CB, 'Q1'), line('Digital thermometer', 'piece', 30, 450, SVP, 'Q1')]),
+        ('SPU', 'draft', [line('Pallet jack, 2.5 tons', 'unit', 1, 28000, SVP, 'Q2'), line('Storage rack, steel, 5-layer', 'unit', 8, 7800, SVP, 'Q2')]),
+    ]
+    approved = 0
+    for code, stage, lines in plans:
+        p = call('POST', '/procurement-planning/ppmps', {'department_id': depts[code], 'fiscal_year': YEAR + 1, 'title': f'PPMP FY {YEAR + 1} — {code}',
+                                                         'items': lines}, SA)
+        if stage == 'draft':
+            continue
+        call('POST', f"/procurement-planning/ppmps/{p['id']}/submit", tok=SA)
+        if stage == 'submitted':
+            continue
+        call('POST', f"/procurement-planning/ppmps/{p['id']}/review", tok=SA)
+        if stage == 'under_review':
+            continue
+        if stage == 'returned':
+            call('POST', f"/procurement-planning/ppmps/{p['id']}/return", {'return_reason': 'Attach the market survey for the plotter and split the drafting supplies by item.'}, SA)
+            continue
+        call('POST', f"/procurement-planning/ppmps/{p['id']}/approve", tok=SA)
+        approved += 1
+    if approved:
+        call('POST', '/procurement-planning/apps/generate', {'fiscal_year': YEAR + 1}, SA)  # left as a draft for review
+
+
 def main():
     SA = login('superadmin@inventory.com', 'admin123')
+    if '--next-year-only' in sys.argv:
+        plan_next_year(SA, {d['code']: d['id'] for d in call('GET', '/departments', tok=SA)['data']})
+        print('Done.')
+        return
 
     # ── offices and people ──────────────────────────────────────────────
     step('offices and demo staff')
@@ -335,6 +386,7 @@ def main():
     app = call('GET', f"/procurement-planning/apps/{app['id']}", tok=SA)
     app = app.get('data', app)
     APPL = {(l['department']['id'] if l.get('department') else None, l['general_description']): l for l in app['items']}
+    plan_next_year(SA, depts)
 
     # ── purchase requests ───────────────────────────────────────────────
     step('purchase requests')
