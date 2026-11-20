@@ -9,6 +9,7 @@ import { Badge } from '../assets/pickers'
 import { AbstractSlip } from './AbstractSlip'
 import { RFQ_STATUS } from './labels'
 import { AttachmentsPanel } from '../documents/AttachmentsPanel'
+import { DocumentDownloads } from '../../components/DocumentDownloads'
 
 interface Props {
   rfqId: number
@@ -301,6 +302,16 @@ function Details({ r, onPrint, onEdit, onChanged }: { r: Rfq; onPrint: () => voi
         <ConfirmDialog title="Delete RFQ" message={`Delete the draft ${r.rfq_number}?`} confirmLabel="Delete" busy={busy} onConfirm={() => remove.mutate()} onCancel={() => setMode(null)} />
       )}
 
+      {mode === null && (
+        <DocumentDownloads
+          docs={[
+            { path: `/rfq/${r.id}/form/export`, name: `RFQ_${r.rfq_number}.xlsx`, label: 'RFQ' },
+            r.status !== 'draft' && { path: `/rfq/${r.id}/abstract/export`, name: `AbstractOfQuotations_${r.rfq_number}.xlsx`, label: 'Abstract' },
+            !!r.noa_number && { path: `/rfq/${r.id}/noa/export`, name: `NOA_${r.rfq_number}.xlsx`, label: 'Notice of Award' },
+            !!r.ntp_number && { path: `/rfq/${r.id}/ntp/export`, name: `NTP_${r.rfq_number}.xlsx`, label: 'Notice to Proceed' },
+          ]}
+        />
+      )}
       {mode === null && (
         <div className="modal-footer">
           {r.status !== 'draft' && (

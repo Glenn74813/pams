@@ -304,7 +304,7 @@ public class CoaExportController {
         return LocalDate.now(Times.ZONE).format(DateTimeFormatter.BASIC_ISO_DATE);
     }
 
-    ResponseEntity<byte[]> file(byte[] bytes, String filename, String what, String type, Long id) {
+    public ResponseEntity<byte[]> file(byte[] bytes, String filename, String what, String type, Long id) {
         audit.record("downloaded", type, id, "Downloaded " + what + " (" + PdfFormAdvice.fileName(filename) + ")", null, Map.of("file", PdfFormAdvice.fileName(filename)));
         return ResponseEntity.ok()
                 .contentType(MediaType.parseMediaType(XLSX))

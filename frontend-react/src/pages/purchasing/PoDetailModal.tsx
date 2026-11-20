@@ -12,6 +12,7 @@ import { PoSlip } from './PoSlip'
 import { AttachmentsPanel } from '../documents/AttachmentsPanel'
 import { PaymentsPanel } from '../payments/PaymentsPanel'
 import { ExternalPaymentsSection } from '../integrations/ExternalPaymentsPage'
+import { DocumentDownloads } from '../../components/DocumentDownloads'
 
 interface Props {
   poId: number
@@ -166,6 +167,7 @@ export function PoDetailModal({ poId, onClose, onEdit, onReceive, onChanged }: P
           {mode === 'delete' && (
             <ConfirmDialog title="Delete purchase order" message={`Delete the draft ${po.po_number}? The award can then be ordered again.`} confirmLabel="Delete" busy={remove.isPending} onConfirm={() => remove.mutate()} onCancel={() => setMode(null)} />
           )}
+          {mode === null && <DocumentDownloads docs={[{ path: `/procurement/purchase-orders/${po.id}/export`, name: `PO_${po.po_number}.xlsx`, label: 'Purchase Order' }]} />}
           {mode === null && (
             <div className="modal-footer">
               <button className="btn btn-outline" onClick={() => setPrinting(true)}>

@@ -12,6 +12,7 @@ import { CONTRACT_STATUS } from './labels'
 import { AttachmentsPanel } from '../documents/AttachmentsPanel'
 import { PaymentsPanel } from '../payments/PaymentsPanel'
 import { ExternalPaymentsSection } from '../integrations/ExternalPaymentsPage'
+import { DocumentDownloads } from '../../components/DocumentDownloads'
 
 interface Props {
   contractId: number
@@ -118,6 +119,14 @@ export function ContractDetailModal({ contractId, onClose, onEdit, onChanged }: 
           )}
           {mode === 'delete' && (
             <ConfirmDialog title="Delete contract" message={`Delete the draft ${c.contract_number}?`} confirmLabel="Delete" busy={remove.isPending} onConfirm={() => remove.mutate()} onCancel={() => setMode(null)} />
+          )}
+          {mode === null && (
+            <DocumentDownloads
+              docs={[
+                { path: `/contracts/${c.id}/export`, name: `Contract_${c.contract_number}.xlsx`, label: 'Contract Agreement' },
+                c.ld_amount > 0 && { path: `/contracts/${c.id}/ld-notice/export`, name: `LD_Notice_${c.contract_number}.xlsx`, label: 'LD Notice' },
+              ]}
+            />
           )}
           {mode === null && (
             <div className="modal-footer">

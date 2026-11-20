@@ -6,6 +6,7 @@ import type { Contract } from '../../api/types'
 import { formatDate, formatPeso, today } from '../../lib/format'
 import { Badge } from '../assets/pickers'
 import { ITEM_STATUS, PERFORMANCE_FORMS, SECURITY_TYPES } from './labels'
+import { DocumentDownloads } from '../../components/DocumentDownloads'
 
 interface Props {
   c: Contract
@@ -247,6 +248,7 @@ export function AmendmentsPanel({ c, manage, onChanged, onError }: Props) {
                 by {a.preparer?.name}
                 {a.approver && ` · approved by ${a.approver.name} ${formatDate(a.approved_at)}`}
               </div>
+              <DocumentDownloads docs={[{ path: `/contracts/amendments/${a.id}/export`, name: `Amendment_${c.contract_number}_${a.amendment_number}.xlsx`, label: 'Amendment' }]} />
               {a.status === 'draft' && (
                 <div className="workflow-actions" style={{ marginTop: '0.35rem' }}>
                   {a.can_approve && (
@@ -373,6 +375,7 @@ export function DeliveryPanel({ c, manage, edit, onChanged, onError }: Props) {
               <strong>{e.requested_days} day(s)</strong> asked {formatDate(e.requested_date)} — {e.reason} <Badge map={ITEM_STATUS} value={e.status} />
               {e.approved_days != null && <span> {e.approved_days} granted</span>}
               {e.remarks && <div className="muted small">{e.remarks}</div>}
+              <DocumentDownloads docs={[{ path: `/contracts/extensions/${e.id}/export`, name: `Extension_${c.contract_number}_${e.id}.xlsx`, label: 'Extension letter' }]} />
               {edit && e.status === 'pending' && (
                 <div className="workflow-actions" style={{ marginTop: '0.35rem' }}>
                   <button className="btn btn-outline btn-sm" onClick={() => setDeciding({ id: e.id, days: String(e.requested_days), remarks: '' })}>

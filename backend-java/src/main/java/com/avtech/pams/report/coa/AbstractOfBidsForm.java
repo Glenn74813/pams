@@ -1,6 +1,8 @@
 package com.avtech.pams.report.coa;
 
 import com.avtech.pams.common.ApiException;
+import com.avtech.pams.report.outgoing.OutgoingDocs;
+import com.avtech.pams.report.outgoing.RfqForms;
 import com.avtech.pams.report.coa.Xlsx.Edge;
 import com.avtech.pams.report.coa.Xlsx.H;
 import com.avtech.pams.report.coa.Xlsx.Line;
@@ -27,14 +29,16 @@ public class AbstractOfBidsForm {
     private static final List<String> STAGES = List.of("eligibility_result", "technical_result", "financial_result", "post_qual_result");
 
     private final JdbcTemplate jdbc;
+    private final OutgoingDocs docs;
 
-    public AbstractOfBidsForm(JdbcTemplate jdbc) {
+    public AbstractOfBidsForm(JdbcTemplate jdbc, OutgoingDocs docs) {
         this.jdbc = jdbc;
+        this.docs = docs;
     }
 
     public byte[] generate(Long biddingId, String entityName) {
         List<Map<String, Object>> found = jdbc.queryForList(
-                "select bidding_number, title, abc, evaluation_method from biddings where id = ? and deleted_at is null", biddingId);
+                "select bidding_number, title, abc, evaluation_method, status, awarded_at from biddings where id = ? and deleted_at is null", biddingId);
         if (found.isEmpty()) throw ApiException.notFound("Bidding");
         Map<String, Object> bidding = found.get(0);
         List<Map<String, Object>> bidders = jdbc.queryForList("""
@@ -48,26 +52,18 @@ public class AbstractOfBidsForm {
         // PhpSpreadsheet's default page setup: Letter, default orientation.
         x.page().paper(Xlsx.LETTER);
 
-        x.merge("A1:I1");
-        x.set("A1", empty(entityName) ? "[Agency / Local Government Unit]" : entityName);
-        x.style("A1").bold().size(12);
-        x.style("A1").align(H.CENTER);
+        int top = docs.title(x, docs.letterhead(x, "I"), "I", null, "ABSTRACT OF BIDS");
 
-        x.merge("A2:I2");
-        x.set("A2", "ABSTRACT OF BIDS");
-        x.style("A2").bold().size(13);
-        x.style("A2").align(H.CENTER);
-
-        x.merge("A4:I4");
-        x.set("A4", "Bidding No.: " + str(bidding.get("bidding_number")) + "   |   " + str(bidding.get("title")));
-        x.style("A4").bold();
-        x.merge("A5:I5");
+        x.merge("A" + top + ":I" + top);
+        x.set("A" + top, "Bidding No.: " + str(bidding.get("bidding_number")) + "   |   " + str(bidding.get("title")));
+        x.style("A" + top).bold();
+        x.merge("A" + (top + 1) + ":I" + (top + 1));
         BigDecimal abc = bidding.get("abc") instanceof BigDecimal b ? b : BigDecimal.ZERO;
-        x.set("A5", "Approved Budget for the Contract (ABC): ₱" + numberFormat(abc)
+        x.set("A" + (top + 1), "Approved Budget for the Contract (ABC): ₱" + numberFormat(abc)
                 + "   |   Method: " + ("mearb".equals(bidding.get("evaluation_method")) ? "MEARB (rated)" : "marb".equals(bidding.get("evaluation_method")) ? "MARB (rated)" : "Lowest Calculated Bid"));
 
         // Header row
-        int headRow = 7;
+        int headRow = top + 3;
         String[] headers = {"#", "Bidder", "Bid Amount", "Bid Security", "Eligibility", "Technical", "Financial", "Post-Qual", "Remarks"};
         String[] cols = {"A", "B", "C", "D", "E", "F", "G", "H", "I"};
         for (int i = 0; i < headers.length; i++) {
@@ -85,7 +81,7 @@ public class AbstractOfBidsForm {
             x.set("A" + row, n++);
             x.set("B" + row, b.get("supplier_name") != null ? b.get("supplier_name") : "Supplier #" + b.get("supplier_id"));
             x.set("C" + row, bid != null ? Xlsx.bind(numberFormat(bid)) : "");
-            x.set("D" + row, Boolean.TRUE.equals(b.get("bid_security_posted")) ? "Posted" + (empty(form) ? "" : " (" + form + ")") : "Not posted");
+            x.set("D" + row, Boolean.TRUE.equals(b.get("bid_security_posted")) ? "Posted" + (empty(form) ? "" : " (" + securityForm(form) + ")") : "Not posted");
             x.set("E" + row, ucfirst((String) b.get("eligibility_result")));
             x.set("F" + row, ucfirst((String) b.get("technical_result")));
             x.set("G" + row, ucfirst((String) b.get("financial_result")));
@@ -116,10 +112,10 @@ public class AbstractOfBidsForm {
         x.set("A" + row, "Recommended (Lowest Calculated Responsive Bid): " + recName);
         x.style("A" + row).bold();
 
-        // Signatures
+        // Signed by the BAC members once the BAC has recommended the award.
         row += 3;
-        x.set("B" + row, "Prepared by: BAC Secretariat");
-        x.set("F" + row, "Approved by: BAC Chairperson");
+        row = RfqForms.bacSignatures(docs, x, row, "I", bidding.get("awarded_at") != null || "awarded".equals(bidding.get("status")));
+        x.page().printArea("A1:I" + row);
 
         // PhpSpreadsheet's auto-size leaves the merged title/recommendation rows out of the widths.
         for (String c : cols) {
@@ -127,6 +123,14 @@ public class AbstractOfBidsForm {
         }
 
         return x.bytes();
+    }
+
+    /** "bid_securing_declaration" → "Bid-Securing Declaration". */
+    private static String securityForm(String form) {
+        if ("bid_securing_declaration".equals(form)) return "Bid-Securing Declaration";
+        StringBuilder out = new StringBuilder();
+        for (String w : form.split("_")) out.append(out.length() == 0 ? "" : " ").append(ucfirst(w));
+        return out.toString();
     }
 
     /** PHP number_format($n, 2). */

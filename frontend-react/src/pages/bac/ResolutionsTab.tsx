@@ -11,6 +11,7 @@ import { formatDate } from '../../lib/format'
 import { useDebounced } from '../../lib/hooks'
 import { Badge } from '../assets/pickers'
 import { RESOLUTION_STATUS, RESOLUTION_TYPES } from '../rfq/labels'
+import { DocumentDownloads } from '../../components/DocumentDownloads'
 
 const typeLabel = (t: string) => RESOLUTION_TYPES.find(([k]) => k === t)?.[1] ?? t
 
@@ -225,6 +226,7 @@ function ResolutionDetail({ id, onClose, onEdit, onChanged }: { id: number; onCl
       {r && (
         <>
           {error && <div className="alert alert-error">{error}</div>}
+          <DocumentDownloads docs={[{ path: `/bac/resolutions/${r.id}/export`, name: `BAC_Resolution_${r.resolution_number}.xlsx`, label: 'BAC Resolution' }]} />
           <dl className="detail-grid">
             <dt>Status</dt>
             <dd>

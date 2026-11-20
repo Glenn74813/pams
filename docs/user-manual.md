@@ -22,6 +22,7 @@ How to use each page of PAMS. This file is generated from the in-app help (the *
   - [Purchase Orders](#purchase-orders)
   - [Contracts](#contracts)
   - [Suppliers (Vendors)](#suppliers)
+  - [Documents Sent to Suppliers](#outgoing-documents)
 - **Inventory**
   - [Receiving and Inspection (IAR)](#receiving)
   - [Items (Item Master)](#items)
@@ -990,6 +991,60 @@ The list shows the supplier as Eligible, Not verified, Inactive, or the sanction
 
 - A supplier with transaction history cannot be deleted; deactivate it instead.
 - Suppliers added from an RFQ quotation start as not verified.
+
+<a id="outgoing-documents"></a>
+
+## Documents Sent to Suppliers
+
+The RFQ, Purchase Order, notices, contract papers and BAC documents as Excel and PDF, with the agency letterhead and only the signatures each one needs.
+
+### Who can use it
+
+- Each document follows its record: whoever can open the RFQ, bidding, PO, contract or BAC resolution can download it.
+
+### What it is for
+
+Every record that produces a document has a **Documents** row in its window. Each document comes as Excel (to edit before sending) and PDF (to print or attach), in the same layout, with the agency letterhead and document logos from Settings.
+
+### Documents and who signs them
+
+| Document | Where | Signed by | Signature printed once |
+|---|---|---|---|
+| Request for Quotation | RFQ window | BAC Chairperson | The RFQ is issued |
+| Abstract of Quotations | RFQ window | BAC members | The award is made |
+| Notice of Award / Notice to Proceed | RFQ and bidding windows | Head of Agency; supplier's conforme | The notice is issued |
+| Purchase Order (Appendix 61) | Purchase Order window | The official who approved it; Accountant (funds available); supplier's conforme | The PO is approved; the funds are certified on the PR |
+| Invitation to Bid | Bidding window | BAC Chairperson | The invitation is posted |
+| Abstract of Bids | Bidding window | BAC members | The award is made |
+| BAC Resolution | BAC → Resolutions | BAC members; approved by the Head of Agency | The resolution is approved |
+| Contract Agreement | Contract window | Head of Agency; supplier, two witnesses and the notary by hand | The contract is signed |
+| Contract Amendment | Contract window → Amendments | Head of Agency; supplier's conforme | The amendment is approved |
+| Extension letter | Contract window → Extensions | Head of Agency | The request is approved or denied |
+| Notice of Liquidated Damages | Contract window | Head of Agency; received by the supplier | The damages are assessed |
+
+Each document carries only the signatures it needs. Until a signatory has acted on the record, their name is printed over a blank line with no signature image, so a draft never looks signed. The supplier always signs by hand.
+
+### Set up the names and signatures (administrator)
+
+1. In **Settings → Agency profile**, enter the agency name, address and fund cluster, and add the document logos.
+2. In **Settings → Signatories**, assign the Head of Agency, Accountant and BAC Chairperson.
+3. In **BAC → Composition**, set the **System user** of each BAC member so their signature can be printed.
+4. Each signatory uploads their signature under **My account → My signature**.
+
+> **Tip:** A signatory without an uploaded signature still gets their printed name over a line to sign by hand.
+
+### Statuses and what moves them
+
+Not applicable.
+
+### Forms and documents produced
+
+As listed above. The Purchase Order keeps the COA Appendix 61 layout; the notices, Invitation to Bid and contract follow the Philippine Bidding Documents forms under RA 12009.
+
+### Tips
+
+- A Notice of Award or Notice to Proceed can be downloaded only after it is issued; the Notice of Liquidated Damages only after damages are assessed.
+- Long documents continue on a second page; a signature block is never split across pages.
 
 # Inventory
 
@@ -2209,6 +2264,10 @@ Assign a user to each slot: Inventory Committee Chair, Supply Officer, Property 
 | WMR | Supply Officer, Head of Agency |
 | IAR | Inspection Officer, Supply Officer |
 | RLSDDP | Property Officer, Head of Agency |
+| RFQ, Invitation to Bid | BAC Chairperson |
+| Purchase Order | The official who approved it, Accountant |
+| Notices of Award and to Proceed, Contract, amendments, extension letters, LD notice | Head of Agency |
+| Abstracts, BAC Resolution | BAC members (Settings → BAC), Head of Agency on the resolution |
 
 ### System
 

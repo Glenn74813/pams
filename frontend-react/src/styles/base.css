@@ -297,3 +297,7 @@ button.kpi:hover { border-color: var(--primary-accent); }
 .modal-body .kpi { padding: 0.7rem 0.9rem; box-shadow: none; border-radius: 8px; }
 .modal-body .kpi-value { font-size: 1.1rem; }
 .modal-body .kpi-label { font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.04em; font-weight: 600; }
+
+/* Outgoing documents of a record, each as Excel and PDF */
+.document-downloads { display: flex; flex-wrap: wrap; align-items: center; gap: 0.4rem 0.9rem; margin: 0.75rem 0; }
+.document-download { display: inline-flex; gap: 0.25rem; white-space: nowrap; }

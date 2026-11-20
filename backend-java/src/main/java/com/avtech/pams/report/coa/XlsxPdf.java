@@ -200,7 +200,11 @@ public final class XlsxPdf {
                 int blockEnd = r;
                 for (int c = firstCol; c <= lastCol; c++) {
                     CellRangeAddress m = merges.get(key(r, c));
-                    if (m != null) blockEnd = Math.max(blockEnd, m.getLastRow());
+                    if (m != null && m.getFirstRow() == r) blockEnd = Math.max(blockEnd, m.getLastRow());
+                }
+                // A vertical merge right of the print area prints nothing; it marks rows to keep on one page (a signature block).
+                for (CellRangeAddress m : sheet.getMergedRegions()) {
+                    if (m.getFirstColumn() > lastCol && m.getFirstRow() == r) blockEnd = Math.max(blockEnd, m.getLastRow());
                 }
                 float block = rowY[Math.min(blockEnd, lastRow) - firstRow + 1] - rowY[r - firstRow];
                 if (used + block > pageHeight && r > start) {

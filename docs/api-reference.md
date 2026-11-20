@@ -68,7 +68,7 @@ It fetches `file_url` and posts the detached signature over the file's exact byt
 
 ## Endpoints
 
-493 endpoints in 52 groups.
+506 endpoints in 53 groups.
 
 - [Adjustment](#adjustment)
 - [Analytics](#analytics)
@@ -97,6 +97,7 @@ It fetches `file_url` and posts the detached signature over the file's exact byt
 - [Maintenance](#maintenance)
 - [Monitoring](#monitoring)
 - [Notification](#notification)
+- [Outgoing Forms](#outgoing-forms)
 - [Payment](#payment)
 - [Petty Cash](#petty-cash)
 - [Physical Count](#physical-count)
@@ -1635,6 +1636,75 @@ The caller's own in-app notifications (the bell).
 
 - Requires: *signed in*
 - Returns: a JSON object
+
+### Outgoing Forms
+
+Downloads of the documents PAMS sends out, as Excel; with `format=pdf` the same layout as PDF (PdfFormAdvice). Each download is audited. Read access follows the record's own page.
+
+**`GET /api/bac/resolutions/{id}/export`**
+
+- Requires: `view_bac`, `manage_bac_meetings`, `manage_bac_resolutions`, `conduct_bid_evaluation`, `process_award`, `create_rfq`, `view_rfq`
+- Returns: a file download
+
+**`GET /api/bidding/{id}/itb/export`**
+
+- Requires: `view_bidding`, `manage_bidding`, `process_award`, `conduct_bid_evaluation`
+- Returns: a file download
+
+**`GET /api/bidding/{id}/noa/export`**
+
+- Requires: `view_bidding`, `manage_bidding`, `process_award`, `conduct_bid_evaluation`
+- Returns: a file download
+
+**`GET /api/bidding/{id}/ntp/export`**
+
+- Requires: `view_bidding`, `manage_bidding`, `process_award`, `conduct_bid_evaluation`
+- Returns: a file download
+
+**`GET /api/contracts/amendments/{id}/export`**
+
+- Requires: `view_contracts`, `create_contracts`, `edit_contracts`
+- Returns: a file download
+
+**`GET /api/contracts/extensions/{id}/export`**
+
+- Requires: `view_contracts`, `create_contracts`, `edit_contracts`
+- Returns: a file download
+
+**`GET /api/contracts/{id}/export`**
+
+- Requires: `view_contracts`, `create_contracts`, `edit_contracts`
+- Returns: a file download
+
+**`GET /api/contracts/{id}/ld-notice/export`**
+
+- Requires: `view_contracts`, `create_contracts`, `edit_contracts`
+- Returns: a file download
+
+**`GET /api/procurement/purchase-orders/{id}/export`**
+
+- Requires: `view_procurement`, `approve_procurement`, `edit_procurement`, `create_procurement`, `view_receiving`, `create_receiving`, `accept_delivery`
+- Returns: a file download
+
+**`GET /api/rfq/{id}/abstract/export`**
+
+- Requires: `view_rfq`, `create_rfq`, `generate_abstract`, `process_award`
+- Returns: a file download
+
+**`GET /api/rfq/{id}/form/export`**
+
+- Requires: `view_rfq`, `create_rfq`, `generate_abstract`, `process_award`
+- Returns: a file download
+
+**`GET /api/rfq/{id}/noa/export`**
+
+- Requires: `view_rfq`, `create_rfq`, `generate_abstract`, `process_award`
+- Returns: a file download
+
+**`GET /api/rfq/{id}/ntp/export`**
+
+- Requires: `view_rfq`, `create_rfq`, `generate_abstract`, `process_award`
+- Returns: a file download
 
 ### Payment
 

@@ -13,7 +13,7 @@ import { BiddersPanel } from './BiddersPanel'
 import { BIDDING_STATUS, FLOW } from './labels'
 import { ObserversPanel, ProtestsPanel, TimelinePanel } from './RecordsPanels'
 import { AttachmentsPanel } from '../documents/AttachmentsPanel'
-import { ExcelButton } from '../../components/ExcelButton'
+import { DocumentDownloads } from '../../components/DocumentDownloads'
 
 interface Props {
   biddingId: number
@@ -214,14 +214,25 @@ function Details({ b, onPrint, onEdit, onChanged }: { b: Bidding; onPrint: () =>
       )}
 
       {mode === null && (
+        <DocumentDownloads
+          docs={[
+            { path: `/bidding/${b.id}/itb/export`, name: `ITB_${b.bidding_number}.xlsx`, label: 'Invitation to Bid' },
+            !['draft', 'pre_procurement', 'invitation'].includes(b.status) && {
+              path: `/bidding/${b.id}/abstract/export`,
+              name: `AbstractOfBids_${b.bidding_number}.xlsx`,
+              label: 'Abstract of Bids',
+            },
+            !!b.noa_number && { path: `/bidding/${b.id}/noa/export`, name: `NOA_${b.bidding_number}.xlsx`, label: 'Notice of Award' },
+            !!b.ntp_number && { path: `/bidding/${b.id}/ntp/export`, name: `NTP_${b.bidding_number}.xlsx`, label: 'Notice to Proceed' },
+          ]}
+        />
+      )}
+      {mode === null && (
         <div className="modal-footer">
           {!['draft', 'pre_procurement', 'invitation'].includes(b.status) && (
             <button className="btn btn-outline" onClick={onPrint}>
               🖨 Abstract of Bids
             </button>
-          )}
-          {!['draft', 'pre_procurement', 'invitation'].includes(b.status) && (
-            <ExcelButton path={`/bidding/${b.id}/abstract/export`} name={`AbstractOfBids_${b.bidding_number}.xlsx`} label="Abstract (Excel)" />
           )}
           {b.can_delete && (
             <button className="btn btn-danger" onClick={() => setMode('delete')}>
